@@ -70,7 +70,7 @@ values ('UUID-DE-TU-CUENTA-AUTH', 'admin')
 on conflict (user_id) do update set role = excluded.role;
 ```
 
-Abre `https://faro-pos.vercel.app/admin-accesos.html` e inicia sesión con esa
+Abre `https://faro-pos-pro.vercel.app/admin-accesos.html` e inicia sesión con esa
 cuenta. Solo una cuenta cuyo rol en `staff_roles` sea `admin` puede ver,
 aprobar, rechazar o revocar aparatos. No uses esa sesión para operar en un
 aparato de trabajo.

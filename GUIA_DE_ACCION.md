@@ -15,8 +15,9 @@ administrador aprueba el aparato desde [`admin-accesos.html`](./admin-accesos.ht
 el personal no inicia sesión con correo. Los PIN identifican el puesto, pero no
 autorizan datos por sí mismos. Las migraciones 0006–0008 ya están aplicadas en
 Supabase y Anonymous Sign-Ins está habilitado; el registro público por correo
-sigue apagado. Aún falta desplegar la versión HTML, asignar/verificar el rol
-`admin` y validar la aprobación con aparatos reales.
+sigue apagado. La versión HTML ya está publicada en
+`https://faro-pos-pro.vercel.app/`. Falta asignar/verificar el rol `admin` y
+validar la aprobación con aparatos reales.
 **No usarlo para ventas reales hasta cerrar los pendientes P0 y P1.**
 
 Este clon no contiene `package.json` ni la configuración necesaria para compilar
@@ -176,8 +177,9 @@ registra el método de pago: confirmar el cobro directamente en la terminal.
   el riesgo de operar sobre mesas reales accidentalmente.
 - En Supabase ya están aplicadas las migraciones 0006–0008, hay 13 mesas
   reservadas de prueba y Anonymous Sign-Ins está habilitado; el registro público
-  por correo permanece apagado. Vercel aún sirve el placeholder, así que el
-  piloto no puede comenzar hasta desplegar el HTML y asignar/verificar `admin`.
+  por correo permanece apagado. Vercel publica la aplicación en
+  `https://faro-pos-pro.vercel.app/`; queda pendiente asignar/verificar `admin`
+  y completar las pruebas de aceptación antes de considerar operativo el piloto.
 
 ## Criterio de no-go
 

@@ -2,13 +2,14 @@
 
 ## Antes de invitar al personal
 
-- [ ] Desplegar el HTML del POS y `admin-accesos.html` por HTTPS.
+- [x] Desplegar el HTML del POS y `admin-accesos.html` por HTTPS en
+  `https://faro-pos-pro.vercel.app/`.
 - [x] En Supabase, aplicar en orden las migraciones 0006, 0007 y 0008.
 - [x] Habilitar **Anonymous Sign-Ins**; mantener apagado el registro público de
   usuarios por correo.
 - [ ] Crear/verificar la cuenta Auth administradora y asignarle `admin` en
   `staff_roles`.
-- [ ] Entrar en `https://faro-pos.vercel.app/admin-accesos.html` y confirmar que
+- [ ] Entrar en `https://faro-pos-pro.vercel.app/admin-accesos.html` y confirmar que
   la lista de solicitudes se carga sin errores.
 - [ ] Acordar quién aprueba los equipos y cómo reconocer su nombre físico.
 - [ ] En cada dispositivo, confirmar fecha/hora correctas, Wi-Fi estable y que
