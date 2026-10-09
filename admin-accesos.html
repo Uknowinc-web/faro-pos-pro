@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#17332b">
+  <title>Aprobación de puestos — Faro POS Pro</title>
+  <style>
+    :root { font-family: system-ui, sans-serif; color: #202923; background: #f5f5ef; --green: #173f32; --line: #dedfd7; --muted: #68716b; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 320px; }
+    header { padding: 1.1rem max(1rem, calc((100vw - 920px) / 2)); background: var(--green); color: white; }
+    header h1 { margin: 0; font-size: 1.25rem; }
+    main { width: min(920px, 100%); margin: auto; padding: 1rem; }
+    .panel, article { padding: 1rem; border: 1px solid var(--line); border-radius: 14px; background: #fffefa; }
+    .panel { max-width: 440px; margin: 2rem auto; }
+    label { display: grid; gap: .35rem; margin: .8rem 0; font-weight: 650; }
+    input { width: 100%; min-height: 44px; padding: .65rem; border: 1px solid var(--line); border-radius: 9px; font: inherit; }
+    button { min-height: 40px; padding: .55rem .8rem; border: 1px solid var(--line); border-radius: 9px; background: #fff; color: #26372f; font: inherit; font-weight: 650; cursor: pointer; }
+    button:disabled { opacity: .55; cursor: wait; }
+    button.primary { border-color: var(--green); background: var(--green); color: white; }
+    button.danger { border-color: #e3b3ad; background: #fff0ed; color: #a63c32; }
+    .full { width: 100%; min-height: 46px; }
+    .muted { color: var(--muted); }
+    .message { min-height: 1.5rem; }
+    .requests { display: grid; gap: .75rem; margin-top: 1rem; }
+    .request-head, .actions { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .5rem; }
+    .request-head h3 { margin: 0; }
+    .actions { justify-content: start; margin-top: .75rem; }
+    .status { display: inline-block; padding: .2rem .55rem; border-radius: 99px; background: #edf0ed; font-size: .8rem; font-weight: 700; }
+    .status.pending { background: #fff0c8; }
+    .status.approved { background: #dff1e5; color: #1f613a; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <header><h1>Faro POS Pro · Administración de puestos</h1></header>
+  <main>
+    <section id="login" class="panel" hidden>
+      <h2>Iniciar sesión como administrador</h2>
+      <p class="muted">Solo se usa para que tú apruebes o revoques aparatos. El personal no necesita correo.</p>
+      <form id="login-form">
+        <label>Correo de tu cuenta administradora<input name="email" type="email" autocomplete="username" required></label>
+        <label>Contraseña<input name="password" type="password" autocomplete="current-password" required></label>
+        <p id="login-message" class="message" role="status"></p>
+        <button class="primary full" type="submit">Entrar</button>
+      </form>
+    </section>
+    <section id="dashboard" hidden>
+      <div class="request-head">
+        <div><h2>Solicitudes y puestos</h2><p id="admin-label" class="muted"></p></div>
+        <div class="actions">
+          <button id="refresh" type="button">Actualizar</button>
+          <button id="sign-out" type="button">Cerrar sesión</button>
+        </div>
+      </div>
+      <p id="dashboard-message" class="message" role="status"></p>
+      <div id="requests" class="requests"></div>
+    </section>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    "use strict";
+    const SUPABASE_URL = "https://mkirhamxvvdhmnrkozwg.supabase.co";
+    const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_zszFg_20dthjs3Ai1p8H4w_RSy2FluG";
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+    const loginSection = document.getElementById("login");
+    const dashboard = document.getElementById("dashboard");
+    const loginMessage = document.getElementById("login-message");
+    const dashboardMessage = document.getElementById("dashboard-message");
+    const requestsRoot = document.getElementById("requests");
+    let currentUser = null;
+    let refreshTimer = null;
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      })[char]);
+    }
+    function formatDate(value) {
+      return new Intl.DateTimeFormat("es-MX", {
+        dateStyle: "medium", timeStyle: "short", timeZone: "America/Monterrey"
+      }).format(new Date(value));
+    }
+    function showLogin(message = "") {
+      window.clearInterval(refreshTimer);
+      dashboard.hidden = true;
+      loginSection.hidden = false;
+      loginMessage.textContent = message;
+    }
+    async function requireAdmin(user) {
+      const { data, error } = await supabaseClient.from("staff_roles")
+        .select("role").eq("user_id", user.id).maybeSingle();
+      if (error) throw error;
+      if (data?.role !== "admin") {
+        const { error: signOutError } = await supabaseClient.auth.signOut();
+        if (signOutError) console.error("No se pudo cerrar la sesión sin rol administrador.", signOutError);
+        throw new Error("Esta cuenta no tiene el rol admin en Faro POS.");
+      }
+      currentUser = user;
+      loginSection.hidden = true;
+      dashboard.hidden = false;
+      document.getElementById("admin-label").textContent = `Sesión: ${user.email}`;
+      await loadRequests();
+      window.clearInterval(refreshTimer);
+      refreshTimer = window.setInterval(() => { void loadRequests(); }, 15000);
+    }
+    async function loadRequests() {
+      if (!currentUser) return;
+      dashboardMessage.textContent = "Actualizando solicitudes…";
+      const { data, error } = await supabaseClient.rpc("listar_solicitudes_puesto");
+      if (error) {
+        console.error("No se pudieron cargar las solicitudes.", error);
+        dashboardMessage.textContent = `No se pudieron cargar: ${error.message}`;
+        return;
+      }
+      requestsRoot.innerHTML = data.length ? data.map((request) => {
+        const statusLabel = {
+          pending: "Pendiente", approved: "Aprobado", rejected: "Rechazado", revoked: "Revocado"
+        }[request.status] ?? request.status;
+        let controls = "";
+        if (request.status === "pending") {
+          controls = `<div class="actions">
+            <button class="primary" type="button" data-approve="${escapeHtml(request.user_id)}">Aprobar acceso</button>
+            <button class="danger" type="button" data-reject="${escapeHtml(request.user_id)}">Rechazar</button>
+          </div>`;
+        } else if (request.status === "approved") {
+          controls = `<div class="actions"><button class="danger" type="button" data-revoke="${escapeHtml(request.user_id)}">Revocar acceso</button></div>`;
+        } else {
+          controls = `<div class="actions"><button class="primary" type="button" data-reactivate="${escapeHtml(request.user_id)}">Reactivar acceso</button></div>`;
+        }
+        return `<article>
+          <div class="request-head">
+            <h3>${escapeHtml(request.device_label)}</h3>
+            <span class="status ${escapeHtml(request.status)}">${escapeHtml(statusLabel)}</span>
+          </div>
+          <p><strong>Puesto:</strong> ${escapeHtml(request.requested_role)}</p>
+          <p><strong>Solicitado:</strong> ${escapeHtml(formatDate(request.requested_at))}</p>
+          <p class="muted"><strong>ID del aparato:</strong> ${escapeHtml(request.user_id)}</p>
+          ${controls}
+        </article>`;
+      }).join("") : `<article class="muted">Todavía no hay solicitudes.</article>`;
+      dashboardMessage.textContent = `Actualizado ${formatDate(new Date().toISOString())}. Confirma que el nombre y el puesto correspondan al aparato físico antes de aprobar.`;
+    }
+    document.getElementById("login-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const button = form.querySelector("button[type=submit]");
+      button.disabled = true;
+      loginMessage.textContent = "Verificando cuenta…";
+      try {
+        const { data, error } = await supabaseClient.auth.signInWithPassword({
+          email: form.elements.email.value.trim(),
+          password: form.elements.password.value
+        });
+        if (error) throw error;
+        await requireAdmin(data.user);
+      } catch (error) {
+        console.error("No se pudo iniciar sesión como administrador.", error);
+        loginMessage.textContent = error.message || "No se pudo verificar la cuenta.";
+      } finally {
+        button.disabled = false;
+      }
+    });
+    document.getElementById("requests").addEventListener("click", async (event) => {
+      const button = event.target.closest("button[data-approve], button[data-reject], button[data-revoke], button[data-reactivate]");
+      if (!button) return;
+      button.disabled = true;
+      dashboardMessage.textContent = "Guardando cambio…";
+      try {
+        if (button.dataset.approve || button.dataset.reject || button.dataset.reactivate) {
+          const approve = Boolean(button.dataset.approve || button.dataset.reactivate);
+          const userId = button.dataset.approve || button.dataset.reject || button.dataset.reactivate;
+          const confirmation = button.dataset.reactivate
+            ? "¿Confirmas que quieres reactivar este aparato y devolverle su puesto?"
+            : approve
+              ? "¿Confirmas que este aparato físico debe recibir ese puesto?"
+              : "¿Rechazar esta solicitud? El aparato no recibirá acceso.";
+          if (!window.confirm(confirmation)) return;
+          const { error } = await supabaseClient.rpc("resolver_solicitud_puesto", {
+            p_user_id: userId,
+            p_approve: approve
+          });
+          if (error) throw error;
+        } else {
+          if (!window.confirm("¿Revocar el acceso de este aparato? Perderá acceso a los datos y operaciones del POS.")) return;
+          const { error } = await supabaseClient.rpc("revocar_acceso_puesto", {
+            p_user_id: button.dataset.revoke
+          });
+          if (error) throw error;
+        }
+        await loadRequests();
+      } catch (error) {
+        console.error("No se pudo actualizar el acceso del aparato.", error);
+        dashboardMessage.textContent = `No se pudo guardar: ${error.message}`;
+      } finally {
+        button.disabled = false;
+      }
+    });
+    document.getElementById("refresh").addEventListener("click", () => { void loadRequests(); });
+    document.getElementById("sign-out").addEventListener("click", async () => {
+      const { error } = await supabaseClient.auth.signOut();
+      if (error) {
+        console.error("No se pudo cerrar sesión.", error);
+        dashboardMessage.textContent = `No se pudo cerrar sesión: ${error.message}`;
+        return;
+      }
+      currentUser = null;
+      showLogin("Sesión cerrada.");
+    });
+
+    (async () => {
+      try {
+        const { data, error } = await supabaseClient.auth.getSession();
+        if (error) throw error;
+        if (data.session) await requireAdmin(data.session.user);
+        else showLogin();
+      } catch (error) {
+        console.error("No se pudo iniciar el panel de aprobación.", error);
+        showLogin(error.message || "No se pudo conectar con el servicio de acceso.");
+      }
+    })();
+  </script>
+</body>
+</html>

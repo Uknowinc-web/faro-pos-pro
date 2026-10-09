@@ -16,26 +16,40 @@ Tienes dos maneras directas de obtener el código completo del proyecto:
 ## 2. Esquema y seguridad de base de datos
 
 Las migraciones SQL vigentes están en `drizzle/migrations`. En una base nueva,
-ejecutar 0000–0005 en orden; en una base ya migrada, ejecutar únicamente las
-pendientes. La 0003 cierra el acceso anónimo, define roles del personal y
-restringe las consultas y operaciones RPC. La 0004 verifica catálogo,
+ejecutar 0000–0008 en orden; en una base ya migrada, ejecutar únicamente las
+pendientes. La 0003 cierra permisos directos al rol PostgreSQL `anon`, define
+roles y restringe las consultas y operaciones RPC. La 0004 verifica catálogo,
 modificadores y precio en PostgreSQL. La 0005 limita las cuentas al rol de caja
-y a administración.
+y administración. La 0006 permite solicitar acceso con una identidad técnica
+de aparato sin permisos; solo una cuenta `admin` puede asignarle un puesto. La
+0007 crea mesas de ensayo aisladas y filtra por modo para que no afecten el corte.
+0008 exige que cada cambio de estado, solicitud de cuenta, cobro y anulación
+coincida con el modo de la mesa en el servidor; el HTML inicia en modo prueba.
 
 **No uses los fragmentos SQL históricos de esta sección como mecanismo de
 despliegue.** La autorización canónica está en
 [`0003_restringir_acceso_a_personal.sql`](./drizzle/migrations/0003_restringir_acceso_a_personal.sql);
 [`0004_validar_precios_en_servidor.sql`](./drizzle/migrations/0004_validar_precios_en_servidor.sql) y
-[`0005_restringir_consulta_de_caja.sql`](./drizzle/migrations/0005_restringir_consulta_de_caja.sql).
+[`0005_restringir_consulta_de_caja.sql`](./drizzle/migrations/0005_restringir_consulta_de_caja.sql),
+[`0006_aprobar_puestos_sin_correo.sql`](./drizzle/migrations/0006_aprobar_puestos_sin_correo.sql) y
+[`0007_modo_prueba_aislado.sql`](./drizzle/migrations/0007_modo_prueba_aislado.sql) y
+[`0008_validar_modo_en_operaciones.sql`](./drizzle/migrations/0008_validar_modo_en_operaciones.sql).
 Consulta [SUPABASE_ACCESO.md](./SUPABASE_ACCESO.md) para aplicar migraciones,
-asignar roles y comprobar que `anon` no tenga permisos.
+configurar la cuenta `admin`, aprobar aparatos y comprobar que el rol de base
+`anon` no tenga permisos.
 
 La versión de puesto se abre con la misma liga en cada aparato. El PIN (`101`,
 `202` o `303`) bloquea la interfaz en un rol fijo; no es una credencial del
-servidor. Un administrador debe iniciar sesión una vez en cada equipo con una
-cuenta Auth del rol correspondiente. Después, el navegador conserva la sesión y
-el personal solo ingresa el PIN al abrir o recargar la liga. Los tres QR están
-en [`QR_PUESTOS.html`](./QR_PUESTOS.html) y contienen el mismo enlace.
+servidor. El aparato crea una identidad anónima individual sin permisos y espera
+la aprobación de una cuenta `admin` en [`admin-accesos.html`](./admin-accesos.html).
+Una vez aprobada la identidad, el personal solo ingresa el PIN al abrir o
+recargar la liga. Los tres QR están en [`QR_PUESTOS.html`](./QR_PUESTOS.html) y
+contienen el mismo enlace.
+
+Cada puesto muestra claramente **Modo operación** o **Modo de prueba**. Los
+ensayos usan mesas `PRUEBA · ...` y no deben mezclarse con tickets, pagos o
+cortes reales. El modo queda guardado por aparato; confirmar cuidadosamente
+antes de cambiarlo.
 
 El siguiente esquema resume las entidades principales; para crear o actualizar
 una base utiliza los archivos de migración completos.

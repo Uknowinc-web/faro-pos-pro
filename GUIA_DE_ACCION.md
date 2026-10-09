@@ -9,11 +9,14 @@ ventas auditables y acceso protegido.
 ## Decisión inmediata
 
 El archivo [`faro-pos-pro.html`](./faro-pos-pro.html) conecta Supabase Auth y
-requiere un rol. Cada aparato abre la misma liga y pide su PIN (`101` mesero,
-`202` cocina, `303` caja). La primera vez, el administrador vincula el navegador
-con una cuenta Supabase del rol correcto; después solo se introduce el PIN.
-Este PIN es un bloqueo de interfaz, no reemplaza la autenticación ni autoriza
-datos por sí mismo. Aún faltan cuentas y pruebas reales por puesto.
+requiere un rol aprobado en el servidor. Cada aparato abre la misma liga y pide
+su nombre y PIN (`101` mesero, `202` cocina, `303` caja). La primera vez, el
+administrador aprueba el aparato desde [`admin-accesos.html`](./admin-accesos.html);
+el personal no inicia sesión con correo. Los PIN identifican el puesto, pero no
+autorizan datos por sí mismos. Las migraciones 0006–0008 ya están aplicadas en
+Supabase y Anonymous Sign-Ins está habilitado; el registro público por correo
+sigue apagado. Aún falta desplegar la versión HTML, asignar/verificar el rol
+`admin` y validar la aprobación con aparatos reales.
 **No usarlo para ventas reales hasta cerrar los pendientes P0 y P1.**
 
 Este clon no contiene `package.json` ni la configuración necesaria para compilar
@@ -44,19 +47,21 @@ compilarlo siguiendo únicamente las instrucciones del README.
   permitidas y rechaza otros roles.
 - [x] Aplicar las migraciones 0000–0003 en el proyecto Supabase real y verificar los
   permisos con las consultas de [`SUPABASE_ACCESO.md`](./SUPABASE_ACCESO.md).
-- [x] Deshabilitar sign-in anónimo y altas públicas.
-- [x] Implementar inicio/cierre de sesión y protección por rol en la versión HTML.
+- [x] Mantener deshabilitado el registro público de cuentas con correo.
+- [x] Implementar solicitudes de acceso de aparato sin correo y un panel de
+  aprobación/revocación administrativa en la versión HTML.
 - [x] Añadir PIN de puesto que fija la interfaz del aparato y vuelve a pedirlo
-  al recargar la liga, sin sustituir Supabase Auth.
-- [ ] Vincular cada aparato con una cuenta Auth exclusiva de su rol.
-- [ ] Crear usuarios de personal y asignarles roles siguiendo
+  al recargar la liga; el PIN no sustituye la asignación de rol en Supabase.
+- [x] Aplicar las migraciones 0006–0008 y habilitar Anonymous Sign-Ins para
+  identidades técnicas sin permisos previos.
+- [ ] Crear tu cuenta administradora Auth y asignarle `admin` siguiendo
   [`SUPABASE_ACCESO.md`](./SUPABASE_ACCESO.md).
-- [ ] Probar con cuentas sin sesión, mesero, cocina y caja que cada una pueda
-  hacer solo las operaciones autorizadas.
+- [ ] Probar solicitud pendiente, aprobación, rechazo y revocación con aparatos
+  de mesero, cocina y caja; confirmar que el pendiente no lee datos.
 
-**Terminado cuando:** una petición anónima no puede leer ni modificar datos y
-cada rol pasa pruebas de autorización positivas y negativas. No exponer la
-aplicación a internet antes de este punto.
+**Terminado cuando:** una identidad de aparato sin aprobación no puede leer ni
+modificar datos, el administrador puede aprobar/revocar y cada rol pasa pruebas
+de autorización positivas y negativas. No operar ventas antes de verificarlo.
 
 ### 3. Definir catálogo y precios en un único lugar — P0
 
@@ -131,10 +136,11 @@ contingencia.
 
 ## Uso seguro de la versión HTML
 
-Abrir `faro-pos-pro.html` en un navegador con internet e iniciar sesión con una
-cuenta autorizada y el PIN del puesto. La hoja imprimible de QR está en
+Abrir `faro-pos-pro.html` en un navegador con internet, solicitar acceso con el
+nombre del aparato y su PIN, y aprobarlo en el panel de administración. La hoja imprimible de QR está en
 [`QR_PUESTOS.html`](./QR_PUESTOS.html); los tres códigos QR abren el mismo URL.
-Al volver desde otra app, los datos se sincronizan y el envío queda bloqueado
+El panel requiere iniciar sesión con la cuenta administradora del POS. Al volver
+desde otra app, los datos se sincronizan y el envío queda bloqueado
 hasta que la sincronización tenga éxito. Los borradores se conservan en el
 navegador; comandas y cuentas se guardan en Supabase. “Clip registrado” solo
 registra el método de pago: confirmar el cobro directamente en la terminal.
@@ -161,6 +167,17 @@ registra el método de pago: confirmar el cobro directamente en la terminal.
   no permitido.
 - La migración 0005 está aplicada. No hay todavía cuentas de personal vinculadas
   a los aparatos y el proyecto Vercel sigue pendiente de conexión al repositorio.
+- El código local añade la migración 0006 y `admin-accesos.html`; todavía deben
+  aplicarse en Supabase y desplegarse antes de pedir/aprobar aparatos sin correo.
+- El código añade modo de prueba aislado y la migración 0007; es requisito antes
+  de generar tickets de ensayo en la base compartida.
+- La migración 0008 valida el modo de prueba también al cambiar estados, marcar
+  cuentas, cobrar o anular. El HTML abre en modo prueba por defecto para reducir
+  el riesgo de operar sobre mesas reales accidentalmente.
+- En Supabase ya están aplicadas las migraciones 0006–0008, hay 13 mesas
+  reservadas de prueba y Anonymous Sign-Ins está habilitado; el registro público
+  por correo permanece apagado. Vercel aún sirve el placeholder, así que el
+  piloto no puede comenzar hasta desplegar el HTML y asignar/verificar `admin`.
 
 ## Criterio de no-go
 

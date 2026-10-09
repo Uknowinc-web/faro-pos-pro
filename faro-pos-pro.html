@@ -45,6 +45,7 @@
       padding: .8rem 1rem; margin-bottom: 1rem; border: 1px solid #e8cc92;
       border-radius: 12px; background: #fff5dd; color: #664d1e; font-size: .9rem;
     }
+    .test-banner { border-color: #bc7800; background: #fff0c8; color: #5a3b00; font-weight: 750; }
     .nav { display: flex; gap: .5rem; margin-bottom: 1rem; overflow-x: auto; }
     .nav button {
       flex: 1; min-width: 110px; padding: .75rem 1rem; border: 1px solid var(--line);
@@ -172,8 +173,8 @@
   </header>
   <main class="container">
     <div class="notice">
-      <strong>Puesto seguro:</strong> escribe el código del aparato. La primera vez, el administrador
-      debe vincularlo con la cuenta Supabase del rol correspondiente. Al volver a esta app, se sincroniza
+    <strong>Puesto seguro:</strong> escribe el nombre del aparato y su código. La primera vez, administración
+    debe aprobarlo desde su panel; el personal no requiere correo. Al volver a esta app, se sincroniza
       con el servidor antes de permitir operaciones. Los pagos Clip se registran manualmente y también
       deben cobrarse en la terminal.
     </div>
@@ -198,6 +199,7 @@
     const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_zszFg_20dthjs3Ai1p8H4w_RSy2FluG";
     const DRAFT_STORAGE_KEY = "faro-pos-pro-drafts-v1";
     const STATION_STORAGE_KEY = "faro-pos-station-v1";
+    const DEVICE_LABEL_STORAGE_KEY = "faro-pos-device-label-v1";
     const STATION_CODES = Object.freeze({ "101": "mesero", "202": "cocina", "303": "caja" });
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
     const CARNES = ["Asada", "Pastor", "Tripa"];
@@ -230,6 +232,7 @@
 
     const state = {
       view: "mesero",
+      testMode: false,
       category: CATEGORIAS[0],
       selectedTable: null,
       draft: [],
@@ -238,6 +241,8 @@
       stationRole: null,
       stationBoundRole: null,
       pendingStationRole: null,
+      awaitingApproval: false,
+      deviceLabel: "",
       authReady: false,
       authMessage: "",
       dataFresh: false,
@@ -377,11 +382,15 @@
       const message = state.authMessage || (state.authReady ? "" : "Comprobando sesión segura…");
       const boundMessage = state.stationBoundRole
         ? `Este aparato está fijo en ${state.stationBoundRole}.`
-        : "Al vincularlo, este aparato quedará fijo en ese puesto.";
+        : "Al solicitar acceso, este aparato quedará fijo en ese puesto hasta que administración lo revoque.";
       return `<section class="panel" style="max-width:440px;margin:2rem auto">
         <h2>Código del puesto</h2>
-        <p class="muted">${boundMessage} Solo acepta el código ligado a este aparato.</p>
+        <p class="muted">${boundMessage} El código solo identifica el puesto; administración debe aprobar el acceso.</p>
         <form id="station-form">
+          <label class="field">Nombre de este aparato
+            <input name="device-label" maxlength="80" value="${escapeHtml(state.deviceLabel)}"
+              placeholder="Ej. Tablet cocina" autocomplete="off" required>
+          </label>
           <label class="field">Código de 3 dígitos
             <input class="station-code" name="station-code" type="password" inputmode="numeric"
               pattern="[0-9]{3}" maxlength="3" autocomplete="off" required autofocus>
@@ -389,18 +398,16 @@
           <p class="muted" role="status">${escapeHtml(message)}</p>
           <button class="button primary full" type="submit" ${state.authReady ? "" : "disabled"}>Entrar al puesto</button>
         </form>
+        <p class="muted"><a href="./admin-accesos.html">Panel de aprobación para administración</a></p>
       </section>`;
     }
-    function renderStationSetup() {
+    function renderStationApproval() {
       return `<section class="panel" style="max-width:440px;margin:2rem auto">
-        <h2>Vincular puesto ${escapeHtml(state.pendingStationRole)}</h2>
-        <p class="muted">Configuración inicial del aparato. La cuenta Supabase debe tener el rol ${escapeHtml(state.pendingStationRole)}. Después, el personal solo necesitará el código del puesto.</p>
-        <form id="login-form">
-          <label class="field">Correo de la cuenta de este puesto<input name="email" type="email" autocomplete="username" required></label>
-          <label class="field">Contraseña<input name="password" type="password" autocomplete="current-password" required></label>
-          <p class="muted" role="status">${escapeHtml(state.authMessage)}</p>
-          <button class="button primary full" type="submit" ${state.authReady ? "" : "disabled"}>Vincular aparato</button>
-        </form>
+        <h2>Esperando aprobación</h2>
+        <p class="muted">Solicitud para <strong>${escapeHtml(state.deviceLabel)}</strong> en el puesto <strong>${escapeHtml(state.pendingStationRole)}</strong>.</p>
+        <p role="status">${escapeHtml(state.authMessage || "Administración revisará este aparato. La pantalla se actualizará automáticamente.")}</p>
+        <button class="button primary full" type="button" data-action="check-approval" ${state.authReady ? "" : "disabled"}>Comprobar aprobación</button>
+        <p class="muted"><a href="./admin-accesos.html">Abrir panel de administración</a></p>
       </section>`;
     }
     let remoteRefreshPromise = null;
@@ -429,12 +436,25 @@
     }
     async function loadRemoteData(showError) {
       try {
-        const tablesQuery = supabaseClient.from("mesas").select("id,nombre,orden,estado")
-          .eq("activa", true).order("orden").order("nombre");
+        const { data: assignedRole, error: roleError } = await supabaseClient.from("staff_roles")
+          .select("role").eq("user_id", state.user.id).maybeSingle();
+        if (roleError) throw roleError;
+        if (!assignedRole || assignedRole.role !== state.stationRole) {
+          state.role = null;
+          state.stationRole = null;
+          state.pendingStationRole = null;
+          state.awaitingApproval = false;
+          state.data = { tables: [], checks: [], nextTicket: 1, drafts: {} };
+          state.authMessage = "El acceso de este aparato fue revocado o cambió de puesto. Contacta a administración.";
+          return false;
+        }
+        const tablesQuery = supabaseClient.from("mesas").select("id,nombre,orden,estado,es_prueba")
+          .eq("es_prueba", state.testMode).eq("activa", true).order("orden").order("nombre");
         const [tablesResult, accountsResult] = await Promise.all([
           tablesQuery,
           state.role !== "caja" ? Promise.resolve({ data: null, error: null }) :
-            supabaseClient.from("cuentas").select("id,mesa_id,estado,metodo_pago,total,motivo_anulacion,fecha_operativa,mesas(nombre),comandas(id,numero,estado,created_at,comanda_items(id,producto_id,nombre,cantidad,precio_unitario,modificadores,notas))").order("abierta_at", { ascending: false })
+            supabaseClient.from("cuentas").select("id,mesa_id,estado,metodo_pago,total,motivo_anulacion,fecha_operativa,mesas!inner(nombre,es_prueba),comandas(id,numero,estado,created_at,comanda_items(id,producto_id,nombre,cantidad,precio_unitario,modificadores,notas))")
+              .eq("mesas.es_prueba", state.testMode).order("abierta_at", { ascending: false })
         ]);
         const { data: tables, error: tableError } = tablesResult;
         const { data: accounts, error: accountError } = accountsResult;
@@ -470,7 +490,8 @@
         }));
         if (state.role === "mesero") {
           const { data: tickets, error } = await supabaseClient.from("comandas")
-            .select("id,numero,estado,created_at,mesas(id,nombre),comanda_items(id,producto_id,nombre,cantidad,precio_unitario,modificadores,notas)")
+            .select("id,numero,estado,created_at,mesas!inner(id,nombre,es_prueba),comanda_items(id,producto_id,nombre,cantidad,precio_unitario,modificadores,notas)")
+            .eq("mesas.es_prueba", state.testMode)
             .gte("created_at", new Date(Date.now() - 12 * 60 * 60_000).toISOString())
             .order("created_at", { ascending: false });
           if (error) throw error;
@@ -501,8 +522,9 @@
         }
         if (state.role === "cocina") {
           const { data: tickets, error } = await supabaseClient.from("comandas")
-            .select("id,numero,estado,created_at,mesas(id,nombre),comanda_items(id,producto_id,nombre,cantidad,precio_unitario,modificadores,notas)")
+            .select("id,numero,estado,created_at,mesas!inner(id,nombre,es_prueba),comanda_items(id,producto_id,nombre,cantidad,precio_unitario,modificadores,notas)")
             .in("estado", ["pendiente", "preparacion"])
+            .eq("mesas.es_prueba", state.testMode)
             .gte("created_at", new Date(Date.now() - 12 * 60 * 60_000).toISOString())
             .order("created_at");
           if (error) throw error;
@@ -536,7 +558,8 @@
             id: table.id,
             name: table.nombre,
             order: table.orden,
-            status: table.estado
+            status: table.estado,
+            test: table.es_prueba
           })),
           checks,
           nextTicket: checks.flatMap((check) => check.tickets).reduce((max, ticket) => Math.max(max, ticket.number), 0) + 1,
@@ -588,10 +611,44 @@
         const { data, error } = await supabaseClient.from("staff_roles")
           .select("role").eq("user_id", user.id).maybeSingle();
         if (error) throw error;
-        if (!data || !Object.values(STATION_CODES).includes(data.role)) {
-          throw new Error("Esta cuenta no tiene uno de los roles autorizados para los puestos.");
+        if (!data && user.is_anonymous) {
+          const { data: requestStatus, error: requestError } = await supabaseClient.rpc("solicitar_acceso_puesto", {
+            p_role: requestedRole,
+            p_device_label: state.deviceLabel
+          });
+          if (requestError) throw requestError;
+          if (requestStatus !== "approved") {
+            state.authReady = true;
+            state.awaitingApproval = requestStatus === "pending";
+            state.authMessage = requestStatus === "pending"
+              ? "Solicitud enviada. Se comprobará automáticamente hasta que administración la apruebe."
+              : requestStatus === "rejected"
+                ? "La solicitud fue rechazada. Contacta a administración si debe revisarse."
+                : requestStatus === "revoked"
+                  ? "El acceso fue revocado. Contacta a administración si debe reactivarse."
+                  : "No se pudo identificar el estado de la solicitud. Contacta a administración.";
+            render();
+            if (state.awaitingApproval) {
+              window.clearTimeout(approvalPollTimer);
+              approvalPollTimer = window.setTimeout(() => {
+                if (state.user && state.pendingStationRole) {
+                  void activateSession(state.user, state.pendingStationRole);
+                }
+              }, 8000);
+            }
+            return;
+          }
+          const { data: approvedRole, error: approvedRoleError } = await supabaseClient.from("staff_roles")
+            .select("role").eq("user_id", user.id).maybeSingle();
+          if (approvedRoleError) throw approvedRoleError;
+          if (!approvedRole) throw new Error("La aprobación no se reflejó todavía. Intenta comprobar de nuevo.");
+          state.role = approvedRole.role;
+        } else if (!data || !Object.values(STATION_CODES).includes(data.role)) {
+          throw new Error("Esta identidad no tiene un puesto aprobado.");
+        } else {
+          state.role = data.role;
         }
-        if (requestedRole !== data.role) {
+        if (requestedRole !== state.role) {
           throw new Error("El código del puesto no coincide con el rol de esta cuenta.");
         }
         const boundRole = localStorage.getItem(STATION_STORAGE_KEY);
@@ -600,8 +657,9 @@
         }
         if (!boundRole) localStorage.setItem(STATION_STORAGE_KEY, requestedRole);
         state.stationBoundRole = requestedRole;
-        state.role = data.role;
         state.stationRole = requestedRole;
+        state.awaitingApproval = false;
+        window.clearTimeout(approvalPollTimer);
         state.pendingStationRole = null;
         state.view = requestedRole;
         state.authReady = true;
@@ -615,16 +673,20 @@
       } catch (error) {
         console.error("No se pudo validar la cuenta y el puesto.", error);
         state.authReady = true;
+        state.awaitingApproval = false;
         state.authMessage = error.message || "No se pudo validar la cuenta y el puesto.";
       }
       render();
     }
+    let approvalPollTimer = null;
     async function initializeAuth() {
       try {
         const { data, error } = await supabaseClient.auth.getSession();
         if (error) throw error;
         state.user = data.session?.user ?? null;
         state.stationBoundRole = localStorage.getItem(STATION_STORAGE_KEY);
+        state.deviceLabel = localStorage.getItem(DEVICE_LABEL_STORAGE_KEY) || "";
+        state.testMode = localStorage.getItem("faro-pos-test-mode-v1") !== "false";
         state.authReady = true;
         render();
         supabaseClient.auth.onAuthStateChange((event, session) => {
@@ -633,6 +695,8 @@
             state.role = null;
             state.stationRole = null;
             state.pendingStationRole = null;
+            state.awaitingApproval = false;
+            window.clearTimeout(approvalPollTimer);
             state.dataFresh = false;
             state.syncError = "";
             state.data = { tables: [], checks: [], nextTicket: 1, drafts: {} };
@@ -670,9 +734,9 @@
       const authorized = Boolean(state.user && state.role && state.stationRole === state.role);
       const nav = document.getElementById("module-nav");
       nav.classList.toggle("hidden", !authorized);
-      document.getElementById("sign-out").classList.toggle("hidden", !state.user);
+      document.getElementById("sign-out").classList.toggle("hidden", !state.user || state.user.is_anonymous);
       document.getElementById("user-label").textContent = state.user
-        ? `${state.user.email ?? "Personal"}${authorized ? ` · ${state.stationRole}` : " · Puesto bloqueado"}` : "";
+        ? `${state.user.is_anonymous ? "Aparato" : state.user.email ?? "Personal"}${authorized ? ` · ${state.stationRole}` : " · Puesto bloqueado"}` : "";
       if (authorized) {
         const permitted = [state.stationRole];
         nav.querySelectorAll("[data-view]").forEach((button) => {
@@ -687,15 +751,23 @@
       });
       const app = document.getElementById("app");
       if (!authorized) {
-        app.innerHTML = state.pendingStationRole && !state.user ? renderStationSetup() : renderStationCode();
+        app.innerHTML = state.awaitingApproval ? renderStationApproval() : renderStationCode();
       } else {
+        const testBanner = `<div class="notice test-banner">
+          ${state.testMode
+            ? "MODO DE PRUEBA ACTIVO: comandas y cuentas aisladas; no registrar ni cobrar ventas reales."
+            : "MODO OPERACIÓN: las comandas afectan registros reales. Cambia a prueba antes de ensayar."}
+          <button class="button ${state.testMode ? "warning" : ""}" type="button" data-action="toggle-test-mode">
+            Cambiar a ${state.testMode ? "operación" : "modo prueba"}
+          </button>
+        </div>`;
         const syncStatus = state.dataFresh ? "" : `<div class="notice" role="status">${
           state.syncing ? "Sincronizando con Supabase…" :
             escapeHtml(state.syncError || "Datos pendientes de sincronización. Las operaciones están bloqueadas.")
         }</div>`;
         const view = state.stationRole === "mesero" ? renderWaiter() :
           state.stationRole === "cocina" ? renderKitchen() : renderCashier();
-        app.innerHTML = syncStatus + view;
+        app.innerHTML = testBanner + syncStatus + view;
       }
     }
 
@@ -816,7 +888,7 @@
         ranking.set(item.name, entry);
       });
       const top = [...ranking.entries()].sort((a, b) => b[1].quantity - a[1].quantity).slice(0, 10);
-      return `<h2>Caja</h2>
+      return `      <h2>Caja${state.testMode ? " · Pruebas" : ""}</h2>
         <div class="section-heading"><h3>Mesas y cuentas</h3><span class="muted">${active.filter((entry) => entry.check).length} cuentas visibles</span></div>
         <div class="toolbar no-print">
           <input type="search" id="cashier-search" placeholder="Buscar mesa o comanda" aria-label="Buscar mesa o número de comanda" value="${escapeHtml(state.cashierSearch)}">
@@ -861,9 +933,9 @@
             <strong>${money(item.quantity * item.unitPrice)}</strong></div>`).join("")}`).join("")}
           <div class="receipt-total"><span>Total</span><span>${money(total)}</span></div></div>
         <div class="actions no-print">
-          ${check.status !== "por_cobrar" ? `<button class="button warning" data-mark-due="${check.id}">Marcar por cobrar</button>` : ""}
-          <button class="button primary" data-pay="${check.id}" data-method="efectivo">Cobrar efectivo</button>
-          <button class="button primary" data-pay="${check.id}" data-method="clip">Registrar Clip</button>
+          ${check.status !== "por_cobrar" ? `<button class="button warning" data-mark-due="${check.id}">${state.testMode ? "Prueba por cobrar" : "Marcar por cobrar"}</button>` : ""}
+          <button class="button primary" data-pay="${check.id}" data-method="efectivo">${state.testMode ? "Simular efectivo" : "Cobrar efectivo"}</button>
+          <button class="button primary" data-pay="${check.id}" data-method="clip">${state.testMode ? "Simular Clip" : "Registrar Clip"}</button>
           <button class="button danger" data-void="${check.id}">Anular cuenta</button>
           <button class="button" data-print>Imprimir</button>
         </div>`;
@@ -960,14 +1032,15 @@
         p_mesa: table.id,
         p_token: state.orderToken,
         p_items: items,
-        p_mesero: state.user.email ?? null
+        p_mesero: state.user.email ?? null,
+        p_es_prueba: state.testMode
       });
       if (error) {
         console.error("No se pudo enviar la comanda.", error);
         toast(`No se pudo enviar la comanda: ${error.message}`, true);
         return;
       }
-      toast(`Comanda enviada · ${table.name}`);
+      toast(state.testMode ? `Comanda de prueba enviada · ${table.name}` : `Comanda enviada · ${table.name}`);
       delete state.data.drafts[table.id];
       saveDrafts();
       state.selectedTable = null;
@@ -979,7 +1052,8 @@
       if (!await ensureFreshData()) return;
       const { error } = await supabaseClient.rpc("actualizar_estado_comanda", {
         p_comanda: ticketId,
-        p_estado: nextStatus
+        p_estado: nextStatus,
+        p_es_prueba: state.testMode
       });
       if (error) {
         console.error("No se pudo cambiar el estado de la comanda.", error);
@@ -990,7 +1064,10 @@
     }
     async function markDue(checkId) {
       if (!await ensureFreshData()) return;
-      const { error } = await supabaseClient.rpc("solicitar_cuenta", { p_cuenta: checkId });
+      const { error } = await supabaseClient.rpc("solicitar_cuenta", {
+        p_cuenta: checkId,
+        p_es_prueba: state.testMode
+      });
       if (error) {
         console.error("No se pudo marcar la cuenta por cobrar.", error);
         toast(`No se pudo marcar por cobrar: ${error.message}`, true);
@@ -1003,7 +1080,8 @@
       if (!await ensureFreshData()) return;
       const { error } = await supabaseClient.rpc("cobrar_cuenta", {
         p_cuenta: checkId,
-        p_metodo: method
+        p_metodo: method,
+        p_es_prueba: state.testMode
       });
       if (error) {
         console.error("No se pudo registrar el cobro.", error);
@@ -1011,7 +1089,9 @@
         return;
       }
       state.cashierTable = null;
-      toast(method === "clip" ? "Pago registrado como Clip. Cobra en la terminal por separado." : "Cuenta cobrada en efectivo.");
+      toast(state.testMode
+        ? `Pago de prueba registrado como ${method === "clip" ? "Clip simulado" : "efectivo"}. No se realizó ningún cobro.`
+        : method === "clip" ? "Pago registrado como Clip. Cobra en la terminal por separado." : "Cuenta cobrada en efectivo.");
       await refreshRemoteData();
     }
     function voidCheck(checkId) {
@@ -1024,7 +1104,7 @@
         <section class="modal" role="dialog" aria-modal="true" aria-labelledby="void-title">
           <div class="modal-header"><h2 id="void-title">Anular cuenta de ${escapeHtml(check.tableName)}</h2>
             <button class="small-button" type="button" data-close-modal aria-label="Cerrar">✕</button></div>
-          <p class="muted">Escribe el motivo. La cuenta quedará fuera de las ventas.</p>
+          <p class="muted">${state.testMode ? "Escribe el motivo de cancelación de la prueba." : "Escribe el motivo. La cuenta quedará fuera de las ventas."}</p>
           <label class="field">Motivo<textarea name="void-reason" maxlength="240" required></textarea></label>
           <div class="modal-footer"><button class="button" type="button" data-close-modal>Cancelar</button>
             <button class="button danger" type="button" data-confirm-void="${check.id}">Confirmar anulación</button></div>
@@ -1043,7 +1123,8 @@
       }
       const { error } = await supabaseClient.rpc("anular_cuenta", {
         p_cuenta: checkId,
-        p_motivo: reason
+        p_motivo: reason,
+        p_es_prueba: state.testMode
       });
       if (error) {
         console.error("No se pudo anular la cuenta.", error);
@@ -1052,19 +1133,26 @@
       }
       closeModal();
       state.cashierTable = null;
-      toast("Cuenta anulada.");
+      toast(state.testMode ? "Cuenta de prueba anulada." : "Cuenta anulada.");
       await refreshRemoteData();
     }
 
     document.addEventListener("submit", async (event) => {
-      if (!["station-form", "login-form"].includes(event.target.id)) return;
+      if (event.target.id !== "station-form") return;
       event.preventDefault();
       if (!state.authReady) return;
       if (event.target.id === "station-form") {
-        const code = event.target.elements["station-code"].value.trim();
+        const form = event.target;
+        const code = form.elements["station-code"].value.trim();
         const requestedRole = Object.hasOwn(STATION_CODES, code) ? STATION_CODES[code] : null;
         if (!requestedRole) {
           state.authMessage = "Código incorrecto. Este puesto permanece bloqueado.";
+          render();
+          return;
+        }
+        const deviceLabel = form.elements["device-label"].value.trim();
+        if (!deviceLabel || deviceLabel.length > 80) {
+          state.authMessage = "Escribe un nombre para identificar este aparato (máximo 80 caracteres).";
           render();
           return;
         }
@@ -1073,28 +1161,38 @@
           render();
           return;
         }
+        try {
+          if (!state.stationBoundRole) localStorage.setItem(STATION_STORAGE_KEY, requestedRole);
+          localStorage.setItem(DEVICE_LABEL_STORAGE_KEY, deviceLabel);
+        } catch (error) {
+          console.error("No se pudo guardar la identidad fija del aparato.", error);
+          state.authMessage = "No se pudo fijar el puesto en este aparato. Habilita el almacenamiento y vuelve a intentar.";
+          render();
+          return;
+        }
+        state.stationBoundRole = requestedRole;
+        state.deviceLabel = deviceLabel;
         state.pendingStationRole = requestedRole;
+        state.awaitingApproval = false;
         state.authMessage = "";
-        if (state.user) await activateSession(state.user, requestedRole);
-        else render();
+        if (state.user) {
+          await activateSession(state.user, requestedRole);
+        } else {
+          state.authReady = false;
+          render();
+          try {
+            const { data, error } = await supabaseClient.auth.signInAnonymously();
+            if (error) throw error;
+            state.user = data.user;
+            await activateSession(data.user, requestedRole);
+          } catch (error) {
+            console.error("No se pudo crear la identidad limitada del aparato.", error);
+            state.authReady = true;
+            state.authMessage = "No se pudo solicitar acceso. Verifica la conexión y que Supabase permita identidades de aparato; no se otorgará acceso hasta la aprobación administrativa.";
+            render();
+          }
+        }
         return;
-      }
-      if (event.target.id !== "login-form") return;
-      const form = event.target;
-      const email = form.elements.email.value.trim();
-      const password = form.elements.password.value;
-      state.authReady = false;
-      state.authMessage = "";
-      render();
-      try {
-        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        await activateSession(data.user, state.pendingStationRole);
-      } catch (error) {
-        console.error("Falló el inicio de sesión.", error);
-        state.authReady = true;
-        state.authMessage = "No se pudo iniciar sesión. Verifica el correo y la contraseña o contacta al administrador.";
-        render();
       }
     });
     document.addEventListener("click", async (event) => {
@@ -1106,6 +1204,36 @@
           console.error("No se pudo cerrar la sesión.", error);
           toast(`No se pudo cerrar sesión: ${error.message}`, true);
         }
+      } else if (target.dataset.action === "check-approval") {
+        window.clearTimeout(approvalPollTimer);
+        if (state.user && state.pendingStationRole) {
+          await activateSession(state.user, state.pendingStationRole);
+        }
+      } else if (target.dataset.action === "toggle-test-mode") {
+        if (state.draft.length) {
+          toast("Envía o vacía el borrador antes de cambiar de modo.", true);
+          return;
+        }
+        const nextMode = !state.testMode;
+        const prompt = nextMode
+          ? "Entrar a MODO DE PRUEBA. Las comandas usarán mesas aisladas y no se incluirán en ventas reales. ¿Continuar?"
+          : "Salir del modo de prueba y operar sobre mesas/cuentas reales. ¿Continuar?";
+        if (!window.confirm(prompt)) return;
+        try {
+          localStorage.setItem("faro-pos-test-mode-v1", String(nextMode));
+        } catch (error) {
+          console.error("No se pudo guardar el modo de trabajo.", error);
+          toast("No se pudo guardar el modo en este aparato. No se cambió el área de datos.", true);
+          return;
+        }
+        state.testMode = nextMode;
+        state.selectedTable = null;
+        state.cashierTable = null;
+        state.orderToken = newId();
+        state.data = { tables: [], checks: [], nextTicket: 1, drafts: {} };
+        state.dataFresh = false;
+        state.syncError = "";
+        await refreshRemoteData();
       } else if (target.dataset.view) {
         const permitted = state.stationRole === target.dataset.view && state.role === state.stationRole;
         if (!permitted) {
@@ -1165,7 +1293,9 @@
         const method = target.dataset.method;
         if (!check) {
           toast("La cuenta no está disponible para cobro.", true);
-        } else if (window.confirm(`Confirmar cobro de ${check.tableName} por ${money(total)}${method === "clip" ? "?\n\nConfirma también el pago en la terminal Clip. Esta acción solo registra el pago." : " en efectivo?"}`)) {
+        } else if (window.confirm(state.testMode
+          ? `Simular pago de prueba para ${check.tableName} por ${money(total)}? No se cobrará ningún dinero.`
+          : `Confirmar cobro de ${check.tableName} por ${money(total)}${method === "clip" ? "?\n\nConfirma también el pago en la terminal Clip. Esta acción solo registra el pago." : " en efectivo?"}`)) {
           payCheck(check.id, method);
         }
       } else if (target.dataset.void) {
@@ -1197,8 +1327,13 @@
     });
 
     function syncAfterResume() {
-      if (document.visibilityState === "hidden" || !state.user ||
-          !state.role || state.stationRole !== state.role) return;
+      if (document.visibilityState === "hidden") return;
+      if (state.awaitingApproval && state.user && state.pendingStationRole) {
+        window.clearTimeout(approvalPollTimer);
+        void activateSession(state.user, state.pendingStationRole);
+        return;
+      }
+      if (!state.user || !state.role || state.stationRole !== state.role) return;
       state.dataFresh = false;
       state.syncError = "";
       void refreshRemoteData();
