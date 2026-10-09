@@ -13,9 +13,32 @@ Tienes dos maneras directas de obtener el código completo del proyecto:
 
 ---
 
-## 2. Esquema de Base de Datos y Funciones SQL (`0000_migration.sql`)
+## 2. Esquema y seguridad de base de datos
 
-A continuación tienes el script DDL completo para PostgreSQL / Supabase, incluyendo tablas, restricciones, secuencias y las funciones RPC atómicas (`enviar_comanda`, `cobrar_cuenta`, `anular_cuenta`):
+Las migraciones SQL vigentes están en `drizzle/migrations`. En una base nueva,
+ejecutar 0000–0005 en orden; en una base ya migrada, ejecutar únicamente las
+pendientes. La 0003 cierra el acceso anónimo, define roles del personal y
+restringe las consultas y operaciones RPC. La 0004 verifica catálogo,
+modificadores y precio en PostgreSQL. La 0005 limita las cuentas al rol de caja
+y a administración.
+
+**No uses los fragmentos SQL históricos de esta sección como mecanismo de
+despliegue.** La autorización canónica está en
+[`0003_restringir_acceso_a_personal.sql`](./drizzle/migrations/0003_restringir_acceso_a_personal.sql);
+[`0004_validar_precios_en_servidor.sql`](./drizzle/migrations/0004_validar_precios_en_servidor.sql) y
+[`0005_restringir_consulta_de_caja.sql`](./drizzle/migrations/0005_restringir_consulta_de_caja.sql).
+Consulta [SUPABASE_ACCESO.md](./SUPABASE_ACCESO.md) para aplicar migraciones,
+asignar roles y comprobar que `anon` no tenga permisos.
+
+La versión de puesto se abre con la misma liga en cada aparato. El PIN (`101`,
+`202` o `303`) bloquea la interfaz en un rol fijo; no es una credencial del
+servidor. Un administrador debe iniciar sesión una vez en cada equipo con una
+cuenta Auth del rol correspondiente. Después, el navegador conserva la sesión y
+el personal solo ingresa el PIN al abrir o recargar la liga. Los tres QR están
+en [`QR_PUESTOS.html`](./QR_PUESTOS.html) y contienen el mismo enlace.
+
+El siguiente esquema resume las entidades principales; para crear o actualizar
+una base utiliza los archivos de migración completos.
 
 ```sql
 -- TABLA: Mesas
@@ -24,6 +47,7 @@ create table public.mesas (
   nombre text not null unique,
   orden int not null default 100,
   estado text not null default 'disponible',
+  activa boolean not null default true,
   created_at timestamptz not null default now()
 );
 
@@ -63,23 +87,19 @@ create table public.comanda_items (
   cantidad int not null default 1,
   precio_unitario numeric(10,2) not null,
   modificadores jsonb not null default '[]',
-  notas text,
-  estacion text not null default 'cocina'
+  notas text
 );
 
 -- PERMISOS Y SEGURIDAD RLS
-grant select, insert, update, delete on public.mesas, public.cuentas, public.comandas, public.comanda_items to anon, authenticated;
 grant all on public.mesas, public.cuentas, public.comandas, public.comanda_items to service_role;
-grant usage on sequence public.comanda_numero_seq to anon, authenticated;
+revoke all on public.mesas, public.cuentas, public.comandas, public.comanda_items from public, anon, authenticated;
+revoke all on sequence public.comanda_numero_seq from public, anon, authenticated;
 
 alter table public.mesas enable row level security;
 alter table public.cuentas enable row level security;
 alter table public.comandas enable row level security;
 alter table public.comanda_items enable row level security;
-create policy "staff all" on public.mesas for all using (true) with check (true);
-create policy "staff all" on public.cuentas for all using (true) with check (true);
-create policy "staff all" on public.comandas for all using (true) with check (true);
-create policy "staff all" on public.comanda_items for all using (true) with check (true);
+-- Las políticas de acceso privado se crean en la migración 0003.
 
 -- MESAS INICIALES (Mesa 1 a 12 y Para Llevar)
 insert into public.mesas (nombre, orden) values
@@ -102,9 +122,9 @@ begin
   end if;
   insert into comandas(cuenta_id, mesa_id, client_token, mesero) values (v_cuenta, p_mesa, p_token, p_mesero) returning id into v_comanda;
   for it in select * from jsonb_array_elements(p_items) loop
-    insert into comanda_items(comanda_id, producto_id, nombre, cantidad, precio_unitario, modificadores, notas, estacion)
+    insert into comanda_items(comanda_id, producto_id, nombre, cantidad, precio_unitario, modificadores, notas)
     values (v_comanda, it->>'producto_id', it->>'nombre', greatest((it->>'cantidad')::int,1), (it->>'precio_unitario')::numeric,
-      coalesce(it->'modificadores','[]'::jsonb), nullif(it->>'notas',''), coalesce(it->>'estacion','cocina'));
+      coalesce(it->'modificadores','[]'::jsonb), nullif(it->>'notas',''));
   end loop;
   update mesas set estado='ocupada' where id=p_mesa;
   return v_comanda;
@@ -145,69 +165,34 @@ begin
    where id=p_cuenta;
   update mesas set estado='disponible' where id=v_mesa;
 end $$;
+
+-- Estas funciones históricas no se exponen. La migración 0003 las reemplaza
+-- por versiones que validan rol y concede ejecución solo a authenticated.
+revoke all on function public.enviar_comanda(uuid, text, jsonb, text) from public, anon, authenticated;
+revoke all on function public.solicitar_cuenta(uuid) from public, anon, authenticated;
+revoke all on function public.cobrar_cuenta(uuid, text) from public, anon, authenticated;
+revoke all on function public.anular_cuenta(uuid, text) from public, anon, authenticated;
 ```
 
 ---
 
 ## 3. Catálogo y Fórmulas de Cálculo (`src/lib/catalogo.ts`)
 
-```typescript
-export type Estacion = "cocina" | "barra";
-export type ModSeleccionado = { grupo: string; nombre: string; extra: number };
+La implementación vigente del catálogo, los precios y los modificadores está en
+[`src/lib/catalogo.ts`](./src/lib/catalogo.ts). Ese archivo también proporciona
+las funciones de precio unitario y formato de moneda/horario que usan las
+pantallas. Las pruebas unitarias del catálogo están en
+[`src/test/catalogo.test.ts`](./src/test/catalogo.test.ts).
 
-export const CARNES = ["Asada", "Pastor", "Tripa"] as const;
+Los precios y cargos corresponden a la lista de precios:
 
-export type Producto = {
-  id: string;
-  nombre: string;
-  categoria: string;
-  precio: number;
-  estacion: Estacion;
-  mixeable?: boolean;
-  extraTripaPrincipal?: number;
-  admiteQueso?: boolean;
-  gaonera?: boolean;
-};
+- Cada carne agregada después de la principal suma $10.
+- La tripa suma el cargo de carne principal una sola vez: $5 para tacos y $10
+  para quesadillas, vampiro, chorreada, papa especial y torta. La tripa agregada
+  como ingrediente secundario no vuelve a cobrar ese cargo.
+- El queso en tacos suma $5.
+- Solo tacos, quesadillas, vampiro, chorreada, papa asada especial y torta
+  permiten mezclar carnes.
 
-export const CATEGORIAS = ["Tacos", "Quesadillas", "Especiales", "Papas y Frijoles", "Tortas", "Postres y Bebidas"] as const;
-
-export const PRODUCTOS: Producto[] = [
-  { id: "taco-maiz", nombre: "Taco maíz", categoria: "Tacos", precio: 40, estacion: "cocina", mixeable: true, extraTripaPrincipal: 5, admiteQueso: true },
-  { id: "taco-harina", nombre: "Taco harina", categoria: "Tacos", precio: 42, estacion: "cocina", mixeable: true, extraTripaPrincipal: 5, admiteQueso: true },
-  { id: "quesadilla-maiz", nombre: "Quesadilla maíz", categoria: "Quesadillas", precio: 65, estacion: "cocina", mixeable: true, extraTripaPrincipal: 10 },
-  { id: "quesadilla-harina", nombre: "Quesadilla harina", categoria: "Quesadillas", precio: 95, estacion: "cocina", mixeable: true, extraTripaPrincipal: 10 },
-  { id: "vampiro", nombre: "Vampiro", categoria: "Especiales", precio: 75, estacion: "cocina", mixeable: true, extraTripaPrincipal: 10 },
-  { id: "chorreada", nombre: "Chorreada", categoria: "Especiales", precio: 80, estacion: "cocina", mixeable: true, extraTripaPrincipal: 10 },
-  { id: "costra", nombre: "Costra de queso", categoria: "Especiales", precio: 100, estacion: "cocina", mixeable: true, extraTripaPrincipal: 10 },
-  { id: "gaonera", nombre: "Gaonera", categoria: "Especiales", precio: 75, estacion: "cocina", gaonera: true },
-  { id: "chilaca", nombre: "Taco de Chile chilaca", categoria: "Especiales", precio: 80, estacion: "cocina" },
-  { id: "papa-especial", nombre: "Papa asada especial", categoria: "Papas y Frijoles", precio: 180, estacion: "cocina", mixeable: true, extraTripaPrincipal: 10 },
-  { id: "papa-sencilla", nombre: "Papa sencilla", categoria: "Papas y Frijoles", precio: 130, estacion: "cocina" },
-  { id: "charros-especiales", nombre: "Charros especiales", categoria: "Papas y Frijoles", precio: 75, estacion: "cocina", mixeable: true, extraTripaPrincipal: 10 },
-  { id: "charros-sencillos", nombre: "Charros sencillos", categoria: "Papas y Frijoles", precio: 55, estacion: "cocina" },
-  { id: "torta", nombre: "Torta", categoria: "Tortas", precio: 130, estacion: "cocina", mixeable: true, extraTripaPrincipal: 10 },
-  { id: "hamburguesa", nombre: "Hamburguesa", categoria: "Tortas", precio: 125, estacion: "cocina" },
-  { id: "quesagloria", nombre: "Quesagloria", categoria: "Postres y Bebidas", precio: 100, estacion: "cocina" },
-  { id: "agua-natural", nombre: "Agua natural", categoria: "Postres y Bebidas", precio: 15, estacion: "barra" },
-  { id: "agua-sabor", nombre: "Agua de sabor 1L", categoria: "Postres y Bebidas", precio: 45, estacion: "barra" },
-  { id: "horchata", nombre: "Horchata y cebada 1L", categoria: "Postres y Bebidas", precio: 50, estacion: "barra" },
-  { id: "topo-chico", nombre: "Topo Chico", categoria: "Postres y Bebidas", precio: 35, estacion: "barra" },
-  { id: "toni-col", nombre: "ToniCol", categoria: "Postres y Bebidas", precio: 55, estacion: "barra" },
-];
-
-export const NOTAS_RAPIDAS = ["Con todo", "Natural", "Sin salsa de tomate", "Sin lechuga", "Sin frijoles", "Bien cocida"];
-
-export function precioUnitario(p: Producto, mods: ModSeleccionado[]): number {
-  return p.precio + mods.reduce((s, m) => s + m.extra, 0);
-}
-
-export const mxn = (n: number) =>
-  new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(n);
-
-export function hoyMonterrey(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Monterrey" }).format(new Date());
-}
-
-export const horaMty = (iso: string) =>
-  new Intl.DateTimeFormat("es-MX", { timeZone: "America/Monterrey", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
-```
+Por ejemplo, la torta de asada cuesta $130 y con una carne agregada cuesta
+$140. Una torta con principal de tripa y dos carnes agregadas cuesta $160.

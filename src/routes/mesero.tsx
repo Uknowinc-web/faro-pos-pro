@@ -49,7 +49,7 @@ function Mesero() {
 
   const mesas = useQuery({
     queryKey: ["mesas"],
-    queryFn: async () => (await supabase.from("mesas").select("id,nombre,estado,orden").order("orden").order("nombre")).data ?? [],
+    queryFn: async () => (await supabase.from("mesas").select("id,nombre,estado,orden").eq("activa", true).order("orden").order("nombre")).data ?? [],
   });
   const ordenes = useQuery({
     queryKey: ["mesero-ordenes"],
@@ -77,7 +77,6 @@ function Mesero() {
       precio_unitario: precioUnitario(l.producto, l.mods),
       modificadores: l.mods.map((m) => m.nombre),
       notas: l.notas,
-      estacion: l.producto.estacion,
     }));
     const { error } = await supabase.rpc("enviar_comanda", { p_mesa: mesa.id, p_token: token, p_items: items });
     setEnviando(false);
@@ -150,7 +149,6 @@ function Mesero() {
         {productos.map((p) => (
           <button key={p.id} onClick={() => setEditar(p)} className="rounded-xl border bg-card min-h-20 p-3 text-left active:scale-95 transition">
             <span className="font-semibold">{p.nombre}</span>
-            {p.estacion === "barra" && <span className="block text-xs text-info">Barra</span>}
           </button>
         ))}
       </div>
@@ -238,7 +236,7 @@ function EditorProducto({ producto, onClose, onAdd }: { producto: Producto | nul
                   </div>
                 </div>
               )}
-              {producto.mixta.queso && (
+              {producto.mixta.extraQueso !== undefined && (
                 <Button variant={queso ? "default" : "secondary"} className="h-11" onClick={() => setQueso(!queso)}>Con queso</Button>
               )}
             </>
@@ -259,7 +257,7 @@ function EditorProducto({ producto, onClose, onAdd }: { producto: Producto | nul
               </div>
             </div>
           ))}
-          {producto?.estacion === "cocina" && (
+          {producto && (
             <div>
               <p className="text-sm font-semibold mb-2">Notas rápidas</p>
               <div className="flex flex-wrap gap-2">

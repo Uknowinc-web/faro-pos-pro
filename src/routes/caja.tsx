@@ -55,7 +55,7 @@ function Mesas() {
     queryKey: ["caja-mesas"],
     queryFn: async () => {
       const [{ data: ms }, { data: cs }] = await Promise.all([
-        supabase.from("mesas").select("id,nombre,estado,orden").order("orden").order("nombre"),
+        supabase.from("mesas").select("id,nombre,estado,orden").eq("activa", true).order("orden").order("nombre"),
         supabase.from("cuentas").select("id,mesa_id,comandas(comanda_items(cantidad,precio_unitario))").in("estado", ["abierta", "por_cobrar"]),
       ]);
       return (ms ?? []).map((m) => {

@@ -4,6 +4,7 @@ create table public.mesas (
   nombre text not null unique,
   orden int not null default 100,
   estado text not null default 'disponible',
+  activa boolean not null default true,
   created_at timestamptz not null default now()
 );
 create table public.cuentas (
@@ -37,24 +38,17 @@ create table public.comanda_items (
   cantidad int not null default 1,
   precio_unitario numeric(10,2) not null,
   modificadores jsonb not null default '[]',
-  notas text,
-  estacion text not null default 'cocina'
+  notas text
 );
 
-grant select, insert, update, delete on public.mesas, public.cuentas, public.comandas, public.comanda_items to anon, authenticated;
 grant all on public.mesas, public.cuentas, public.comandas, public.comanda_items to service_role;
-grant usage on sequence public.comanda_numero_seq to anon, authenticated;
 
 alter table public.mesas enable row level security;
 alter table public.cuentas enable row level security;
 alter table public.comandas enable row level security;
 alter table public.comanda_items enable row level security;
-create policy "staff all" on public.mesas for all using (true) with check (true);
-create policy "staff all" on public.cuentas for all using (true) with check (true);
-create policy "staff all" on public.comandas for all using (true) with check (true);
-create policy "staff all" on public.comanda_items for all using (true) with check (true);
 
-insert into public.mesas (nombre, orden) values ('Barra',0),
+insert into public.mesas (nombre, orden) values
 ('Mesa 1',1),('Mesa 2',2),('Mesa 3',3),('Mesa 4',4),('Mesa 5',5),('Mesa 6',6),
 ('Mesa 7',7),('Mesa 8',8),('Mesa 9',9),('Mesa 10',10),('Mesa 11',11),('Mesa 12',12),('Para Llevar',99);
 
@@ -73,9 +67,9 @@ begin
   end if;
   insert into comandas(cuenta_id, mesa_id, client_token, mesero) values (v_cuenta, p_mesa, p_token, p_mesero) returning id into v_comanda;
   for it in select * from jsonb_array_elements(p_items) loop
-    insert into comanda_items(comanda_id, producto_id, nombre, cantidad, precio_unitario, modificadores, notas, estacion)
+    insert into comanda_items(comanda_id, producto_id, nombre, cantidad, precio_unitario, modificadores, notas)
     values (v_comanda, it->>'producto_id', it->>'nombre', greatest((it->>'cantidad')::int,1), (it->>'precio_unitario')::numeric,
-      coalesce(it->'modificadores','[]'::jsonb), nullif(it->>'notas',''), coalesce(it->>'estacion','cocina'));
+      coalesce(it->'modificadores','[]'::jsonb), nullif(it->>'notas',''));
   end loop;
   update mesas set estado='ocupada' where id=p_mesa;
   return v_comanda;
@@ -111,6 +105,9 @@ begin
   update mesas set estado='disponible' where id=v_mesa;
 end $$;
 
-grant execute on function public.enviar_comanda, public.solicitar_cuenta, public.cobrar_cuenta, public.anular_cuenta to anon, authenticated;
+revoke all on function public.enviar_comanda(uuid, text, jsonb, text) from public, anon, authenticated;
+revoke all on function public.solicitar_cuenta(uuid) from public, anon, authenticated;
+revoke all on function public.cobrar_cuenta(uuid, text) from public, anon, authenticated;
+revoke all on function public.anular_cuenta(uuid, text) from public, anon, authenticated;
 
 alter publication supabase_realtime add table public.mesas, public.cuentas, public.comandas, public.comanda_items;

@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useRef, useState } from "react";
+import { toast } from "sonner";
 import { ArrowLeft, Bell, BellOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useRealtime } from "@/hooks/use-realtime";
@@ -59,18 +60,23 @@ function Cocina() {
       const desde = new Date(Date.now() - 12 * 3600_000).toISOString();
       const { data } = await supabase
         .from("comandas")
-        .select("id,numero,estado,created_at,mesas(nombre),comanda_items(id,nombre,cantidad,modificadores,notas,estacion)")
+        .select("id,numero,estado,created_at,mesas(nombre),comanda_items(id,nombre,cantidad,modificadores,notas)")
         .in("estado", ["pendiente", "preparacion"])
         .gte("created_at", desde)
         .order("created_at");
-      return (data ?? [])
-        .map((c) => ({ ...c, comanda_items: c.comanda_items.filter((i) => i.estacion === "cocina") }))
-        .filter((c) => c.comanda_items.length > 0);
+      return (data ?? []).filter((c) => c.comanda_items.length > 0);
     },
   });
 
   async function avanzar(id: string, estado: string) {
-    await supabase.from("comandas").update({ estado }).eq("id", id);
+    const { error } = await supabase.rpc("actualizar_estado_comanda", {
+      p_comanda: id,
+      p_estado: estado,
+    });
+    if (error) {
+      toast.error("No se pudo actualizar la comanda: " + error.message);
+      return;
+    }
     q.refetch();
   }
 

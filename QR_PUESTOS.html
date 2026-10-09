@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#17332b">
+    <title>QR de puestos — Faro POS Pro</title>
+    <style>
+      :root {
+        color: #202923;
+        background: #f5f5ef;
+        font-family: system-ui, sans-serif;
+      }
+      body { margin: 0; padding: 2rem; }
+      header { max-width: 1000px; margin: 0 auto 1.5rem; }
+      h1 { margin-bottom: .35rem; color: #173f32; }
+      p { margin-top: 0; line-height: 1.5; }
+      .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+      .station {
+        display: grid; justify-items: center; padding: 1rem;
+        border: 1px solid #dedfd7; border-radius: 1rem; background: #fffefa;
+        text-align: center;
+      }
+      .station img { display: block; width: min(100%, 280px); height: auto; }
+      .station h2 { margin: .75rem 0 .25rem; color: #173f32; }
+      .code { margin: 0; font-size: 1.1rem; font-weight: 800; letter-spacing: .12em; }
+      .url { overflow-wrap: anywhere; color: #68716b; font-size: .85rem; }
+      .print { display: inline-block; padding: .7rem 1rem; border: 0; border-radius: .6rem;
+        background: #173f32; color: white; font: inherit; font-weight: 700; cursor: pointer; }
+      @media (max-width: 760px) {
+        body { padding: 1rem; }
+        .grid { grid-template-columns: 1fr; }
+      }
+      @media print {
+        body { padding: 0; background: white; }
+        header { margin: 0 auto 1rem; }
+        .print { display: none; }
+        .grid { grid-template-columns: repeat(3, 1fr); gap: .4rem; }
+        .station { padding: .45rem; break-inside: avoid; }
+        .station img { width: 100%; max-width: 210px; }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Acceso rápido por puesto</h1>
+      <p>Los tres códigos QR abren el mismo enlace: <strong>https://faro-pos.vercel.app/</strong>.
+        Al abrirlo, escribe el código impreso para el aparato. Imprime esta hoja y coloca cada tarjeta
+        junto a su dispositivo.</p>
+      <button class="print" type="button" onclick="window.print()">Imprimir los tres QR</button>
+    </header>
+    <main class="grid">
+      <section class="station">
+        <img src="./QR_MESERO.svg" alt="QR para abrir Faro POS Pro">
+        <h2>MESERO</h2>
+        <p class="code">Código 101</p>
+        <p class="url">https://faro-pos.vercel.app/</p>
+      </section>
+      <section class="station">
+        <img src="./QR_COCINA.svg" alt="QR para abrir Faro POS Pro">
+        <h2>COCINA</h2>
+        <p class="code">Código 202</p>
+        <p class="url">https://faro-pos.vercel.app/</p>
+      </section>
+      <section class="station">
+        <img src="./QR_CAJA.svg" alt="QR para abrir Faro POS Pro">
+        <h2>CAJA</h2>
+        <p class="code">Código 303</p>
+        <p class="url">https://faro-pos.vercel.app/</p>
+      </section>
+    </main>
+  </body>
+</html>

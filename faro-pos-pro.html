@@ -1,0 +1,1226 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#17332b">
+  <title>Faro POS Pro — Tacos el Faro</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #202923;
+      background: #f5f5ef;
+      font-synthesis: none;
+      text-rendering: optimizeLegibility;
+      --green: #173f32;
+      --green-light: #e4efe9;
+      --orange: #e78c3d;
+      --red: #a63c32;
+      --yellow: #f6e9c8;
+      --muted: #68716b;
+      --line: #dedfd7;
+      --card: #fffefa;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 320px; min-height: 100vh; }
+    button, input, select, textarea { font: inherit; }
+    button { cursor: pointer; }
+    button:disabled { cursor: not-allowed; opacity: .55; }
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+      padding: 1rem max(1rem, calc((100vw - 1200px) / 2));
+      background: var(--green); color: #fff;
+    }
+    .brand { display: flex; align-items: center; gap: .75rem; }
+    .brand-mark {
+      display: grid; width: 42px; height: 42px; place-items: center;
+      border-radius: 14px; color: var(--green); background: #f0bf70; font-size: 1.4rem;
+    }
+    .brand h1 { margin: 0; font-size: 1.05rem; }
+    .brand p { margin: .15rem 0 0; color: #cfddd5; font-size: .8rem; }
+    .clock { text-align: right; font-size: .9rem; color: #e0ebe4; }
+    .container { width: min(1200px, 100%); margin: 0 auto; padding: 1rem; }
+    .notice {
+      padding: .8rem 1rem; margin-bottom: 1rem; border: 1px solid #e8cc92;
+      border-radius: 12px; background: #fff5dd; color: #664d1e; font-size: .9rem;
+    }
+    .nav { display: flex; gap: .5rem; margin-bottom: 1rem; overflow-x: auto; }
+    .nav button {
+      flex: 1; min-width: 110px; padding: .75rem 1rem; border: 1px solid var(--line);
+      border-radius: 12px; background: var(--card); color: #38423c; font-weight: 700;
+    }
+    .nav button[aria-current="page"] { border-color: var(--green); background: var(--green); color: #fff; }
+    h2 { margin: 0 0 1rem; font-size: 1.55rem; }
+    h3 { margin: 0 0 .75rem; font-size: 1.15rem; }
+    .muted { color: var(--muted); }
+    .panel { padding: 1rem; border: 1px solid var(--line); border-radius: 16px; background: var(--card); }
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 390px); gap: 1rem; align-items: start; }
+    .section-heading { display: flex; justify-content: space-between; align-items: center; gap: .75rem; margin: 1.25rem 0 .6rem; }
+    .section-heading h3 { margin: 0; }
+    .table-grid, .product-grid, .ticket-grid, .stats {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(135px, 1fr)); gap: .65rem;
+    }
+    .table-card, .product-card, .ticket-card {
+      padding: .85rem; border: 1px solid var(--line); border-radius: 13px;
+      background: var(--card); color: inherit; text-align: left;
+    }
+    .table-card { min-height: 94px; }
+    .table-card strong, .product-card strong { display: block; }
+    .table-card span, .product-card span { display: block; margin-top: .35rem; font-size: .82rem; color: var(--muted); }
+    .table-card.selected { outline: 3px solid #9cbcac; border-color: var(--green); }
+    .table-card.occupied { background: #eef5f0; }
+    .table-card.due { background: #fff4de; }
+    .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+    .toolbar select, .toolbar input { min-height: 40px; }
+    .toolbar input[type="search"] { min-width: min(240px, 100%); padding: .5rem .65rem; border: 1px solid var(--line); border-radius: 9px; }
+    .categories { display: flex; gap: .45rem; overflow-x: auto; padding: .2rem 0 .7rem; }
+    .category-button, .button, .small-button {
+      padding: .65rem .85rem; border: 1px solid var(--line); border-radius: 10px;
+      background: #fff; color: #2d3931; font-weight: 650;
+    }
+    .category-button { white-space: nowrap; }
+    .category-button.active { border-color: var(--green); background: var(--green-light); color: var(--green); }
+    .button.primary { border-color: var(--green); background: var(--green); color: #fff; }
+    .button.warning { border-color: #e5c273; background: var(--yellow); color: #594516; }
+    .button.danger { border-color: #e3b3ad; background: #fff0ed; color: var(--red); }
+    .button.full { width: 100%; min-height: 48px; }
+    .small-button { padding: .4rem .6rem; }
+    .cart-list, .line-list { display: grid; gap: .55rem; }
+    .cart-item, .line-item {
+      display: flex; justify-content: space-between; align-items: center; gap: .65rem;
+      padding: .7rem; border: 1px solid var(--line); border-radius: 11px; background: #fff;
+    }
+    .cart-item p, .line-item p { margin: 0; }
+    .cart-item .detail, .line-item .detail { margin-top: .25rem; color: var(--muted); font-size: .8rem; }
+    .cart-controls { display: flex; align-items: center; gap: .35rem; flex-shrink: 0; }
+    .cart-controls button { width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+    .sticky { position: sticky; top: 1rem; }
+    .empty { padding: 1.5rem .5rem; color: var(--muted); text-align: center; }
+    .ticket-card { display: flex; flex-direction: column; gap: .55rem; }
+    .ticket-head { display: flex; justify-content: space-between; align-items: start; gap: .4rem; }
+    .ticket-head strong { font-size: 1.15rem; }
+    .badge { display: inline-flex; padding: .25rem .5rem; border-radius: 99px; background: #edf0ed; font-size: .76rem; font-weight: 700; }
+    .badge.preparacion { background: #fff0c8; }
+    .badge.listo, .badge.pagada { background: #dff1e5; color: #1f613a; }
+    .badge.por_cobrar { background: #fff0c8; color: #75570d; }
+    .badge.urgent { background: #fae0dc; color: #922e25; }
+    .ticket-items { display: grid; gap: .4rem; padding-top: .5rem; border-top: 1px solid var(--line); }
+    .ticket-items p { margin: 0; }
+    .ticket-items .detail { margin-top: .15rem; color: var(--muted); font-size: .85rem; }
+    .stats { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin: 1rem 0; }
+    .stat { padding: .9rem; border: 1px solid var(--line); border-radius: 13px; background: var(--card); }
+    .stat span { display: block; color: var(--muted); font-size: .82rem; }
+    .stat strong { display: block; margin-top: .35rem; font-size: 1.4rem; }
+    .receipt { margin-top: .8rem; }
+    .receipt-row { display: flex; justify-content: space-between; gap: .6rem; padding: .45rem 0; border-bottom: 1px solid #ecece5; }
+    .receipt-total { display: flex; justify-content: space-between; margin-top: .8rem; font-weight: 800; font-size: 1.25rem; }
+    .actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .75rem; }
+    .modal-backdrop {
+      position: fixed; inset: 0; z-index: 5; display: grid; place-items: end center;
+      padding: 1rem; background: #10171399;
+    }
+    .modal {
+      width: min(560px, 100%); max-height: min(88vh, 800px); overflow: auto;
+      padding: 1.1rem; border-radius: 18px; background: var(--card);
+      box-shadow: 0 18px 60px #0004;
+    }
+    .modal-header { display: flex; justify-content: space-between; align-items: start; gap: .8rem; margin-bottom: .8rem; }
+    .modal-header h2 { margin: 0; }
+    .field { display: grid; gap: .35rem; margin: .8rem 0; }
+    .field label, .field legend { font-weight: 700; font-size: .9rem; }
+    .field input, .field textarea, .field select, .field input[type="number"] {
+      width: 100%; min-height: 43px; padding: .6rem .7rem; border: 1px solid var(--line);
+      border-radius: 9px; background: #fff;
+    }
+    .station-code { min-height: 58px !important; text-align: center; font-size: 1.5rem !important; letter-spacing: .35em; }
+    .field textarea { min-height: 75px; resize: vertical; }
+    fieldset.field { padding: .7rem; border: 1px solid var(--line); border-radius: 11px; }
+    .choice-grid { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .5rem; }
+    .choice {
+      display: inline-flex; align-items: center; gap: .35rem; padding: .5rem .65rem;
+      border: 1px solid var(--line); border-radius: 9px; background: #fff;
+    }
+    .modal-footer { display: flex; justify-content: end; gap: .5rem; margin-top: 1rem; }
+    .toast {
+      position: fixed; z-index: 8; right: 1rem; bottom: 1rem; max-width: min(440px, calc(100vw - 2rem));
+      padding: .85rem 1rem; border-radius: 12px; background: #20352b; color: #fff;
+      box-shadow: 0 7px 25px #0003;
+    }
+    .toast.error { background: #8e302a; }
+    .hidden { display: none !important; }
+    @media (max-width: 760px) {
+      .layout { grid-template-columns: 1fr; }
+      .sticky { position: static; }
+      .topbar { align-items: start; }
+      .clock { font-size: .8rem; }
+    }
+    @media print {
+      .topbar, .notice, .nav, .no-print { display: none !important; }
+      body, .container { background: #fff; padding: 0; }
+      .panel { border: 0; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">🌮</div>
+      <div><h1>Faro POS Pro</h1><p>Tacos el Faro · Monterrey</p></div>
+    </div>
+    <div class="clock" id="clock" aria-live="polite"></div>
+  </header>
+  <main class="container">
+    <div class="notice">
+      <strong>Puesto seguro:</strong> escribe el código del aparato. La primera vez, el administrador
+      debe vincularlo con la cuenta Supabase del rol correspondiente. Al volver a esta app, se sincroniza
+      con el servidor antes de permitir operaciones. Los pagos Clip se registran manualmente y también
+      deben cobrarse en la terminal.
+    </div>
+    <nav class="nav hidden" id="module-nav" aria-label="Módulos">
+      <button type="button" data-view="mesero" aria-current="page">Mesero</button>
+      <button type="button" data-view="cocina">Cocina</button>
+      <button type="button" data-view="caja">Caja</button>
+    </nav>
+    <div class="toolbar no-print" style="justify-content:end;margin-bottom:.6rem">
+      <span id="user-label" class="muted"></span>
+      <button id="sign-out" class="button hidden" type="button" data-action="sign-out">Cerrar sesión</button>
+    </div>
+    <section id="app" aria-live="polite"></section>
+  </main>
+  <div id="modal-root"></div>
+  <div id="toast-root" aria-live="polite"></div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    "use strict";
+
+    const SUPABASE_URL = "https://mkirhamxvvdhmnrkozwg.supabase.co";
+    const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_zszFg_20dthjs3Ai1p8H4w_RSy2FluG";
+    const DRAFT_STORAGE_KEY = "faro-pos-pro-drafts-v1";
+    const STATION_STORAGE_KEY = "faro-pos-station-v1";
+    const STATION_CODES = Object.freeze({ "101": "mesero", "202": "cocina", "303": "caja" });
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+    const CARNES = ["Asada", "Pastor", "Tripa"];
+    const CATEGORIAS = ["Tacos", "Quesadillas", "Especiales", "Papas y Frijoles", "Tortas", "Postres y Bebidas"];
+    const NOTAS = ["Con todo", "Natural", "Sin salsa de tomate", "Sin lechuga", "Sin frijoles", "Bien cocida"];
+    const PRODUCTOS = [
+      { id: "taco-maiz", nombre: "Taco maíz", categoria: "Tacos", precio: 40, mezcla: true, tripa: 5, queso: 5 },
+      { id: "taco-harina", nombre: "Taco harina", categoria: "Tacos", precio: 42, mezcla: true, tripa: 5, queso: 5 },
+      { id: "quesadilla-maiz", nombre: "Quesadilla maíz", categoria: "Quesadillas", precio: 65, mezcla: true, tripa: 10 },
+      { id: "quesadilla-harina", nombre: "Quesadilla harina", categoria: "Quesadillas", precio: 95, mezcla: true, tripa: 10 },
+      { id: "vampiro", nombre: "Vampiro", categoria: "Especiales", precio: 75, mezcla: true, tripa: 10 },
+      { id: "chorreada", nombre: "Chorreada", categoria: "Especiales", precio: 80, mezcla: true, tripa: 10 },
+      { id: "costra", nombre: "Costra de queso", categoria: "Especiales", precio: 100 },
+      { id: "gaonera", nombre: "Gaonera", categoria: "Especiales", precio: 75 },
+      { id: "chilaca", nombre: "Taco de Chile chilaca", categoria: "Especiales", precio: 80 },
+      { id: "papa-especial", nombre: "Papa asada especial", categoria: "Papas y Frijoles", precio: 180, mezcla: true, tripa: 10 },
+      { id: "papa-sencilla", nombre: "Papa sencilla", categoria: "Papas y Frijoles", precio: 130 },
+      { id: "charros-especiales", nombre: "Charros especiales", categoria: "Papas y Frijoles", precio: 75 },
+      { id: "charros-sencillos", nombre: "Charros sencillos", categoria: "Papas y Frijoles", precio: 55 },
+      { id: "torta", nombre: "Torta", categoria: "Tortas", precio: 130, mezcla: true, tripa: 10 },
+      { id: "hamburguesa", nombre: "Hamburguesa", categoria: "Tortas", precio: 125 },
+      { id: "quesagloria", nombre: "Quesagloria", categoria: "Postres y Bebidas", precio: 100 },
+      { id: "agua-natural", nombre: "Agua natural", categoria: "Postres y Bebidas", precio: 15 },
+      { id: "agua-sabor", nombre: "Agua de sabor 1L", categoria: "Postres y Bebidas", precio: 45 },
+      { id: "horchata", nombre: "Horchata y cebada 1L", categoria: "Postres y Bebidas", precio: 50 },
+      { id: "topo-chico", nombre: "Topo Chico", categoria: "Postres y Bebidas", precio: 35 },
+      { id: "toni-col", nombre: "ToniCol", categoria: "Postres y Bebidas", precio: 55 }
+    ];
+    const MESAS = [...Array.from({ length: 12 }, (_, i) => `Mesa ${i + 1}`), "Para Llevar"];
+
+    const state = {
+      view: "mesero",
+      category: CATEGORIAS[0],
+      selectedTable: null,
+      draft: [],
+      user: null,
+      role: null,
+      stationRole: null,
+      stationBoundRole: null,
+      pendingStationRole: null,
+      authReady: false,
+      authMessage: "",
+      dataFresh: false,
+      syncing: false,
+      syncError: "",
+      orderToken: newId(),
+      kitchenFilter: "todas",
+      cashierTable: null,
+      cashierSearch: "",
+      cashierFilter: "todas",
+      closeDate: todayMty(),
+      data: { tables: [], checks: [], nextTicket: 1, drafts: {} }
+    };
+
+    function newId() {
+      return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    }
+    function loadDrafts() {
+      try {
+        if (!state.user) return {};
+        return JSON.parse(localStorage.getItem(`${DRAFT_STORAGE_KEY}-${state.user.id}`) ?? "{}");
+      } catch (error) {
+        console.error("No se pudieron leer los borradores guardados.", error);
+        toast("No se pudieron recuperar los borradores de este navegador.", true);
+        return {};
+      }
+    }
+    function saveDrafts() {
+      try {
+        if (!state.user) return false;
+        localStorage.setItem(`${DRAFT_STORAGE_KEY}-${state.user.id}`, JSON.stringify(state.data.drafts));
+        return true;
+      } catch (error) {
+        console.error("No se pudieron guardar los borradores.", error);
+        toast("No se guardó el borrador en este navegador.", true);
+        return false;
+      }
+    }
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      })[char]);
+    }
+    function money(amount) {
+      return new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(amount);
+    }
+    function todayMty() {
+      const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Monterrey", year: "numeric", month: "2-digit", day: "2-digit"
+      }).formatToParts(new Date());
+      const part = (type) => parts.find((item) => item.type === type)?.value;
+      return `${part("year")}-${part("month")}-${part("day")}`;
+    }
+    function timeMty(iso) {
+      return new Intl.DateTimeFormat("es-MX", {
+        timeZone: "America/Monterrey", hour: "2-digit", minute: "2-digit"
+      }).format(new Date(iso));
+    }
+    function operatingDate(iso) {
+      const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Monterrey", year: "numeric", month: "2-digit", day: "2-digit"
+      }).formatToParts(new Date(iso));
+      const part = (type) => parts.find((item) => item.type === type)?.value;
+      return `${part("year")}-${part("month")}-${part("day")}`;
+    }
+    function productById(id) {
+      return PRODUCTOS.find((product) => product.id === id);
+    }
+    function productPrice(product, modifiers) {
+      return product.precio + modifiers.reduce((sum, modifier) => sum + modifier.extra, 0);
+    }
+    function mixModifiers(product, principal, extras, cheese) {
+      if (!product.mezcla) return [];
+      const uniqueExtras = [...new Set(extras)].filter((meat) => meat !== principal);
+      return [
+        { name: principal, extra: principal === "Tripa" ? product.tripa : 0 },
+        ...uniqueExtras.map((meat) => ({ name: `+ ${meat}`, extra: 10 })),
+        ...(cheese && product.queso ? [{ name: "Con queso", extra: product.queso }] : [])
+      ];
+    }
+    function ticketTotal(ticket) {
+      return ticket.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+    }
+    function elapsedMinutes(iso) {
+      return Math.max(0, Math.floor((Date.now() - Date.parse(iso)) / 60_000));
+    }
+    function elapsedLabel(minutes) {
+      return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
+    }
+    function persistDraft() {
+      if (!state.selectedTable) return true;
+      const oldDraft = state.data.drafts[state.selectedTable];
+      if (state.draft.length) state.data.drafts[state.selectedTable] = structuredClone(state.draft);
+      else delete state.data.drafts[state.selectedTable];
+      if (!saveDrafts()) {
+        if (oldDraft) state.data.drafts[state.selectedTable] = oldDraft;
+        else delete state.data.drafts[state.selectedTable];
+        return false;
+      }
+      return true;
+    }
+    function updateDraft(change) {
+      const previous = structuredClone(state.draft);
+      change(state.draft);
+      if (!persistDraft()) {
+        state.draft = previous;
+        return false;
+      }
+      return true;
+    }
+    function activeCheck(tableId) {
+      return state.data.checks.find((check) =>
+        check.tableId === tableId && ["abierta", "por_cobrar"].includes(check.status)
+      );
+    }
+    function tableStatus(tableId) {
+      const table = state.data.tables.find((item) => item.id === tableId);
+      if (table?.status === "ocupada") return "abierta";
+      if (table?.status === "por_cobrar") return "por_cobrar";
+      const check = activeCheck(tableId);
+      return check?.status ?? table?.status ?? "disponible";
+    }
+    function toast(message, error = false) {
+      const root = document.getElementById("toast-root");
+      root.innerHTML = `<div class="toast${error ? " error" : ""}" role="status">${escapeHtml(message)}</div>`;
+      window.clearTimeout(toast.timer);
+      toast.timer = window.setTimeout(() => { root.innerHTML = ""; }, 3500);
+    }
+    function updateClock() {
+      document.getElementById("clock").textContent =
+        new Intl.DateTimeFormat("es-MX", {
+          timeZone: "America/Monterrey", weekday: "short", day: "numeric", month: "short",
+          hour: "2-digit", minute: "2-digit"
+        }).format(new Date());
+    }
+    function renderStationCode() {
+      const message = state.authMessage || (state.authReady ? "" : "Comprobando sesión segura…");
+      const boundMessage = state.stationBoundRole
+        ? `Este aparato está fijo en ${state.stationBoundRole}.`
+        : "Al vincularlo, este aparato quedará fijo en ese puesto.";
+      return `<section class="panel" style="max-width:440px;margin:2rem auto">
+        <h2>Código del puesto</h2>
+        <p class="muted">${boundMessage} Solo acepta el código ligado a este aparato.</p>
+        <form id="station-form">
+          <label class="field">Código de 3 dígitos
+            <input class="station-code" name="station-code" type="password" inputmode="numeric"
+              pattern="[0-9]{3}" maxlength="3" autocomplete="off" required autofocus>
+          </label>
+          <p class="muted" role="status">${escapeHtml(message)}</p>
+          <button class="button primary full" type="submit" ${state.authReady ? "" : "disabled"}>Entrar al puesto</button>
+        </form>
+      </section>`;
+    }
+    function renderStationSetup() {
+      return `<section class="panel" style="max-width:440px;margin:2rem auto">
+        <h2>Vincular puesto ${escapeHtml(state.pendingStationRole)}</h2>
+        <p class="muted">Configuración inicial del aparato. La cuenta Supabase debe tener el rol ${escapeHtml(state.pendingStationRole)}. Después, el personal solo necesitará el código del puesto.</p>
+        <form id="login-form">
+          <label class="field">Correo de la cuenta de este puesto<input name="email" type="email" autocomplete="username" required></label>
+          <label class="field">Contraseña<input name="password" type="password" autocomplete="current-password" required></label>
+          <p class="muted" role="status">${escapeHtml(state.authMessage)}</p>
+          <button class="button primary full" type="submit" ${state.authReady ? "" : "disabled"}>Vincular aparato</button>
+        </form>
+      </section>`;
+    }
+    let remoteRefreshPromise = null;
+    async function refreshRemoteData(showError = true) {
+      if (!state.user || !state.role || state.stationRole !== state.role) return false;
+      if (remoteRefreshPromise) return remoteRefreshPromise;
+      state.syncing = true;
+      state.dataFresh = false;
+      state.syncError = "";
+      render();
+      remoteRefreshPromise = (async () => {
+        const success = await loadRemoteData(showError);
+        state.syncing = false;
+        state.dataFresh = success;
+        render();
+        remoteRefreshPromise = null;
+        return success;
+      })();
+      return remoteRefreshPromise;
+    }
+    async function ensureFreshData() {
+      if (state.dataFresh && !state.syncing) return true;
+      const refreshed = await refreshRemoteData();
+      if (!refreshed) toast("No se realizó la operación porque los datos no se pudieron sincronizar.", true);
+      return refreshed;
+    }
+    async function loadRemoteData(showError) {
+      try {
+        const tablesQuery = supabaseClient.from("mesas").select("id,nombre,orden,estado")
+          .eq("activa", true).order("orden").order("nombre");
+        const [tablesResult, accountsResult] = await Promise.all([
+          tablesQuery,
+          state.role !== "caja" ? Promise.resolve({ data: null, error: null }) :
+            supabaseClient.from("cuentas").select("id,mesa_id,estado,metodo_pago,total,motivo_anulacion,fecha_operativa,mesas(nombre),comandas(id,numero,estado,created_at,comanda_items(id,producto_id,nombre,cantidad,precio_unitario,modificadores,notas))").order("abierta_at", { ascending: false })
+        ]);
+        const { data: tables, error: tableError } = tablesResult;
+        const { data: accounts, error: accountError } = accountsResult;
+        if (tableError) throw tableError;
+        if (accountError) throw accountError;
+        let checks = (accounts ?? []).map((account) => ({
+          id: account.id,
+          tableId: account.mesa_id,
+          tableName: account.mesas?.nombre ?? "Mesa",
+          status: account.estado,
+          paymentMethod: account.metodo_pago,
+          total: account.total == null ? 0 : Number(account.total),
+          operatingDate: account.fecha_operativa,
+          voidReason: account.motivo_anulacion,
+          tickets: (account.comandas ?? []).map((ticket) => ({
+            id: ticket.id,
+            number: ticket.numero,
+            status: ticket.estado,
+            createdAt: ticket.created_at,
+            items: (ticket.comanda_items ?? []).map((item) => ({
+              id: item.id,
+              productId: item.producto_id,
+              name: item.nombre,
+              quantity: item.cantidad,
+              unitPrice: Number(item.precio_unitario),
+              modifiers: Array.isArray(item.modificadores)
+                ? item.modificadores.map((modifier) => typeof modifier === "string" ? { name: modifier, extra: 0 } : modifier)
+                : [],
+              notes: item.notas ?? "",
+              status: ticket.estado
+            }))
+          }))
+        }));
+        if (state.role === "mesero") {
+          const { data: tickets, error } = await supabaseClient.from("comandas")
+            .select("id,numero,estado,created_at,mesas(id,nombre),comanda_items(id,producto_id,nombre,cantidad,precio_unitario,modificadores,notas)")
+            .gte("created_at", new Date(Date.now() - 12 * 60 * 60_000).toISOString())
+            .order("created_at", { ascending: false });
+          if (error) throw error;
+          checks = (tickets ?? []).map((ticket) => ({
+            id: ticket.id,
+            tableId: ticket.mesas?.id,
+            tableName: ticket.mesas?.nombre ?? "Mesa",
+            status: "abierta",
+            tickets: [{
+              id: ticket.id,
+              number: ticket.numero,
+              status: ticket.estado,
+              createdAt: ticket.created_at,
+              items: (ticket.comanda_items ?? []).map((item) => ({
+                id: item.id,
+                productId: item.producto_id,
+                name: item.nombre,
+                quantity: item.cantidad,
+                unitPrice: Number(item.precio_unitario),
+                modifiers: Array.isArray(item.modificadores)
+                  ? item.modificadores.map((modifier) => typeof modifier === "string" ? { name: modifier, extra: 0 } : modifier)
+                  : [],
+                notes: item.notas ?? "",
+                status: ticket.estado
+              }))
+            }]
+          }));
+        }
+        if (state.role === "cocina") {
+          const { data: tickets, error } = await supabaseClient.from("comandas")
+            .select("id,numero,estado,created_at,mesas(id,nombre),comanda_items(id,producto_id,nombre,cantidad,precio_unitario,modificadores,notas)")
+            .in("estado", ["pendiente", "preparacion"])
+            .gte("created_at", new Date(Date.now() - 12 * 60 * 60_000).toISOString())
+            .order("created_at");
+          if (error) throw error;
+          checks = (tickets ?? []).map((ticket) => ({
+            id: ticket.id,
+            tableId: ticket.mesas?.id,
+            tableName: ticket.mesas?.nombre ?? "Mesa",
+            status: ticket.estado,
+            tickets: [{
+              id: ticket.id,
+              number: ticket.numero,
+              status: ticket.estado,
+              createdAt: ticket.created_at,
+              items: (ticket.comanda_items ?? []).map((item) => ({
+                id: item.id,
+                productId: item.producto_id,
+                name: item.nombre,
+                quantity: item.cantidad,
+                unitPrice: Number(item.precio_unitario),
+                modifiers: Array.isArray(item.modificadores)
+                  ? item.modificadores.map((modifier) => typeof modifier === "string" ? { name: modifier, extra: 0 } : modifier)
+                  : [],
+                notes: item.notas ?? "",
+                status: ticket.estado
+              }))
+            }]
+          }));
+        }
+        state.data = {
+          tables: (tables ?? []).map((table) => ({
+            id: table.id,
+            name: table.nombre,
+            order: table.orden,
+            status: table.estado
+          })),
+          checks,
+          nextTicket: checks.flatMap((check) => check.tickets).reduce((max, ticket) => Math.max(max, ticket.number), 0) + 1,
+          drafts: loadDrafts()
+        };
+        return true;
+      } catch (error) {
+        console.error("No se pudieron sincronizar los datos con Supabase.", error);
+        state.syncError = error.message ?? "No se pudo consultar la base de datos.";
+        if (showError) toast(`Error de sincronización: ${error.message ?? "No se pudo consultar la base de datos."}`, true);
+        return false;
+      }
+    }
+    let realtimeChannel = null;
+    let refreshTimer = null;
+    function subscribeToChanges() {
+      if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
+      const tables = state.role !== "caja" ? ["mesas", "comandas", "comanda_items"] :
+        ["mesas", "cuentas", "comandas", "comanda_items"];
+      realtimeChannel = supabaseClient.channel(`faro-pos-${state.user.id}`);
+      tables.forEach((table) => {
+        realtimeChannel.on("postgres_changes", { event: "*", schema: "public", table }, () => {
+          state.dataFresh = false;
+          state.syncError = "";
+          render();
+          window.clearTimeout(refreshTimer);
+          refreshTimer = window.setTimeout(() => refreshRemoteData(), 250);
+        });
+      });
+      realtimeChannel.subscribe((status) => {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          toast("No se pudo conectar la actualización en tiempo real.", true);
+        }
+      });
+    }
+    async function activateSession(user, requestedRole) {
+      state.authReady = false;
+      state.user = user;
+      state.role = null;
+      state.stationRole = null;
+      state.pendingStationRole = requestedRole;
+      state.dataFresh = false;
+      state.data = { tables: [], checks: [], nextTicket: 1, drafts: {} };
+      state.authMessage = "";
+      if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
+      realtimeChannel = null;
+      render();
+      try {
+        const { data, error } = await supabaseClient.from("staff_roles")
+          .select("role").eq("user_id", user.id).maybeSingle();
+        if (error) throw error;
+        if (!data || !Object.values(STATION_CODES).includes(data.role)) {
+          throw new Error("Esta cuenta no tiene uno de los roles autorizados para los puestos.");
+        }
+        if (requestedRole !== data.role) {
+          throw new Error("El código del puesto no coincide con el rol de esta cuenta.");
+        }
+        const boundRole = localStorage.getItem(STATION_STORAGE_KEY);
+        if (boundRole && boundRole !== requestedRole) {
+          throw new Error(`Este aparato ya está fijo en ${boundRole}.`);
+        }
+        if (!boundRole) localStorage.setItem(STATION_STORAGE_KEY, requestedRole);
+        state.stationBoundRole = requestedRole;
+        state.role = data.role;
+        state.stationRole = requestedRole;
+        state.pendingStationRole = null;
+        state.view = requestedRole;
+        state.authReady = true;
+        if (!await refreshRemoteData()) {
+          state.stationRole = null;
+          state.data = { tables: [], checks: [], nextTicket: 1, drafts: {} };
+          state.authMessage = "El puesto se validó, pero no se pudo sincronizar. Revisa la conexión e intenta otra vez.";
+        } else {
+          subscribeToChanges();
+        }
+      } catch (error) {
+        console.error("No se pudo validar la cuenta y el puesto.", error);
+        state.authReady = true;
+        state.authMessage = error.message || "No se pudo validar la cuenta y el puesto.";
+      }
+      render();
+    }
+    async function initializeAuth() {
+      try {
+        const { data, error } = await supabaseClient.auth.getSession();
+        if (error) throw error;
+        state.user = data.session?.user ?? null;
+        state.stationBoundRole = localStorage.getItem(STATION_STORAGE_KEY);
+        state.authReady = true;
+        render();
+        supabaseClient.auth.onAuthStateChange((event, session) => {
+          if (event === "SIGNED_OUT" || !session) {
+            state.user = null;
+            state.role = null;
+            state.stationRole = null;
+            state.pendingStationRole = null;
+            state.dataFresh = false;
+            state.syncError = "";
+            state.data = { tables: [], checks: [], nextTicket: 1, drafts: {} };
+            if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
+            realtimeChannel = null;
+            state.authReady = true;
+            render();
+          } else if (event === "SIGNED_IN" && session.user.id !== state.user?.id) {
+            state.user = session.user;
+            state.role = null;
+            state.stationRole = null;
+            state.dataFresh = false;
+            state.data = { tables: [], checks: [], nextTicket: 1, drafts: {} };
+            state.authReady = true;
+            state.authMessage = "Ingresa el código del puesto para continuar.";
+            try {
+              state.stationBoundRole = localStorage.getItem(STATION_STORAGE_KEY);
+            } catch (error) {
+              console.error("No se pudo leer el puesto fijo de este aparato.", error);
+              state.authMessage = "No se pudo validar el puesto fijo de este aparato.";
+            }
+            if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
+            realtimeChannel = null;
+            render();
+          }
+        });
+      } catch (error) {
+        console.error("No se pudo iniciar la autenticación de Supabase.", error);
+        state.authReady = true;
+        state.authMessage = "No se pudo conectar con el servicio de acceso. Intenta recargar la página.";
+        render();
+      }
+    }
+    function render() {
+      const authorized = Boolean(state.user && state.role && state.stationRole === state.role);
+      const nav = document.getElementById("module-nav");
+      nav.classList.toggle("hidden", !authorized);
+      document.getElementById("sign-out").classList.toggle("hidden", !state.user);
+      document.getElementById("user-label").textContent = state.user
+        ? `${state.user.email ?? "Personal"}${authorized ? ` · ${state.stationRole}` : " · Puesto bloqueado"}` : "";
+      if (authorized) {
+        const permitted = [state.stationRole];
+        nav.querySelectorAll("[data-view]").forEach((button) => {
+          button.classList.toggle("hidden", !permitted.includes(button.dataset.view));
+          if (button.dataset.view === state.view) button.setAttribute("aria-current", "page");
+          else button.removeAttribute("aria-current");
+        });
+      }
+      document.querySelectorAll("[data-view]").forEach((button) => {
+        if (authorized && button.dataset.view === state.stationRole) button.setAttribute("aria-current", "page");
+        else button.removeAttribute("aria-current");
+      });
+      const app = document.getElementById("app");
+      if (!authorized) {
+        app.innerHTML = state.pendingStationRole && !state.user ? renderStationSetup() : renderStationCode();
+      } else {
+        const syncStatus = state.dataFresh ? "" : `<div class="notice" role="status">${
+          state.syncing ? "Sincronizando con Supabase…" :
+            escapeHtml(state.syncError || "Datos pendientes de sincronización. Las operaciones están bloqueadas.")
+        }</div>`;
+        const view = state.stationRole === "mesero" ? renderWaiter() :
+          state.stationRole === "cocina" ? renderKitchen() : renderCashier();
+        app.innerHTML = syncStatus + view;
+      }
+    }
+
+    function renderWaiter() {
+      const tables = [...state.data.tables].sort((a, b) => a.order - b.order);
+      if (!state.selectedTable) {
+        const recent = state.data.checks.flatMap((check) => check.tickets.map((ticket) => ({
+          ...ticket, tableName: check.tableName
+        }))).filter((ticket) => Date.now() - Date.parse(ticket.createdAt) < 12 * 60 * 60 * 1000)
+          .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+        return `<h2>Mesero</h2>
+          <div class="section-heading"><h3>Selecciona una mesa</h3><span class="muted">${tables.length} mesas</span></div>
+          <div class="table-grid">${tables.map((table) => {
+            const status = tableStatus(table.id);
+            const draftPieces = (state.data.drafts[table.id] ?? []).reduce((sum, item) => sum + item.quantity, 0);
+            return `<button class="table-card ${status === "abierta" ? "occupied" : status === "por_cobrar" ? "due" : ""}"
+              data-table="${escapeHtml(table.id)}"><strong>${escapeHtml(table.name)}</strong>
+              <span>${status === "por_cobrar" ? "Por cobrar" : status === "abierta" ? "Ocupada" : "Disponible"}${draftPieces ? ` · Borrador ${draftPieces} pzas.` : ""}</span></button>`;
+          }).join("")}</div>
+          <div class="section-heading"><h3>Comandas recientes</h3></div>
+          ${recent.length ? `<div class="ticket-grid">${recent.slice(0, 10).map((ticket) =>
+            `<article class="ticket-card"><div class="ticket-head"><strong>#${ticket.number} · ${escapeHtml(ticket.tableName)}</strong>
+            <span class="badge ${escapeHtml(ticket.status)}">${statusLabel(ticket.status)}</span></div>
+            <span class="muted">${timeMty(ticket.createdAt)} · ${ticket.items.map((item) => `${item.quantity} ${escapeHtml(item.name)}`).join(", ")}</span></article>`
+          ).join("")}</div>` : `<p class="empty">Sin comandas recientes.</p>`}`;
+      }
+
+      const table = state.data.tables.find((item) => item.id === state.selectedTable);
+      const products = PRODUCTOS.filter((product) => product.categoria === state.category);
+      const totalPieces = state.draft.reduce((sum, item) => sum + item.quantity, 0);
+      return `<div class="section-heading"><h2>Mesero · ${escapeHtml(table?.name ?? "")}</h2>
+        <button class="button" data-action="back-tables">Cambiar mesa</button></div>
+        <div class="layout"><section class="panel">
+          <div class="categories">${CATEGORIAS.map((category) =>
+            `<button class="category-button ${state.category === category ? "active" : ""}" data-category="${escapeHtml(category)}">${escapeHtml(category)}</button>`
+          ).join("")}</div>
+          <div class="product-grid">${products.map((product) =>
+            `<button class="product-card" data-product="${product.id}"><strong>${escapeHtml(product.nombre)}</strong>
+            <span>${money(product.precio)}${product.mezcla ? " · Personalizable" : ""}</span></button>`
+          ).join("")}</div>
+        </section>
+        <aside class="panel sticky"><h3>Comanda</h3>
+          ${state.draft.length ? `<div class="cart-list">${state.draft.map((item, index) =>
+            `<div class="cart-item"><div><p><strong>${item.quantity}× ${escapeHtml(item.name)}</strong></p>
+              ${item.modifiers.length || item.notes ? `<p class="detail">${escapeHtml([...item.modifiers.map((modifier) => modifier.name), item.notes].filter(Boolean).join(" · "))}</p>` : ""}
+              <p class="detail">${money(item.unitPrice)} c/u · ${money(item.quantity * item.unitPrice)}</p>
+            </div><div class="cart-controls"><button data-quantity="-1" data-index="${index}" aria-label="Quitar uno">−</button>
+              <button data-quantity="1" data-index="${index}" aria-label="Agregar uno">+</button>
+              <button data-remove="${index}" aria-label="Eliminar producto">×</button></div></div>`
+          ).join("")}</div>` : `<p class="empty">Agrega productos para iniciar.</p>`}
+          <div class="receipt-total"><span>Total estimado</span><strong>${money(state.draft.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0))}</strong></div>
+          <button class="button primary full" data-action="send-order"
+            ${state.draft.length && state.dataFresh && !state.syncing ? "" : "disabled"}>
+            ${state.syncing ? "Sincronizando…" : `Enviar comanda (${totalPieces})`}
+          </button>
+        </aside></div>`;
+    }
+
+    function statusLabel(status) {
+      return ({ pendiente: "Pendiente", preparacion: "En preparación", listo: "Listo",
+        abierta: "Abierta", por_cobrar: "Por cobrar", pagada: "Pagada", anulada: "Anulada" })[status] ?? status;
+    }
+    function renderKitchen() {
+      const allTickets = state.data.checks.flatMap((check) => check.tickets.map((ticket) => ({
+        ...ticket, tableName: check.tableName
+      }))).filter((ticket) => ["pendiente", "preparacion"].includes(ticket.status) &&
+        ticket.items.some((item) => ["pendiente", "preparacion"].includes(item.status ?? ticket.status)))
+        .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
+      const tickets = allTickets.filter((ticket) => state.kitchenFilter === "todas" || ticket.status === state.kitchenFilter);
+      return `<div class="section-heading"><h2>Cocina</h2>
+        <div class="toolbar"><span class="badge">${tickets.length} activas · ${allTickets.filter((ticket) => ticket.status === "pendiente").length} nuevas</span>
+        <button class="button ${state.kitchenFilter === "todas" ? "primary" : ""}" data-kitchen-filter="todas">Todas</button>
+        <button class="button ${state.kitchenFilter === "pendiente" ? "primary" : ""}" data-kitchen-filter="pendiente">Nuevas</button>
+        <button class="button ${state.kitchenFilter === "preparacion" ? "primary" : ""}" data-kitchen-filter="preparacion">Preparando</button></div></div>
+        ${tickets.length ? `<div class="ticket-grid">${tickets.map((ticket) => {
+          const activeItems = ticket.items.filter((item) => ["pendiente", "preparacion"].includes(item.status ?? ticket.status));
+          const ticketStatus = activeItems.some((item) => (item.status ?? ticket.status) === "pendiente")
+            ? "pendiente" : "preparacion";
+          const next = ticketStatus === "pendiente" ? "preparacion" : "listo";
+          const label = ticketStatus === "pendiente" ? "Empezar preparación" : "Marcar listo";
+          const age = elapsedMinutes(ticket.createdAt);
+          return `<article class="ticket-card"><div class="ticket-head"><strong>#${ticket.number} · ${escapeHtml(ticket.tableName)}</strong>
+              <span class="badge ${ticketStatus}">${statusLabel(ticketStatus)}</span></div>
+            <div class="toolbar"><span class="muted">Recibida ${timeMty(ticket.createdAt)}</span>
+              <span class="badge ${age >= 15 ? "urgent" : ""}" aria-label="Tiempo transcurrido">${elapsedLabel(age)}${age >= 15 ? " · Prioridad" : ""}</span></div>
+            <div class="ticket-items">${activeItems.map((item) =>
+              `<div><p><strong>${item.quantity}× ${escapeHtml(item.name)}</strong></p>
+                ${item.modifiers.length ? `<p class="detail">${escapeHtml(item.modifiers.map((modifier) => modifier.name).join(" · "))}</p>` : ""}
+                ${item.notes ? `<p class="detail"><strong>Nota:</strong> ${escapeHtml(item.notes)}</p>` : ""}
+              </div>`
+            ).join("")}</div>
+            <button class="button ${next === "listo" ? "primary" : "warning"}" data-ticket-status="${ticket.id}" data-next-status="${next}">${label}</button></article>`;
+        }).join("")}</div>` : `<div class="panel empty">No hay comandas pendientes.</div>`}`;
+    }
+    function renderCashier() {
+      const active = state.data.tables.map((table) => ({ table, check: activeCheck(table.id) }))
+        .filter(({ table, check }) => {
+          const matchesSearch = `${table.name} ${check?.tickets.map((ticket) => ticket.number).join(" ") ?? ""}`
+            .toLowerCase().includes(state.cashierSearch.trim().toLowerCase());
+          const matchesFilter = state.cashierFilter === "todas" ||
+            (state.cashierFilter === "con_cuenta" && Boolean(check)) ||
+            (state.cashierFilter === "por_cobrar" && check?.status === "por_cobrar");
+          return matchesSearch && matchesFilter;
+        });
+      const selected = active.find(({ table }) => table.id === state.cashierTable);
+      const date = state.closeDate;
+      const settled = state.data.checks.filter((check) => check.operatingDate === date && ["pagada", "anulada"].includes(check.status));
+      const paid = settled.filter((check) => check.status === "pagada");
+      const voided = settled.filter((check) => check.status === "anulada");
+      const sales = paid.reduce((sum, check) => sum + check.total, 0);
+      const cash = paid.filter((check) => check.paymentMethod === "efectivo").reduce((sum, check) => sum + check.total, 0);
+      const clip = paid.filter((check) => check.paymentMethod === "clip").reduce((sum, check) => sum + check.total, 0);
+      const ranking = new Map();
+      paid.flatMap((check) => check.tickets.flatMap((ticket) => ticket.items)).forEach((item) => {
+        const entry = ranking.get(item.name) ?? { quantity: 0, amount: 0 };
+        entry.quantity += item.quantity;
+        entry.amount += item.quantity * item.unitPrice;
+        ranking.set(item.name, entry);
+      });
+      const top = [...ranking.entries()].sort((a, b) => b[1].quantity - a[1].quantity).slice(0, 10);
+      return `<h2>Caja</h2>
+        <div class="section-heading"><h3>Mesas y cuentas</h3><span class="muted">${active.filter((entry) => entry.check).length} cuentas visibles</span></div>
+        <div class="toolbar no-print">
+          <input type="search" id="cashier-search" placeholder="Buscar mesa o comanda" aria-label="Buscar mesa o número de comanda" value="${escapeHtml(state.cashierSearch)}">
+          <button class="button ${state.cashierFilter === "todas" ? "primary" : ""}" data-cashier-filter="todas">Todas</button>
+          <button class="button ${state.cashierFilter === "con_cuenta" ? "primary" : ""}" data-cashier-filter="con_cuenta">Con cuenta</button>
+          <button class="button ${state.cashierFilter === "por_cobrar" ? "primary" : ""}" data-cashier-filter="por_cobrar">Por cobrar</button>
+        </div>
+        <div class="layout"><div><div class="table-grid">${active.map(({ table, check }) => {
+          const status = check?.status ?? "disponible";
+          const total = check ? check.tickets.reduce((sum, ticket) => sum + ticketTotal(ticket), 0) : null;
+          return `<button class="table-card ${status === "abierta" ? "occupied" : status === "por_cobrar" ? "due" : ""} ${state.cashierTable === table.id ? "selected" : ""}"
+            data-cashier-table="${escapeHtml(table.id)}"><strong>${escapeHtml(table.name)}</strong>
+            <span>${status === "disponible" ? "Disponible" : status === "por_cobrar" ? "Por cobrar" : "Ocupada"}</span>
+            ${check ? `<span><strong>${money(total)}</strong></span><span>Comanda #${check.tickets.at(-1)?.number ?? "—"}</span>` : ""}</button>`;
+        }).join("")}</div></div>
+        <aside class="panel">${selected?.check ? renderReceipt(selected.table, selected.check) :
+          `<p class="empty">${selected ? `${escapeHtml(selected.table.name)} no tiene cuenta activa.` : "Selecciona una mesa con cuenta activa."}</p>`}</aside></div>
+        <div class="section-heading"><h3>Corte de caja</h3><div class="toolbar">
+          <label for="close-date" class="muted">Fecha (Monterrey)</label>
+          <input id="close-date" type="date" value="${escapeHtml(date)}"></div></div>
+        <div class="stats">
+          <div class="stat"><span>Total vendido</span><strong>${money(sales)}</strong></div>
+          <div class="stat"><span>Efectivo</span><strong>${money(cash)}</strong></div>
+          <div class="stat"><span>Clip registrado</span><strong>${money(clip)}</strong></div>
+          <div class="stat"><span>Ticket promedio</span><strong>${money(paid.length ? sales / paid.length : 0)}</strong></div>
+          <div class="stat"><span>Cuentas cobradas</span><strong>${paid.length}</strong></div>
+          <div class="stat"><span>Anuladas</span><strong>${voided.length}</strong></div>
+        </div>
+        <section class="panel"><h3>Productos más vendidos</h3>
+          ${top.length ? `<div>${top.map(([name, item]) => `<div class="receipt-row"><span>${escapeHtml(name)} · ${item.quantity} pzas.</span><strong>${money(item.amount)}</strong></div>`).join("")}</div>` :
+            `<p class="muted">Sin ventas registradas en esta fecha.</p>`}
+        </section>`;
+    }
+    function renderReceipt(table, check) {
+      const items = check.tickets.flatMap((ticket) => ticket.items);
+      const total = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+      return `<div class="ticket-head"><div><h3>${escapeHtml(table.name)}</h3><span class="badge ${check.status}">${statusLabel(check.status)}</span></div>
+        <span class="muted">${check.tickets.length} comandas</span></div>
+        <div class="receipt">${check.tickets.map((ticket) => `<div class="section-heading"><strong>#${ticket.number}</strong><span class="muted">${timeMty(ticket.createdAt)}</span></div>
+          ${ticket.items.map((item) => `<div class="receipt-row"><span>${item.quantity}× ${escapeHtml(item.name)}
+            ${item.modifiers.length ? `<small class="detail" style="display:block">${escapeHtml(item.modifiers.map((modifier) => modifier.name).join(" · "))}</small>` : ""}</span>
+            <strong>${money(item.quantity * item.unitPrice)}</strong></div>`).join("")}`).join("")}
+          <div class="receipt-total"><span>Total</span><span>${money(total)}</span></div></div>
+        <div class="actions no-print">
+          ${check.status !== "por_cobrar" ? `<button class="button warning" data-mark-due="${check.id}">Marcar por cobrar</button>` : ""}
+          <button class="button primary" data-pay="${check.id}" data-method="efectivo">Cobrar efectivo</button>
+          <button class="button primary" data-pay="${check.id}" data-method="clip">Registrar Clip</button>
+          <button class="button danger" data-void="${check.id}">Anular cuenta</button>
+          <button class="button" data-print>Imprimir</button>
+        </div>`;
+    }
+
+    function openProductDialog(product) {
+      const hasMix = Boolean(product.mezcla);
+      const meatOptions = CARNES.map((meat, index) =>
+        `<label class="choice"><input type="${index === 0 ? "radio" : "radio"}" name="main-meat" value="${meat}" ${index === 0 ? "checked" : ""}>${meat}${meat === "Tripa" ? ` (+${money(product.tripa)})` : ""}</label>`
+      ).join("");
+      const extras = CARNES.map((meat) =>
+        `<label class="choice"><input type="checkbox" name="extra-meat" value="${meat}">${meat} (+${money(10)})</label>`
+      ).join("");
+      const quickNotes = NOTAS.map((note) =>
+        `<label class="choice"><input type="checkbox" name="quick-note" value="${escapeHtml(note)}">${escapeHtml(note)}</label>`
+      ).join("");
+      document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop" data-dismiss-modal>
+        <section class="modal" role="dialog" aria-modal="true" aria-labelledby="product-title">
+          <div class="modal-header"><div><h2 id="product-title">${escapeHtml(product.nombre)}</h2>
+            <p class="muted">${money(product.precio)} precio base</p></div>
+            <button class="small-button" type="button" data-close-modal aria-label="Cerrar">✕</button></div>
+          ${hasMix ? `<fieldset class="field"><legend>Elige la carne principal</legend><div class="choice-grid">${meatOptions}</div>
+            <small class="muted">Cada carne adicional suma $10. La tripa solo lleva recargo especial como carne principal.</small>
+            <div class="field"><label>Carnes adicionales</label><div class="choice-grid">${extras}</div></div>
+            ${product.queso ? `<label class="choice"><input type="checkbox" name="with-cheese">Con queso (+${money(product.queso)})</label>` : ""}
+          </fieldset>` : ""}
+          <fieldset class="field"><legend>Notas de preparación</legend>
+            <div class="choice-grid">${quickNotes}</div>
+            <label class="field">Otra indicación<textarea name="free-note" maxlength="180" placeholder="Escribe una nota para cocina"></textarea></label>
+          </fieldset>
+          <label class="field">Cantidad<input name="quantity" type="number" min="1" max="99" value="1" required></label>
+          <div class="modal-footer"><button class="button" type="button" data-close-modal>Cancelar</button>
+            <button class="button primary" type="button" data-add-product>Agregar a comanda</button></div>
+        </section></div>`;
+      document.querySelector(".modal-backdrop").addEventListener("click", (event) => {
+        if (event.target.matches("[data-dismiss-modal]")) closeModal();
+      });
+      document.querySelector("[name='main-meat']")?.focus();
+    }
+    function closeModal() {
+      document.getElementById("modal-root").innerHTML = "";
+    }
+    function addProductFromDialog(product) {
+      const modal = document.querySelector(".modal");
+      const quantity = Number(modal.querySelector("[name='quantity']").value);
+      if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) {
+        toast("La cantidad debe ser un número entero entre 1 y 99.", true);
+        return;
+      }
+      let modifiers = [];
+      if (product.mezcla) {
+        const principal = modal.querySelector("[name='main-meat']:checked")?.value;
+        if (!CARNES.includes(principal)) {
+          toast("Selecciona la carne principal.", true);
+          return;
+        }
+        const extras = [...modal.querySelectorAll("[name='extra-meat']:checked")].map((input) => input.value);
+        modifiers = mixModifiers(product, principal, extras, Boolean(modal.querySelector("[name='with-cheese']:checked")));
+      }
+      const notes = [
+        ...[...modal.querySelectorAll("[name='quick-note']:checked")].map((input) => input.value),
+        modal.querySelector("[name='free-note']")?.value.trim() ?? ""
+      ].filter(Boolean).join(", ");
+      state.draft.push({
+        id: newId(), productId: product.id, name: product.nombre,
+        quantity, modifiers, notes, unitPrice: productPrice(product, modifiers),
+        status: "pendiente"
+      });
+      if (!persistDraft()) {
+        state.draft.pop();
+        return;
+      }
+      closeModal();
+      render();
+      toast(`${product.nombre} agregado.`);
+    }
+    async function sendOrder() {
+      if (!await ensureFreshData()) return;
+      if (!state.selectedTable || !state.draft.length) return;
+      const table = state.data.tables.find((item) => item.id === state.selectedTable);
+      if (!table) {
+        toast("No se encontró la mesa seleccionada.", true);
+        return;
+      }
+      const items = state.draft.map((item) => ({
+        producto_id: item.productId,
+        nombre: item.name,
+        cantidad: item.quantity,
+        precio_unitario: item.unitPrice,
+        modificadores: item.modifiers.map((modifier) => modifier.name),
+        notas: item.notes
+      }));
+      const { error } = await supabaseClient.rpc("enviar_comanda", {
+        p_mesa: table.id,
+        p_token: state.orderToken,
+        p_items: items,
+        p_mesero: state.user.email ?? null
+      });
+      if (error) {
+        console.error("No se pudo enviar la comanda.", error);
+        toast(`No se pudo enviar la comanda: ${error.message}`, true);
+        return;
+      }
+      toast(`Comanda enviada · ${table.name}`);
+      delete state.data.drafts[table.id];
+      saveDrafts();
+      state.selectedTable = null;
+      state.draft = [];
+      state.orderToken = newId();
+      await refreshRemoteData();
+    }
+    async function changeTicketStatus(ticketId, nextStatus) {
+      if (!await ensureFreshData()) return;
+      const { error } = await supabaseClient.rpc("actualizar_estado_comanda", {
+        p_comanda: ticketId,
+        p_estado: nextStatus
+      });
+      if (error) {
+        console.error("No se pudo cambiar el estado de la comanda.", error);
+        toast(`No se pudo cambiar el estado: ${error.message}`, true);
+        return;
+      }
+      await refreshRemoteData();
+    }
+    async function markDue(checkId) {
+      if (!await ensureFreshData()) return;
+      const { error } = await supabaseClient.rpc("solicitar_cuenta", { p_cuenta: checkId });
+      if (error) {
+        console.error("No se pudo marcar la cuenta por cobrar.", error);
+        toast(`No se pudo marcar por cobrar: ${error.message}`, true);
+        return;
+      }
+      toast("Cuenta marcada por cobrar.");
+      await refreshRemoteData();
+    }
+    async function payCheck(checkId, method) {
+      if (!await ensureFreshData()) return;
+      const { error } = await supabaseClient.rpc("cobrar_cuenta", {
+        p_cuenta: checkId,
+        p_metodo: method
+      });
+      if (error) {
+        console.error("No se pudo registrar el cobro.", error);
+        toast(`No se pudo registrar el cobro: ${error.message}`, true);
+        return;
+      }
+      state.cashierTable = null;
+      toast(method === "clip" ? "Pago registrado como Clip. Cobra en la terminal por separado." : "Cuenta cobrada en efectivo.");
+      await refreshRemoteData();
+    }
+    function voidCheck(checkId) {
+      const check = state.data.checks.find((item) => item.id === checkId && ["abierta", "por_cobrar"].includes(item.status));
+      if (!check) {
+        toast("La cuenta no se puede anular.", true);
+        return;
+      }
+      document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop" data-dismiss-modal>
+        <section class="modal" role="dialog" aria-modal="true" aria-labelledby="void-title">
+          <div class="modal-header"><h2 id="void-title">Anular cuenta de ${escapeHtml(check.tableName)}</h2>
+            <button class="small-button" type="button" data-close-modal aria-label="Cerrar">✕</button></div>
+          <p class="muted">Escribe el motivo. La cuenta quedará fuera de las ventas.</p>
+          <label class="field">Motivo<textarea name="void-reason" maxlength="240" required></textarea></label>
+          <div class="modal-footer"><button class="button" type="button" data-close-modal>Cancelar</button>
+            <button class="button danger" type="button" data-confirm-void="${check.id}">Confirmar anulación</button></div>
+        </section></div>`;
+      document.querySelector(".modal-backdrop").addEventListener("click", (event) => {
+        if (event.target.matches("[data-dismiss-modal]")) closeModal();
+      });
+      document.querySelector("[name='void-reason']").focus();
+    }
+    async function confirmVoid(checkId) {
+      if (!await ensureFreshData()) return;
+      const reason = document.querySelector("[name='void-reason']").value.trim();
+      if (!reason) {
+        toast("Escribe un motivo para anular la cuenta.", true);
+        return;
+      }
+      const { error } = await supabaseClient.rpc("anular_cuenta", {
+        p_cuenta: checkId,
+        p_motivo: reason
+      });
+      if (error) {
+        console.error("No se pudo anular la cuenta.", error);
+        toast(`No se pudo anular la cuenta: ${error.message}`, true);
+        return;
+      }
+      closeModal();
+      state.cashierTable = null;
+      toast("Cuenta anulada.");
+      await refreshRemoteData();
+    }
+
+    document.addEventListener("submit", async (event) => {
+      if (!["station-form", "login-form"].includes(event.target.id)) return;
+      event.preventDefault();
+      if (!state.authReady) return;
+      if (event.target.id === "station-form") {
+        const code = event.target.elements["station-code"].value.trim();
+        const requestedRole = Object.hasOwn(STATION_CODES, code) ? STATION_CODES[code] : null;
+        if (!requestedRole) {
+          state.authMessage = "Código incorrecto. Este puesto permanece bloqueado.";
+          render();
+          return;
+        }
+        if (state.stationBoundRole && state.stationBoundRole !== requestedRole) {
+          state.authMessage = "Código incorrecto para el puesto fijo de este aparato.";
+          render();
+          return;
+        }
+        state.pendingStationRole = requestedRole;
+        state.authMessage = "";
+        if (state.user) await activateSession(state.user, requestedRole);
+        else render();
+        return;
+      }
+      if (event.target.id !== "login-form") return;
+      const form = event.target;
+      const email = form.elements.email.value.trim();
+      const password = form.elements.password.value;
+      state.authReady = false;
+      state.authMessage = "";
+      render();
+      try {
+        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        await activateSession(data.user, state.pendingStationRole);
+      } catch (error) {
+        console.error("Falló el inicio de sesión.", error);
+        state.authReady = true;
+        state.authMessage = "No se pudo iniciar sesión. Verifica el correo y la contraseña o contacta al administrador.";
+        render();
+      }
+    });
+    document.addEventListener("click", async (event) => {
+      const target = event.target.closest("button");
+      if (!target) return;
+      if (target.dataset.action === "sign-out") {
+        const { error } = await supabaseClient.auth.signOut();
+        if (error) {
+          console.error("No se pudo cerrar la sesión.", error);
+          toast(`No se pudo cerrar sesión: ${error.message}`, true);
+        }
+      } else if (target.dataset.view) {
+        const permitted = state.stationRole === target.dataset.view && state.role === state.stationRole;
+        if (!permitted) {
+          toast("Tu rol no tiene acceso a esta área.", true);
+          return;
+        }
+        state.view = target.dataset.view;
+        render();
+      } else if (target.dataset.table) {
+        state.selectedTable = target.dataset.table;
+        state.draft = structuredClone(state.data.drafts[state.selectedTable] ?? []);
+        render();
+      } else if (target.dataset.action === "back-tables") {
+        if (!persistDraft()) return;
+        state.selectedTable = null;
+        render();
+      } else if (target.dataset.category) {
+        state.category = target.dataset.category;
+        render();
+      } else if (target.dataset.product) {
+        const product = productById(target.dataset.product);
+        if (product) openProductDialog(product);
+      } else if (target.dataset.closeModal !== undefined) {
+        closeModal();
+      } else if (target.dataset.addProduct !== undefined) {
+        const title = document.getElementById("product-title")?.textContent;
+        const product = PRODUCTOS.find((item) => item.nombre === title);
+        if (product) addProductFromDialog(product);
+      } else if (target.dataset.quantity) {
+        updateDraft((draft) => {
+          const item = draft[Number(target.dataset.index)];
+          if (item) item.quantity = Math.max(1, Math.min(99, item.quantity + Number(target.dataset.quantity)));
+        });
+        render();
+      } else if (target.dataset.remove !== undefined) {
+        updateDraft((draft) => { draft.splice(Number(target.dataset.remove), 1); });
+        render();
+      } else if (target.dataset.action === "send-order") {
+        sendOrder();
+      } else if (target.dataset.ticketStatus) {
+        changeTicketStatus(target.dataset.ticketStatus, target.dataset.nextStatus);
+      } else if (target.dataset.kitchenFilter) {
+        state.kitchenFilter = target.dataset.kitchenFilter;
+        render();
+      } else if (target.dataset.cashierTable) {
+        state.cashierTable = target.dataset.cashierTable;
+        render();
+      } else if (target.dataset.cashierFilter) {
+        state.cashierFilter = target.dataset.cashierFilter;
+        render();
+      } else if (target.dataset.markDue) {
+        markDue(target.dataset.markDue);
+      } else if (target.dataset.pay) {
+        const check = state.data.checks.find((item) => item.id === target.dataset.pay &&
+          ["abierta", "por_cobrar"].includes(item.status));
+        const total = check?.tickets.reduce((sum, ticket) => sum + ticketTotal(ticket), 0) ?? 0;
+        const method = target.dataset.method;
+        if (!check) {
+          toast("La cuenta no está disponible para cobro.", true);
+        } else if (window.confirm(`Confirmar cobro de ${check.tableName} por ${money(total)}${method === "clip" ? "?\n\nConfirma también el pago en la terminal Clip. Esta acción solo registra el pago." : " en efectivo?"}`)) {
+          payCheck(check.id, method);
+        }
+      } else if (target.dataset.void) {
+        voidCheck(target.dataset.void);
+      } else if (target.dataset.confirmVoid) {
+        confirmVoid(target.dataset.confirmVoid);
+      } else if (target.dataset.print !== undefined) {
+        window.print();
+      }
+    });
+    document.addEventListener("change", (event) => {
+      if (event.target.id === "close-date" && /^\d{4}-\d{2}-\d{2}$/.test(event.target.value)) {
+        state.closeDate = event.target.value;
+        render();
+      }
+    });
+    document.addEventListener("input", (event) => {
+      if (event.target.id === "cashier-search") {
+        const cursor = event.target.selectionStart;
+        state.cashierSearch = event.target.value;
+        render();
+        const input = document.getElementById("cashier-search");
+        input?.focus();
+        input?.setSelectionRange(cursor, cursor);
+      }
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeModal();
+    });
+
+    function syncAfterResume() {
+      if (document.visibilityState === "hidden" || !state.user ||
+          !state.role || state.stationRole !== state.role) return;
+      state.dataFresh = false;
+      state.syncError = "";
+      void refreshRemoteData();
+    }
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") {
+        state.dataFresh = false;
+      } else {
+        syncAfterResume();
+      }
+    });
+    window.addEventListener("focus", syncAfterResume);
+    window.addEventListener("pageshow", syncAfterResume);
+    window.addEventListener("online", syncAfterResume);
+
+    updateClock();
+    window.setInterval(() => {
+      updateClock();
+      if (state.view === "cocina") render();
+    }, 30_000);
+    render();
+    initializeAuth();
+  </script>
+</body>
+</html>
