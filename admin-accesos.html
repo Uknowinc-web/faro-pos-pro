@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#17332b">
   <title>Administración de accesos — Tacos El Faro</title>
   <style>
@@ -53,6 +53,22 @@
       .request-head .actions { width: 100%; }
       .request-head .actions button { flex: 1; }
       article { padding: .9rem; }
+    }
+    html { -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
+    input { font-size: 16px; }
+    header { padding-top: max(1rem, env(safe-area-inset-top)); padding-left: max(1rem, env(safe-area-inset-left), calc((100vw - 920px) / 2)); padding-right: max(1rem, env(safe-area-inset-right), calc((100vw - 920px) / 2)); }
+    main { padding-left: max(1.25rem, env(safe-area-inset-left)); padding-right: max(1.25rem, env(safe-area-inset-right)); padding-bottom: max(1.25rem, env(safe-area-inset-bottom)); }
+    button { touch-action: manipulation; }
+    button:focus-visible, input:focus-visible { outline-color: #2f7f5f; }
+    button:disabled { background-image: repeating-linear-gradient(135deg, transparent 0 6px, #0000000d 6px 12px); }
+    button[aria-expanded="true"] { border-color: var(--green); background: #e4efe9; }
+    button:active:not(:disabled) { filter: brightness(.9); }
+    .code-card code { overflow-wrap: anywhere; }
+    @media (max-width: 560px) {
+      main { padding-left: max(.75rem, env(safe-area-inset-left)); padding-right: max(.75rem, env(safe-area-inset-right)); }
+      .dashboard-heading .actions { width: 100%; }
+      .dashboard-heading .actions button { flex: 1 1 100%; }
+      .codes-grid { grid-template-columns: minmax(0, 1fr); }
     }
     [hidden] { display: none !important; }
   </style>

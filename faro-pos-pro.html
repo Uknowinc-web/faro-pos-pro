@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#17332b">
   <title>Tacos El Faro — Servicio y Cocina</title>
   <style>
@@ -218,6 +218,51 @@
       .connection-banner .button { min-width: 98px; }
       .section-heading { align-items: start; }
       .toolbar { gap: .4rem; }
+    }
+    /* Móvil iOS/Android: áreas táctiles, safe areas, zoom de iOS, scroll y estados sin hover */
+    html { -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
+    body { min-height: 100vh; min-height: 100dvh; }
+    body:has(.modal-backdrop) { overflow: hidden; }
+    input, select, textarea, .field input, .field textarea, .field select, .field input[type="number"], .toolbar select, .toolbar input, .toolbar input[type="search"] { font-size: 16px; }
+    .field input, .field select, .toolbar select, .toolbar input { min-height: 44px; }
+    .station-code { font-size: 1.2rem !important; }
+    .topbar { padding-top: max(.8rem, env(safe-area-inset-top)); padding-left: max(1rem, env(safe-area-inset-left), calc((100vw - 1200px) / 2)); padding-right: max(1rem, env(safe-area-inset-right), calc((100vw - 1200px) / 2)); }
+    .container { padding-left: max(1.15rem, env(safe-area-inset-left)); padding-right: max(1.15rem, env(safe-area-inset-right)); padding-bottom: max(1.15rem, env(safe-area-inset-bottom)); }
+    .nav button, .category-button, .button, .small-button, .choice, .table-card, .product-card { min-height: 44px; touch-action: manipulation; }
+    .small-button { min-width: 44px; }
+    .cart-controls button { width: 44px; height: 44px; touch-action: manipulation; }
+    .choice { min-height: 44px; }
+    .choice input { width: 22px; height: 22px; min-height: 0; flex-shrink: 0; }
+    .nav, .categories { -webkit-overflow-scrolling: touch; }
+    .nav button, .category-button { flex-shrink: 0; }
+    .modal-backdrop { padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left)); overscroll-behavior: contain; }
+    .modal { max-height: min(88vh, 800px); max-height: min(88dvh, 800px); overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+    .modal-footer { flex-wrap: wrap; }
+    .modal-footer .button { min-height: 44px; }
+    .toast { right: max(1rem, env(safe-area-inset-right)); bottom: max(1rem, env(safe-area-inset-bottom)); }
+    .table-card.selected { border-width: 2px; border-color: var(--green); background: var(--green-light); }
+    .table-card.selected strong::before { content: "✓ "; }
+    .nav button[aria-current="page"], .category-button.active { font-weight: 800; }
+    button:disabled, .button:disabled { opacity: .5; background-image: repeating-linear-gradient(135deg, transparent 0 6px, #0000000d 6px 12px); }
+    button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible, .choice:focus-within { outline: 3px solid #2f7f5f; outline-offset: 2px; }
+    @media (hover: none) {
+      .table-card:hover, .product-card:hover { transform: none; box-shadow: none; border-color: var(--line); }
+      .table-card.selected:hover { border-color: var(--green); }
+      .button:active:not(:disabled), .category-button:active:not(:disabled), .small-button:active:not(:disabled), .cart-controls button:active, .table-card:active, .product-card:active { filter: brightness(.9); }
+    }
+    @media (max-width: 760px) {
+      .sticky.has-draft { max-height: 48vh; max-height: 48dvh; overscroll-behavior: contain; padding-left: max(1.1rem, env(safe-area-inset-left)); padding-right: max(1.1rem, env(safe-area-inset-right)); }
+      .modal-backdrop { place-items: end center; }
+      .toast { left: max(1rem, env(safe-area-inset-left)); max-width: none; }
+    }
+    @media (max-width: 400px) {
+      .table-grid, .product-grid, .ticket-grid { grid-template-columns: minmax(0, 1fr); }
+      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .summary-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .clock { max-width: 90px; }
+    }
+    @media (min-width: 401px) and (max-width: 430px) {
+      .table-grid, .product-grid, .ticket-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
     @media print {
       .topbar, .notice, .nav, .no-print { display: none !important; }
