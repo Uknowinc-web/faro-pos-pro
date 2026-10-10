@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#17332b">
-  <title>Administración de accesos — Faro POS Pro</title>
+  <title>Administración de accesos — Tacos El Faro</title>
   <style>
     :root { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #202923; background: #f5f5ef; --green: #173f32; --line: #dedfd7; --muted: #68716b; --card: #fffefa; --shadow: 0 8px 24px #18362a0d; }
     * { box-sizing: border-box; }
@@ -37,6 +37,14 @@
     .status.pending { background: #fff0c8; }
     .status.approved { background: #dff1e5; color: #1f613a; }
     .status.rejected, .status.revoked { background: #fae0dc; color: #922e25; }
+    header .brand { display: flex; align-items: center; gap: .75rem; }
+    header img { width: 46px; height: 46px; border-radius: 50%; }
+    header p { margin: .15rem 0 0; color: #cfddd5; font-size: .85rem; }
+    .codes-panel { margin: 1rem 0; }
+    .codes-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .75rem; }
+    .code-card { padding: .8rem; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+    .code-card p { margin: .3rem 0 0; }
+    .code-card code { font-size: 1.2rem; font-weight: 800; letter-spacing: .12em; color: var(--green); }
     @media (max-width: 560px) {
       main { padding: .75rem; }
       .dashboard-heading { align-items: start; flex-direction: column; }
@@ -50,7 +58,12 @@
   </style>
 </head>
 <body>
-  <header><h1>Faro POS Pro · Administración de accesos</h1></header>
+  <header>
+    <div class="brand">
+      <img src="./logo-tacos-el-faro.svg" alt="">
+      <div><h1>Tacos El Faro</h1><p>Administración de accesos</p></div>
+    </div>
+  </header>
   <main>
     <section id="login" class="panel" hidden>
       <h2>Acceso de administración</h2>
@@ -66,10 +79,19 @@
       <div class="dashboard-heading">
         <div><p class="eyebrow">Panel de control</p><h2>Accesos del equipo</h2><p id="admin-label" class="muted"></p></div>
         <div class="actions">
+          <button id="toggle-codes" type="button" aria-expanded="false">Consultar códigos de puesto</button>
           <button id="refresh" type="button">Actualizar solicitudes</button>
           <button id="sign-out" type="button">Cerrar sesión</button>
         </div>
       </div>
+      <section id="codes-panel" class="codes-panel" hidden>
+        <article>
+          <h3>Códigos de puesto</h3>
+          <p class="muted">Compártelos directamente con el equipo de cada área. La autorización del dispositivo sigue siendo obligatoria.</p>
+          <p id="codes-message" class="message" role="status"></p>
+          <div id="codes-list" class="codes-grid"></div>
+        </article>
+      </section>
       <p id="dashboard-message" class="message" role="status">Revisa el nombre y el área antes de autorizar cada dispositivo.</p>
       <div id="requests" class="requests"></div>
     </section>
@@ -96,6 +118,30 @@
     function roleLabel(role) {
       return ({ mesero: "Servicio", cocina: "Cocina", caja: "Caja" })[role] ?? role;
     }
+    async function loadStationCodes() {
+      const message = document.getElementById("codes-message");
+      const list = document.getElementById("codes-list");
+      message.textContent = "Consultando códigos…";
+      list.replaceChildren();
+      const { data, error } = await supabaseClient.rpc("listar_codigos_puesto");
+      if (error) {
+        console.error("No se pudieron consultar los códigos de puesto.", error);
+        message.textContent = "No se pudieron consultar los códigos. Inténtalo de nuevo.";
+        return;
+      }
+      if (!Array.isArray(data) || data.length !== 3
+          || data.some((item) => !["mesero", "cocina", "caja"].includes(item.role)
+            || !/^[0-9a-f]{8}$/.test(item.code))) {
+        console.error("La respuesta de códigos de puesto tiene un formato inesperado.", data);
+        message.textContent = "No se recibió una lista válida de códigos. Contacta a soporte.";
+        return;
+      }
+      list.innerHTML = data.map((item) => `<div class="code-card">
+        <strong>${escapeHtml(roleLabel(item.role))}</strong>
+        <p><code>${escapeHtml(item.code.toUpperCase())}</code></p>
+      </div>`).join("");
+      message.textContent = "Estos códigos solo están disponibles en esta sesión de administración.";
+    }
     function formatDate(value) {
       return new Intl.DateTimeFormat("es-MX", {
         dateStyle: "medium", timeStyle: "short", timeZone: "America/Monterrey"
@@ -106,6 +152,12 @@
       dashboard.hidden = true;
       loginSection.hidden = false;
       loginMessage.textContent = message;
+      document.getElementById("codes-panel").hidden = true;
+      document.getElementById("codes-list").replaceChildren();
+      document.getElementById("codes-message").textContent = "";
+      const codesButton = document.getElementById("toggle-codes");
+      codesButton.setAttribute("aria-expanded", "false");
+      codesButton.textContent = "Consultar códigos de puesto";
     }
     async function requireAdmin(user) {
       const { data, error } = await supabaseClient.from("staff_roles")
@@ -119,11 +171,23 @@
       currentUser = user;
       loginSection.hidden = true;
       dashboard.hidden = false;
+      document.getElementById("codes-panel").hidden = true;
+      document.getElementById("toggle-codes").setAttribute("aria-expanded", "false");
+      document.getElementById("toggle-codes").textContent = "Consultar códigos de puesto";
       document.getElementById("admin-label").textContent = `Sesión iniciada: ${user.email}`;
       await loadRequests();
       window.clearInterval(refreshTimer);
       refreshTimer = window.setInterval(() => { void loadRequests(); }, 15000);
     }
+    document.getElementById("toggle-codes").addEventListener("click", async (event) => {
+      const button = event.currentTarget;
+      const panel = document.getElementById("codes-panel");
+      const show = panel.hidden;
+      panel.hidden = !show;
+      button.setAttribute("aria-expanded", String(show));
+      button.textContent = show ? "Ocultar códigos de puesto" : "Consultar códigos de puesto";
+      if (show && currentUser) await loadStationCodes();
+    });
     async function loadRequests() {
       if (!currentUser) return;
       dashboardMessage.textContent = "Consultando solicitudes…";

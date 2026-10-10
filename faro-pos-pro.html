@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#17332b">
-  <title>Faro POS Pro — Tacos el Faro</title>
+  <title>Tacos El Faro — Servicio y Cocina</title>
   <style>
     :root {
       color-scheme: light;
@@ -38,8 +38,7 @@
     }
     .brand { display: flex; align-items: center; gap: .75rem; }
     .brand-mark {
-      display: grid; width: 42px; height: 42px; place-items: center;
-      border-radius: 14px; color: var(--green); background: #f0bf70; font-size: 1.4rem;
+      display: block; width: 46px; height: 46px; border-radius: 50%;
     }
     .brand h1 { margin: 0; font-size: 1.05rem; }
     .brand p { margin: .15rem 0 0; color: #cfddd5; font-size: .8rem; }
@@ -175,7 +174,7 @@
       width: 100%; min-height: 43px; padding: .6rem .7rem; border: 1px solid var(--line);
       border-radius: 9px; background: #fff;
     }
-    .station-code { min-height: 58px !important; text-align: center; font-size: 1.5rem !important; letter-spacing: .35em; }
+    .station-code { min-height: 58px !important; text-align: center; font-size: 1.2rem !important; letter-spacing: .2em; }
     .field textarea { min-height: 75px; resize: vertical; }
     fieldset.field { padding: .7rem; border: 1px solid var(--line); border-radius: 11px; }
     .choice-grid { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .5rem; }
@@ -230,14 +229,14 @@
 <body>
   <header class="topbar">
     <div class="brand">
-      <div class="brand-mark" aria-hidden="true">🌮</div>
-      <div><h1>Faro POS Pro</h1><p>Tacos el Faro · Monterrey</p></div>
+      <img class="brand-mark" src="./logo-tacos-el-faro.svg" alt="">
+      <div><h1>Tacos El Faro</h1><p>Servicio · Cocina · Caja</p></div>
     </div>
     <div class="clock" id="clock" aria-live="polite"></div>
   </header>
   <main class="container">
     <div class="notice access-notice" id="access-notice">
-      <strong>Configura este dispositivo:</strong> indica su nombre y el código del área. Administración autorizará el acceso la primera vez.
+      <strong>Configura este dispositivo:</strong> indica su nombre y solicita a administración el código del puesto. El acceso debe ser autorizado.
     </div>
     <nav class="nav hidden" id="module-nav" aria-label="Módulos">
       <button type="button" data-view="mesero" aria-current="page">Mesero</button>
@@ -262,7 +261,6 @@
     const ORDER_TOKEN_STORAGE_KEY = "faro-pos-order-token-v1";
     const STATION_STORAGE_KEY = "faro-pos-station-v1";
     const DEVICE_LABEL_STORAGE_KEY = "faro-pos-device-label-v1";
-    const STATION_CODES = Object.freeze({ "101": "mesero", "202": "cocina", "303": "caja" });
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
     const CARNES = ["Asada", "Pastor", "Tripa"];
     const CATEGORIAS = ["Tacos", "Quesadillas", "Especiales", "Papas y Frijoles", "Tortas", "Postres y Bebidas"];
@@ -499,10 +497,10 @@
             <input name="device-label" maxlength="80" value="${escapeHtml(state.deviceLabel)}"
               placeholder="Ej. Tablet de cocina" autocomplete="off" required>
           </label>
-          <label class="field">Código de 3 dígitos
-            <input class="station-code" name="station-code" type="password" inputmode="numeric"
-              pattern="[0-9]{3}" maxlength="3" autocomplete="off" required autofocus>
-            <span class="field-help">Servicio 101 · Cocina 202 · Caja 303</span>
+          <label class="field">Código del puesto
+            <input class="station-code" name="station-code" type="password" inputmode="text"
+              autocapitalize="characters" pattern="[A-Fa-f0-9]{8}" minlength="8" maxlength="8"
+              autocomplete="off" required autofocus>
           </label>
           <p class="form-status" role="status">${escapeHtml(message)}</p>
           <button class="button primary full" type="submit" ${state.authReady ? "" : "disabled"}>Solicitar acceso</button>
@@ -783,7 +781,7 @@
           if (approvedRoleError) throw approvedRoleError;
           if (!approvedRole) throw new Error("La aprobación no se reflejó todavía. Intenta comprobar de nuevo.");
           state.role = approvedRole.role;
-        } else if (!data || !Object.values(STATION_CODES).includes(data.role)) {
+        } else if (!data || !["mesero", "cocina", "caja"].includes(data.role)) {
           throw new Error("Este acceso no está autorizado para ningún puesto.");
         } else {
           state.role = data.role;
@@ -1477,15 +1475,44 @@
       if (event.target.id === "station-form") {
         const form = event.target;
         const code = form.elements["station-code"].value.trim();
-        const requestedRole = Object.hasOwn(STATION_CODES, code) ? STATION_CODES[code] : null;
-        if (!requestedRole) {
-          state.authMessage = "Código incorrecto. Este puesto permanece bloqueado.";
+        if (!/^[0-9a-f]{8}$/i.test(code)) {
+          state.authMessage = "Revisa el código del puesto e inténtalo de nuevo.";
           render();
           return;
         }
         const deviceLabel = form.elements["device-label"].value.trim();
         if (!deviceLabel || deviceLabel.length > 80) {
           state.authMessage = "Escribe un nombre para identificar este dispositivo (máximo 80 caracteres).";
+          render();
+          return;
+        }
+        if (!state.user) {
+          try {
+            const { data, error } = await supabaseClient.auth.signInAnonymously();
+            if (error) throw error;
+            state.user = data.user;
+          } catch (error) {
+            console.error("No se pudo crear la identidad de acceso del dispositivo.", error);
+            state.authMessage = "No fue posible iniciar la solicitud de acceso. Revisa tu conexión e inténtalo de nuevo.";
+            render();
+            return;
+          }
+        }
+        let requestedRole;
+        try {
+          const { data, error } = await supabaseClient.rpc("validar_codigo_puesto", {
+            p_code: code.toLowerCase()
+          });
+          if (error) throw error;
+          if (!["mesero", "cocina", "caja"].includes(data)) {
+            state.authMessage = "El código no es válido. Solicita el código correcto a administración.";
+            render();
+            return;
+          }
+          requestedRole = data;
+        } catch (error) {
+          console.error("No se pudo validar el código del puesto.", error);
+          state.authMessage = "No se pudo validar el código. Revisa tu conexión e inténtalo de nuevo.";
           render();
           return;
         }
@@ -1508,23 +1535,7 @@
         state.pendingStationRole = requestedRole;
         state.awaitingApproval = false;
         state.authMessage = "";
-        if (state.user) {
-          await activateSession(state.user, requestedRole);
-        } else {
-          state.authReady = false;
-          render();
-          try {
-            const { data, error } = await supabaseClient.auth.signInAnonymously();
-            if (error) throw error;
-            state.user = data.user;
-            await activateSession(data.user, requestedRole);
-          } catch (error) {
-            console.error("No se pudo crear la identidad de acceso del dispositivo.", error);
-            state.authReady = true;
-            state.authMessage = "No fue posible enviar la solicitud de acceso. Revisa tu conexión e inténtalo de nuevo. Si el problema continúa, contacta a administración.";
-            render();
-          }
-        }
+        await activateSession(state.user, requestedRole);
         return;
       }
     });

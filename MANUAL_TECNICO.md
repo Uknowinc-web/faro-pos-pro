@@ -1,4 +1,4 @@
-# Smart Restaurant Pro — Faro POS Pro (Tacos el Faro)
+# Tacos El Faro — Sistema de servicio y cocina
 **Código fuente, arquitectura técnica, esquema SQL y manual de despliegue**
 
 ---
@@ -8,7 +8,7 @@
 Tienes dos maneras directas de obtener el código completo del proyecto:
 
 ### Opción A (Recomendada): Descarga directa desde Lovable
-1. En el editor de Lovable de tu proyecto **Faro POS Pro** (arriba a la derecha o en el menú del proyecto), haz clic en el botón de **GitHub / Código**.
+1. En el editor de Lovable de tu proyecto **Tacos El Faro** (arriba a la derecha o en el menú del proyecto), haz clic en el botón de **GitHub / Código**.
 2. Puedes conectarlo con tu cuenta de GitHub para sincronizar el repositorio completo o descargar el código fuente en archivo comprimido con todas las dependencias y configuración.
 
 ---
@@ -16,7 +16,7 @@ Tienes dos maneras directas de obtener el código completo del proyecto:
 ## 2. Esquema y seguridad de base de datos
 
 Las migraciones SQL vigentes están en `drizzle/migrations`. En una base nueva,
-ejecutar 0000–0010 en orden; en una base ya migrada, ejecutar únicamente las
+ejecutar 0000–0011 en orden; en una base ya migrada, ejecutar únicamente las
 pendientes. La 0003 cierra permisos directos al rol PostgreSQL `anon`, define
 roles y restringe las consultas y operaciones RPC. La 0004 verifica catálogo,
 modificadores y precio en PostgreSQL. La 0005 limita las cuentas al rol de caja
@@ -29,7 +29,9 @@ coincida con el modo de la mesa en el servidor; el HTML inicia en modo prueba.
 en el servidor antes de enviar comandas y habilita sugerencias persistentes que
 el responsable debe aceptar o rechazar. La asignación termina cuando caja cobra
 o anula la cuenta. 0010 permite que personal de servicio autorizado agregue
-mesas mediante una RPC y revoca la inserción directa a la tabla.
+mesas mediante una RPC y revoca la inserción directa a la tabla. 0011 genera códigos aleatorios
+para los puestos, valida el código en Supabase y permite consultarlos solo a
+una cuenta administradora.
 
 **No uses los fragmentos SQL históricos de esta sección como mecanismo de
 despliegue.** La autorización canónica está en
@@ -45,13 +47,14 @@ Consulta [SUPABASE_ACCESO.md](./SUPABASE_ACCESO.md) para aplicar migraciones,
 configurar la cuenta `admin`, aprobar aparatos y comprobar que el rol de base
 `anon` no tenga permisos.
 
-La versión de puesto se abre con la misma liga en cada aparato. El PIN (`101`,
-`202` o `303`) bloquea la interfaz en un rol fijo; no es una credencial del
-servidor. El aparato crea una identidad anónima individual sin permisos y espera
-la aprobación de una cuenta `admin` en [`admin-accesos.html`](./admin-accesos.html).
-Una vez aprobada la identidad, el personal solo ingresa el PIN al abrir o
-recargar la liga. Los tres QR están en [`QR_PUESTOS.html`](./QR_PUESTOS.html) y
-contienen el mismo enlace.
+La versión de puesto se abre con la misma liga en cada aparato. Cada integrante
+solicita a administración el código de su puesto; los códigos se generan y
+validan en Supabase y solo una cuenta `admin` puede consultarlos en
+[`admin-accesos.html`](./admin-accesos.html). El aparato crea una identidad
+anónima individual sin permisos y espera la aprobación de esa cuenta. Una vez
+aprobada la identidad, el personal ingresa el código al abrir o recargar la
+liga. Los QR públicos de [`QR_PUESTOS.html`](./QR_PUESTOS.html) no incluyen
+códigos.
 
 Cada puesto muestra claramente **Modo operación** o **Modo de prueba**. Los
 ensayos usan mesas `PRUEBA · ...` y no deben mezclarse con tickets, pagos o

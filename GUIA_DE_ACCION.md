@@ -1,4 +1,4 @@
-# Guía de acción — Faro POS Pro
+# Guía de acción — Tacos El Faro
 
 ## Objetivo
 
@@ -10,12 +10,12 @@ ventas auditables y acceso protegido.
 
 El archivo [`faro-pos-pro.html`](./faro-pos-pro.html) conecta Supabase Auth y
 requiere un rol aprobado en el servidor. Cada aparato abre la misma liga y pide
-su nombre y PIN (`101` mesero, `202` cocina, `303` caja). La primera vez, el
-administrador aprueba el aparato desde [`admin-accesos.html`](./admin-accesos.html);
-el personal no inicia sesión con correo. Los PIN identifican el puesto, pero no
-autorizan datos por sí mismos. Las migraciones 0006–0008 ya están aplicadas en
-Supabase y Anonymous Sign-Ins está habilitado; el registro público por correo
-sigue apagado. La versión HTML ya está publicada en
+su nombre y el código de su puesto, que administración consulta y comparte de
+forma privada desde [`admin-accesos.html`](./admin-accesos.html). Cada equipo
+debe ser aprobado; el personal no inicia sesión con correo. El código solo
+identifica el puesto y no autoriza datos por sí mismo. La migración 0011 añade
+la validación en Supabase y restringe la consulta de códigos al administrador.
+La versión HTML ya está publicada en
 `https://faro-pos-pro.vercel.app/`. Falta asignar/verificar el rol `admin` y
 validar la aprobación con aparatos reales.
 **No usarlo para ventas reales hasta cerrar los pendientes P0 y P1.**
@@ -51,8 +51,8 @@ compilarlo siguiendo únicamente las instrucciones del README.
 - [x] Mantener deshabilitado el registro público de cuentas con correo.
 - [x] Implementar solicitudes de acceso de aparato sin correo y un panel de
   aprobación/revocación administrativa en la versión HTML.
-- [x] Añadir PIN de puesto que fija la interfaz del aparato y vuelve a pedirlo
-  al recargar la liga; el PIN no sustituye la asignación de rol en Supabase.
+- [x] Añadir código de puesto que fija la interfaz del aparato y vuelve a
+  pedirlo al recargar la liga; no sustituye la asignación de rol en Supabase.
 - [x] Aplicar las migraciones 0006–0008 y habilitar Anonymous Sign-Ins para
   identidades técnicas sin permisos previos.
 - [x] Aplicar 0009 y 0010 en Supabase y comprobar tablas, RPC, RLS, permisos y
@@ -142,7 +142,7 @@ contingencia.
 ## Uso seguro de la versión HTML
 
 Abrir `faro-pos-pro.html` en un navegador con internet, solicitar acceso con el
-nombre del aparato y su PIN, y aprobarlo en el panel de administración. La hoja imprimible de QR está en
+nombre del aparato y su código, y aprobarlo en el panel de administración. La hoja imprimible de QR está en
 [`QR_PUESTOS.html`](./QR_PUESTOS.html); los tres códigos QR abren el mismo URL.
 El panel requiere iniciar sesión con la cuenta administradora del POS. Al volver
 desde otra app, los datos se sincronizan y el envío queda bloqueado

@@ -1,4 +1,4 @@
-# Faro POS Pro (Tacos el Faro)
+# Tacos El Faro
 Sistema POS y KDS para taquería El Faro (Monterrey, N.L.).
 
 ## Contenido del Repositorio
@@ -18,6 +18,7 @@ Sistema POS y KDS para taquería El Faro (Monterrey, N.L.).
 - `drizzle/migrations/0008_validar_modo_en_operaciones.sql`: Valida el modo también en operaciones de cocina y caja en el servidor.
 - `drizzle/migrations/0009_responsable_de_mesa_y_sugerencias.sql`: Asigna cada mesa al primer mesero que la abre; protege el envío y añade sugerencias con aceptación/rechazo en tiempo real.
 - `drizzle/migrations/0010_crear_mesas_desde_servicio.sql`: Permite al personal de servicio agregar mesas mediante una operación validada por el servidor.
+- `drizzle/migrations/0011_codigos_puesto_solo_administracion.sql`: Genera códigos aleatorios de puesto, los valida en Supabase y limita su consulta a administración.
 - `CHECKLIST_PILOTO_HOY.md`: Recorrido de pruebas por puesto, casos de aceptación y registro de incidencias.
 - `QR_PUESTOS.html` y `QR_MESERO.svg`, `QR_COCINA.svg`, `QR_CAJA.svg`: Hoja imprimible y QR por aparato; los tres abren el mismo enlace.
 - `admin-accesos.html`: Panel autenticado para aprobar, rechazar y revocar aparatos.
@@ -33,7 +34,7 @@ El HTML independiente usa Supabase Auth, valida el rol y ejecuta las operaciones
 
 ## Aplicación HTML conectada
 
-Abre `https://faro-pos-pro.vercel.app/` en los tres dispositivos (redirige a `faro-pos-pro.html`). Cada QR contiene ese mismo enlace. La primera vez, el equipo solicita un nombre y el PIN del área: servicio `101`, cocina `202`, caja `303`. Una persona administradora revisa la solicitud en `https://faro-pos-pro.vercel.app/admin-accesos.html`. Una vez autorizado, el dispositivo queda asignado a su área y el personal solo necesita el PIN para volver a entrar. La identidad del dispositivo no tiene permisos hasta que se autoriza; las operaciones siguen protegidas por Supabase Auth y RLS.
+Abre `https://faro-pos-pro.vercel.app/` en los dispositivos (redirige a `faro-pos-pro.html`). Cada QR contiene ese mismo enlace. Para la primera vinculación, el equipo indica un nombre y solicita a administración el código de su puesto. La persona administradora revisa y autoriza cada dispositivo desde `https://faro-pos-pro.vercel.app/admin-accesos.html`; en ese panel también puede consultar los códigos. La identidad del dispositivo no obtiene permisos hasta que se autoriza; las operaciones siguen protegidas por Supabase Auth y RLS.
 
 Al volver a la aplicación desde otra pantalla, los datos se actualizan y las operaciones se bloquean mientras estén desactualizados o no haya conexión. El personal de servicio puede consultar mesas, comandas y artículos, y agregar mesas; no puede consultar cuentas. Cocina consulta comandas y artículos, mientras que caja consulta las cuentas. Los borradores de servicio se conservan en el navegador. Los pagos con Clip se registran en el POS y también deben cobrarse en la terminal.
 

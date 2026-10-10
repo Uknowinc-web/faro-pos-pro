@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-labelledby="title">
+  <title id="title">Tacos El Faro</title>
+  <circle cx="60" cy="60" r="58" fill="#173f32"/>
+  <path d="M29 48a31 31 0 0 1 62 0" fill="#e78c3d"/>
+  <path d="M39 44a21 21 0 0 1 42 0" fill="#f6d28b"/>
+  <path d="M31 66c4-17 14-28 29-28s25 11 29 28c-18 12-40 12-58 0Z" fill="#f1bd64"/>
+  <path d="M36 59c6-8 11-4 17-2s10-8 17-5 10 7 14 14c-16 9-33 9-49 0Z" fill="#8e3f2d"/>
+  <path d="M42 56c4-6 8-3 12 0m8-4c4-5 8-2 11 1" fill="none" stroke="#89a85c" stroke-linecap="round" stroke-width="4"/>
+  <path d="M25 79c10-6 20-6 30 0s20 6 30 0 15-6 20-3v12c-10-5-20-5-30 1s-20 6-30 0-20-6-30 0V79Z" fill="#80b9bd"/>
+  <path d="M15 94c10-6 20-6 30 0s20 6 30 0 20-6 30 0" fill="none" stroke="#d8ece1" stroke-linecap="round" stroke-width="4"/>
+</svg>

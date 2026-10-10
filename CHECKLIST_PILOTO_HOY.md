@@ -7,6 +7,10 @@
 - [x] Aplicar en Supabase las migraciones 0009 y 0010 en orden; validar tablas,
   RLS, RPC, permisos y suscripciones Realtime.
 - [x] Desplegar la versión actualizada del HTML después de las migraciones.
+- [x] Aplicar la migración 0011 y verificar los códigos generados y los
+  permisos de lectura directa.
+- [ ] Desplegar la versión que valida los códigos en Supabase antes de
+  compartirlos desde el panel de administración.
 - [ ] Completar el recorrido con los cinco aparatos antes de operar ventas reales.
 - [x] Habilitar **Anonymous Sign-Ins** y **Allow new users to sign up** para
   permitir el acceso de los dispositivos. La segunda opción también permite
@@ -16,6 +20,8 @@
 - [ ] Entrar en `https://faro-pos-pro.vercel.app/admin-accesos.html` y confirmar que
   la lista de solicitudes se carga sin errores.
 - [ ] Acordar quién aprueba los equipos y cómo reconocer su nombre físico.
+- [ ] Administración consulta en su panel el código del puesto y lo comparte
+  directamente con cada integrante del equipo.
 - [ ] En cada dispositivo, confirmar fecha/hora correctas, Wi-Fi estable y que
   el navegador no está en modo incógnito.
 
@@ -28,8 +34,8 @@ antes de enviar cualquier comanda de ensayo.
 ### Meseros (tres celulares)
 
 - [ ] Introducir un código incorrecto y confirmar que sigue bloqueado.
-- [ ] Solicitar acceso desde cada celular con nombre reconocible y PIN `101`;
-  aprobar cada aparato por separado.
+- [ ] Solicitar acceso desde cada celular con nombre reconocible y el código
+  que administración comparte para Servicio; aprobar cada aparato por separado.
 - [ ] Antes de aprobar, comprobar que aparece en administración como pendiente
   y que no se muestra menú, mesas ni datos de operación.
 - [ ] Aprobar el equipo correcto; comprobar que entra sin pedir correo.
@@ -52,7 +58,8 @@ antes de enviar cualquier comanda de ensayo.
 
 ### Cocina
 
-- [ ] Solicitar acceso con un nombre reconocible y PIN `202`; aprobar el equipo.
+- [ ] Solicitar acceso con un nombre reconocible y el código que administración
+  comparte para Cocina; aprobar el equipo.
 - [ ] Confirmar que no muestra caja ni menú de mesero.
 - [ ] Confirmar que aparece **MODO DE PRUEBA ACTIVO** y recibir las comandas que envió mesero.
 - [ ] Pasar una comanda a preparación y después a lista.
@@ -60,7 +67,8 @@ antes de enviar cualquier comanda de ensayo.
 
 ### Caja
 
-- [ ] Solicitar acceso con un nombre reconocible y PIN `303`; aprobar el equipo.
+- [ ] Solicitar acceso con un nombre reconocible y el código que administración
+  comparte para Caja; aprobar el equipo.
 - [ ] Confirmar que en modo de prueba solo aparecen las mesas/cuentas `PRUEBA`.
 - [ ] Confirmar que Caja no muestra controles para agregar mesas.
 - [ ] Marcar la cuenta por cobrar y probar pago de efectivo simulado.
@@ -112,7 +120,7 @@ filtro `es_prueba`.
 
 ## Pruebas de continuidad
 
-- [ ] Recargar cada dispositivo: debe solicitar PIN y conservar el puesto fijo.
+- [ ] Recargar cada dispositivo: debe solicitar el código y conservar el puesto fijo.
 - [ ] Al volver desde otra aplicación, esperar la sincronización antes de enviar.
 - [ ] Confirmar que cada puesto muestra el estado de conexión y la hora de la
   última actualización; al perder Realtime debe indicar actualización automática

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#17332b">
-    <title>Accesos por área — Faro POS Pro</title>
+    <title>Accesos del equipo — Tacos El Faro</title>
     <style>
       :root {
         color: #202923;
@@ -13,7 +13,10 @@
       }
       body { margin: 0; padding: 2rem; }
       header { max-width: 1000px; margin: 0 auto 1.5rem; }
-      h1 { margin-bottom: .35rem; color: #173f32; letter-spacing: -.03em; }
+      .brand { display: flex; align-items: center; gap: .8rem; margin-bottom: 1rem; }
+      .brand img { width: 54px; height: 54px; border-radius: 50%; }
+      h1 { margin: 0 0 .2rem; color: #173f32; letter-spacing: -.03em; }
+      .brand p { margin: 0; color: #68716b; }
       p { margin-top: 0; line-height: 1.5; }
       .intro { max-width: 720px; color: #68716b; }
       .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
@@ -25,7 +28,6 @@
       }
       .station img { display: block; width: min(100%, 280px); height: auto; }
       .station h2 { margin: .75rem 0 .25rem; color: #173f32; }
-      .code { margin: 0; padding: .55rem .8rem; border-radius: .7rem; background: #e4efe9; color: #173f32; font-size: 1.1rem; font-weight: 800; letter-spacing: .12em; }
       .url { overflow-wrap: anywhere; color: #68716b; font-size: .85rem; }
       .print { display: inline-block; min-height: 44px; padding: .7rem 1rem; border: 0; border-radius: .6rem;
         background: #173f32; color: white; font: inherit; font-weight: 700; cursor: pointer; }
@@ -45,28 +47,28 @@
   </head>
   <body>
     <header>
-      <h1>Acceso por área de trabajo</h1>
-      <p class="intro">Asigna una tarjeta a cada dispositivo. Escanea su código QR, escribe el nombre del aparato y el código del puesto. Administración debe autorizarlo la primera vez.</p>
+      <div class="brand">
+        <img src="./logo-tacos-el-faro.svg" alt="">
+        <div><h1>Tacos El Faro</h1><p>Acceso de equipo · Servicio y cocina</p></div>
+      </div>
+      <p class="intro">Asigna una tarjeta a cada dispositivo. Escanea el código QR, indica el nombre del aparato y solicita a administración el código de su puesto. Cada dispositivo requiere autorización antes de operar.</p>
       <button class="print" type="button" onclick="window.print()">Imprimir accesos</button>
     </header>
     <main class="grid">
       <section class="station">
         <img src="./QR_MESERO.svg" alt="Código QR para el área de servicio">
         <h2>Servicio</h2>
-        <p class="code">Código de acceso: 101</p>
-        <p class="url">https://faro-pos-pro.vercel.app/</p>
+        <p class="url">Escanea para abrir el acceso de Servicio</p>
       </section>
       <section class="station">
         <img src="./QR_COCINA.svg" alt="Código QR para el área de cocina">
         <h2>Cocina</h2>
-        <p class="code">Código de acceso: 202</p>
-        <p class="url">https://faro-pos-pro.vercel.app/</p>
+        <p class="url">Escanea para abrir el acceso de Cocina</p>
       </section>
       <section class="station">
         <img src="./QR_CAJA.svg" alt="Código QR para el área de caja">
         <h2>Caja</h2>
-        <p class="code">Código de acceso: 303</p>
-        <p class="url">https://faro-pos-pro.vercel.app/</p>
+        <p class="url">Escanea para abrir el acceso de Caja</p>
       </section>
     </main>
   </body>

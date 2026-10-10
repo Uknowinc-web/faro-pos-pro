@@ -4,8 +4,10 @@ El personal no necesita correo ni contraseña. Cada aparato crea una identidad
 anónima individual de Supabase al solicitar acceso; esa identidad no puede leer
 ni operar el POS mientras el administrador no la apruebe. La aprobación asigna
 al UID concreto un único rol de puesto. RLS y las RPC siguen comprobando ese
-rol en PostgreSQL: los PIN `101`, `202` y `303` solo identifican mesero, cocina
-y caja, respectivamente, y no son credenciales de servidor.
+rol en PostgreSQL. Los códigos se generan y validan en Supabase; solo una
+cuenta administradora puede consultarlos en el panel privado. Un código
+identifica el puesto, pero no concede permisos: cada dispositivo requiere
+aprobación explícita.
 
 ## Estado del proyecto conectado
 
@@ -33,6 +35,13 @@ En el SQL Editor del proyecto Supabase, ejecutar una vez y en orden:
 9. `drizzle/migrations/0008_validar_modo_en_operaciones.sql`.
 10. `drizzle/migrations/0009_responsable_de_mesa_y_sugerencias.sql`.
 11. `drizzle/migrations/0010_crear_mesas_desde_servicio.sql`.
+12. `drizzle/migrations/0011_codigos_puesto_solo_administracion.sql`.
+
+La migración 0011 ya se aplicó en el proyecto Supabase de producción. Se
+generaron tres códigos aleatorios y se verificó que los RPC existan y que ni
+`anon` ni `authenticated` puedan leer directamente la tabla. Consulta y
+comparte los códigos desde el panel de administración una vez que la nueva
+versión esté desplegada.
 
 En el proyecto Faro conectado, 0009 y 0010 ya se aplicaron en ese orden desde el
 SQL Editor. Se verificó que existan las tablas y RPC, que RLS esté habilitado en
@@ -93,7 +102,8 @@ aparato de trabajo.
 ## Aprobar cada aparato
 
 1. En el aparato de trabajo, abre la liga normal y escribe un nombre reconocible
-   (por ejemplo, `Tablet cocina`) y el PIN del puesto.
+   (por ejemplo, `Tablet cocina`) y el código del puesto que te comparta
+   administración.
 2. Supabase crea una identidad anónima única y la pantalla muestra que espera
    aprobación. Aún no puede consultar mesas, cuentas, comandas ni ejecutar RPC.
 3. Desde tu dispositivo, abre el panel de administración e inicia sesión con
@@ -102,7 +112,7 @@ aparato de trabajo.
    únicamente el dispositivo correcto. La aprobación queda fija a ese UID y
    puesto; el personal no vuelve a ingresar correo.
 5. El aparato entra automáticamente al POS. Al recargar la liga vuelve a pedir
-   su PIN. Su sesión y puesto quedan guardados en ese navegador.
+   su código. Su sesión y puesto quedan guardados en ese navegador.
 
 Si alguien borra los datos del navegador, cambia de perfil o reinstala el
 navegador, Supabase crea otro UID y se requiere una nueva aprobación. Usa
@@ -111,8 +121,8 @@ revocada pierde el rol del servidor aunque todavía conserve su sesión local.
 
 ## Seguridad que permanece activa
 
-- El rol del puesto es una asignación por UID, no una decisión basada en el PIN
-  ni en datos locales del navegador.
+- El rol del puesto es una asignación por UID, no una decisión basada solo en
+  el código ni en datos locales del navegador.
 - Una identidad anónima sin fila autorizada en `staff_roles` no recibe datos ni
   puede ejecutar operaciones de negocio. Solo puede registrar su solicitud
   pendiente, que tampoco incluye credenciales ni información del POS.
