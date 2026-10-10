@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#17332b">
-  <title>Aprobación de puestos — Faro POS Pro</title>
+  <title>Administración de accesos — Faro POS Pro</title>
   <style>
     :root { font-family: system-ui, sans-serif; color: #202923; background: #f5f5ef; --green: #173f32; --line: #dedfd7; --muted: #68716b; }
     * { box-sizing: border-box; }
@@ -34,23 +34,23 @@
   </style>
 </head>
 <body>
-  <header><h1>Faro POS Pro · Administración de puestos</h1></header>
+  <header><h1>Faro POS Pro · Administración de accesos</h1></header>
   <main>
     <section id="login" class="panel" hidden>
-      <h2>Iniciar sesión como administrador</h2>
-      <p class="muted">Solo se usa para que tú apruebes o revoques aparatos. El personal no necesita correo.</p>
+      <h2>Acceso de administración</h2>
+      <p class="muted">Inicia sesión para revisar las solicitudes y administrar los dispositivos autorizados.</p>
       <form id="login-form">
-        <label>Correo de tu cuenta administradora<input name="email" type="email" autocomplete="username" required></label>
+        <label>Correo electrónico<input name="email" type="email" autocomplete="username" required></label>
         <label>Contraseña<input name="password" type="password" autocomplete="current-password" required></label>
         <p id="login-message" class="message" role="status"></p>
-        <button class="primary full" type="submit">Entrar</button>
+        <button class="primary full" type="submit">Iniciar sesión</button>
       </form>
     </section>
     <section id="dashboard" hidden>
       <div class="request-head">
-        <div><h2>Solicitudes y puestos</h2><p id="admin-label" class="muted"></p></div>
+        <div><h2>Solicitudes de acceso</h2><p id="admin-label" class="muted"></p></div>
         <div class="actions">
-          <button id="refresh" type="button">Actualizar</button>
+          <button id="refresh" type="button">Actualizar solicitudes</button>
           <button id="sign-out" type="button">Cerrar sesión</button>
         </div>
       </div>
@@ -77,6 +77,9 @@
         "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
       })[char]);
     }
+    function roleLabel(role) {
+      return ({ mesero: "Servicio", cocina: "Cocina", caja: "Caja" })[role] ?? role;
+    }
     function formatDate(value) {
       return new Intl.DateTimeFormat("es-MX", {
         dateStyle: "medium", timeStyle: "short", timeZone: "America/Monterrey"
@@ -95,23 +98,23 @@
       if (data?.role !== "admin") {
         const { error: signOutError } = await supabaseClient.auth.signOut();
         if (signOutError) console.error("No se pudo cerrar la sesión sin rol administrador.", signOutError);
-        throw new Error("Esta cuenta no tiene el rol admin en Faro POS.");
+        throw new Error("Esta cuenta no tiene permisos de administración.");
       }
       currentUser = user;
       loginSection.hidden = true;
       dashboard.hidden = false;
-      document.getElementById("admin-label").textContent = `Sesión: ${user.email}`;
+      document.getElementById("admin-label").textContent = `Sesión iniciada: ${user.email}`;
       await loadRequests();
       window.clearInterval(refreshTimer);
       refreshTimer = window.setInterval(() => { void loadRequests(); }, 15000);
     }
     async function loadRequests() {
       if (!currentUser) return;
-      dashboardMessage.textContent = "Actualizando solicitudes…";
+      dashboardMessage.textContent = "Consultando solicitudes…";
       const { data, error } = await supabaseClient.rpc("listar_solicitudes_puesto");
       if (error) {
         console.error("No se pudieron cargar las solicitudes.", error);
-        dashboardMessage.textContent = `No se pudieron cargar: ${error.message}`;
+        dashboardMessage.textContent = "No se pudieron consultar las solicitudes. Inténtalo de nuevo.";
         return;
       }
       requestsRoot.innerHTML = data.length ? data.map((request) => {
@@ -121,33 +124,33 @@
         let controls = "";
         if (request.status === "pending") {
           controls = `<div class="actions">
-            <button class="primary" type="button" data-approve="${escapeHtml(request.user_id)}">Aprobar acceso</button>
-            <button class="danger" type="button" data-reject="${escapeHtml(request.user_id)}">Rechazar</button>
+            <button class="primary" type="button" data-approve="${escapeHtml(request.user_id)}">Autorizar dispositivo</button>
+            <button class="danger" type="button" data-reject="${escapeHtml(request.user_id)}">Rechazar solicitud</button>
           </div>`;
         } else if (request.status === "approved") {
-          controls = `<div class="actions"><button class="danger" type="button" data-revoke="${escapeHtml(request.user_id)}">Revocar acceso</button></div>`;
+          controls = `<div class="actions"><button class="danger" type="button" data-revoke="${escapeHtml(request.user_id)}">Retirar acceso</button></div>`;
         } else {
-          controls = `<div class="actions"><button class="primary" type="button" data-reactivate="${escapeHtml(request.user_id)}">Reactivar acceso</button></div>`;
+          controls = `<div class="actions"><button class="primary" type="button" data-reactivate="${escapeHtml(request.user_id)}">Autorizar nuevamente</button></div>`;
         }
         return `<article>
           <div class="request-head">
             <h3>${escapeHtml(request.device_label)}</h3>
             <span class="status ${escapeHtml(request.status)}">${escapeHtml(statusLabel)}</span>
           </div>
-          <p><strong>Puesto:</strong> ${escapeHtml(request.requested_role)}</p>
-          <p><strong>Solicitado:</strong> ${escapeHtml(formatDate(request.requested_at))}</p>
-          <p class="muted"><strong>ID del aparato:</strong> ${escapeHtml(request.user_id)}</p>
+          <p><strong>Área solicitada:</strong> ${escapeHtml(roleLabel(request.requested_role))}</p>
+          <p><strong>Fecha de solicitud:</strong> ${escapeHtml(formatDate(request.requested_at))}</p>
+          <p class="muted"><strong>Identificador del dispositivo:</strong> ${escapeHtml(request.user_id)}</p>
           ${controls}
         </article>`;
-      }).join("") : `<article class="muted">Todavía no hay solicitudes.</article>`;
-      dashboardMessage.textContent = `Actualizado ${formatDate(new Date().toISOString())}. Confirma que el nombre y el puesto correspondan al aparato físico antes de aprobar.`;
+      }).join("") : `<article class="muted">Aún no hay solicitudes de acceso.</article>`;
+      dashboardMessage.textContent = `Solicitudes actualizadas ${formatDate(new Date().toISOString())}. Verifica el nombre y el área antes de autorizar cada dispositivo.`;
     }
     document.getElementById("login-form").addEventListener("submit", async (event) => {
       event.preventDefault();
       const form = event.currentTarget;
       const button = form.querySelector("button[type=submit]");
       button.disabled = true;
-      loginMessage.textContent = "Verificando cuenta…";
+      loginMessage.textContent = "Verificando acceso…";
       try {
         const { data, error } = await supabaseClient.auth.signInWithPassword({
           email: form.elements.email.value.trim(),
@@ -157,7 +160,9 @@
         await requireAdmin(data.user);
       } catch (error) {
         console.error("No se pudo iniciar sesión como administrador.", error);
-        loginMessage.textContent = error.message || "No se pudo verificar la cuenta.";
+        loginMessage.textContent = error.message === "Esta cuenta no tiene permisos de administración."
+          ? error.message
+          : "No se pudo iniciar sesión. Verifica el correo y la contraseña e inténtalo de nuevo.";
       } finally {
         button.disabled = false;
       }
@@ -166,16 +171,16 @@
       const button = event.target.closest("button[data-approve], button[data-reject], button[data-revoke], button[data-reactivate]");
       if (!button) return;
       button.disabled = true;
-      dashboardMessage.textContent = "Guardando cambio…";
+      dashboardMessage.textContent = "Guardando cambios…";
       try {
         if (button.dataset.approve || button.dataset.reject || button.dataset.reactivate) {
           const approve = Boolean(button.dataset.approve || button.dataset.reactivate);
           const userId = button.dataset.approve || button.dataset.reject || button.dataset.reactivate;
           const confirmation = button.dataset.reactivate
-            ? "¿Confirmas que quieres reactivar este aparato y devolverle su puesto?"
+            ? "¿Quieres volver a autorizar este dispositivo para el área asignada?"
             : approve
-              ? "¿Confirmas que este aparato físico debe recibir ese puesto?"
-              : "¿Rechazar esta solicitud? El aparato no recibirá acceso.";
+              ? "¿Autorizas este dispositivo para el área solicitada?"
+              : "¿Quieres rechazar esta solicitud? El dispositivo no tendrá acceso al sistema.";
           if (!window.confirm(confirmation)) return;
           const { error } = await supabaseClient.rpc("resolver_solicitud_puesto", {
             p_user_id: userId,
@@ -183,7 +188,7 @@
           });
           if (error) throw error;
         } else {
-          if (!window.confirm("¿Revocar el acceso de este aparato? Perderá acceso a los datos y operaciones del POS.")) return;
+          if (!window.confirm("¿Quieres retirar el acceso de este dispositivo? Ya no podrá consultar información ni realizar operaciones.")) return;
           const { error } = await supabaseClient.rpc("revocar_acceso_puesto", {
             p_user_id: button.dataset.revoke
           });
@@ -192,7 +197,7 @@
         await loadRequests();
       } catch (error) {
         console.error("No se pudo actualizar el acceso del aparato.", error);
-        dashboardMessage.textContent = `No se pudo guardar: ${error.message}`;
+        dashboardMessage.textContent = "No se pudieron guardar los cambios. Inténtalo de nuevo.";
       } finally {
         button.disabled = false;
       }
@@ -202,7 +207,7 @@
       const { error } = await supabaseClient.auth.signOut();
       if (error) {
         console.error("No se pudo cerrar sesión.", error);
-        dashboardMessage.textContent = `No se pudo cerrar sesión: ${error.message}`;
+        dashboardMessage.textContent = "No se pudo cerrar la sesión. Inténtalo de nuevo.";
         return;
       }
       currentUser = null;
@@ -217,7 +222,9 @@
         else showLogin();
       } catch (error) {
         console.error("No se pudo iniciar el panel de aprobación.", error);
-        showLogin(error.message || "No se pudo conectar con el servicio de acceso.");
+        showLogin(error.message === "Esta cuenta no tiene permisos de administración."
+          ? error.message
+          : "No se pudo verificar el acceso. Revisa tu conexión e inténtalo de nuevo.");
       }
     })();
   </script>

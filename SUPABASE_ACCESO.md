@@ -11,10 +11,12 @@ y caja, respectivamente, y no son credenciales de servidor.
 
 En el proyecto Supabase utilizado para el piloto, las migraciones 0006–0008 ya
 se aplicaron y se verificaron la tabla de solicitudes, las 13 mesas de prueba y
-las cinco RPC con validación de modo. **Anonymous Sign-Ins está habilitado**;
-**Allow new users to sign up permanece deshabilitado**. Supabase recomienda
-añadir CAPTCHA a los accesos anónimos para reducir abuso y crecimiento de
-usuarios; no lo habilites hasta integrar su token en la aplicación.
+las RPC con validación de modo. **Anonymous Sign-Ins** y **Allow new users to
+sign up** están habilitados para permitir el acceso de los dispositivos. La
+opción general de registro también permite crear cuentas por correo; estas no
+obtienen acceso al POS sin un rol autorizado. Supabase recomienda añadir CAPTCHA
+a los accesos anónimos para reducir abuso y crecimiento de usuarios; intégralo
+antes de habilitarlo.
 
 ## Aplicar migraciones
 
@@ -29,15 +31,28 @@ En el SQL Editor del proyecto Supabase, ejecutar una vez y en orden:
 7. `drizzle/migrations/0006_aprobar_puestos_sin_correo.sql`.
 8. `drizzle/migrations/0007_modo_prueba_aislado.sql`.
 9. `drizzle/migrations/0008_validar_modo_en_operaciones.sql`.
+10. `drizzle/migrations/0009_responsable_de_mesa_y_sugerencias.sql`.
+11. `drizzle/migrations/0010_crear_mesas_desde_servicio.sql`.
 
-Si ya se aplicaron 0000–0005, ejecutar 0006, 0007 y luego 0008. Hacer un respaldo antes de
-migrar. El repositorio no incluye un runner de migraciones; el SQL Editor es el
-procedimiento manual. La 0006 habilita solicitudes de aparato y aprobación
+En el proyecto Faro conectado, 0009 y 0010 ya se aplicaron en ese orden desde el
+SQL Editor. Se verificó que existan las tablas y RPC, que RLS esté habilitado en
+las tablas nuevas, que ambas tablas estén en `supabase_realtime`, que el puesto
+`authenticated` pueda ejecutar `crear_mesa` y que ya no tenga inserción directa
+en `mesas`. Antes de desplegar la versión del HTML que las utiliza, completar
+las pruebas de aceptación con aparatos autorizados. Para repetir estos cambios
+en otra base, hacer un respaldo antes de migrar. El repositorio no incluye un
+runner de migraciones; el SQL Editor es el procedimiento manual. La 0006 habilita solicitudes de aparato y aprobación
 administrativa; no concede acceso a los aparatos pendientes. La 0007 crea
 mesas reservadas `PRUEBA · ...` y obliga a que el servidor rechace una comanda
 que intente enviar una mesa de prueba como venta real o viceversa. La 0008
 aplica la misma validación al estado de cocina y a todas las operaciones de
 caja, para impedir que el cliente use un identificador de otro modo.
+La 0009 asigna atómicamente cada mesa al primer mesero que la abre y exige que
+solo él envíe comandas. Otro mesero puede mandar una sugerencia de artículos;
+el responsable la acepta o rechaza. Al cobrar o anular la cuenta se libera al
+responsable de la mesa y se rechazan sugerencias pendientes.
+La 0010 permite agregar mesas únicamente a personal de servicio autorizado; la
+función valida el nombre y asigna automáticamente el área de prueba u operación.
 
 ## Configurar Authentication
 

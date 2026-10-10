@@ -16,7 +16,7 @@ Tienes dos maneras directas de obtener el código completo del proyecto:
 ## 2. Esquema y seguridad de base de datos
 
 Las migraciones SQL vigentes están en `drizzle/migrations`. En una base nueva,
-ejecutar 0000–0008 en orden; en una base ya migrada, ejecutar únicamente las
+ejecutar 0000–0010 en orden; en una base ya migrada, ejecutar únicamente las
 pendientes. La 0003 cierra permisos directos al rol PostgreSQL `anon`, define
 roles y restringe las consultas y operaciones RPC. La 0004 verifica catálogo,
 modificadores y precio en PostgreSQL. La 0005 limita las cuentas al rol de caja
@@ -25,6 +25,11 @@ de aparato sin permisos; solo una cuenta `admin` puede asignarle un puesto. La
 0007 crea mesas de ensayo aisladas y filtra por modo para que no afecten el corte.
 0008 exige que cada cambio de estado, solicitud de cuenta, cobro y anulación
 coincida con el modo de la mesa en el servidor; el HTML inicia en modo prueba.
+0009 asigna de forma atómica un responsable por mesa, comprueba ese responsable
+en el servidor antes de enviar comandas y habilita sugerencias persistentes que
+el responsable debe aceptar o rechazar. La asignación termina cuando caja cobra
+o anula la cuenta. 0010 permite que personal de servicio autorizado agregue
+mesas mediante una RPC y revoca la inserción directa a la tabla.
 
 **No uses los fragmentos SQL históricos de esta sección como mecanismo de
 despliegue.** La autorización canónica está en
@@ -33,7 +38,9 @@ despliegue.** La autorización canónica está en
 [`0005_restringir_consulta_de_caja.sql`](./drizzle/migrations/0005_restringir_consulta_de_caja.sql),
 [`0006_aprobar_puestos_sin_correo.sql`](./drizzle/migrations/0006_aprobar_puestos_sin_correo.sql) y
 [`0007_modo_prueba_aislado.sql`](./drizzle/migrations/0007_modo_prueba_aislado.sql) y
-[`0008_validar_modo_en_operaciones.sql`](./drizzle/migrations/0008_validar_modo_en_operaciones.sql).
+[`0008_validar_modo_en_operaciones.sql`](./drizzle/migrations/0008_validar_modo_en_operaciones.sql) y
+[`0009_responsable_de_mesa_y_sugerencias.sql`](./drizzle/migrations/0009_responsable_de_mesa_y_sugerencias.sql) y
+[`0010_crear_mesas_desde_servicio.sql`](./drizzle/migrations/0010_crear_mesas_desde_servicio.sql).
 Consulta [SUPABASE_ACCESO.md](./SUPABASE_ACCESO.md) para aplicar migraciones,
 configurar la cuenta `admin`, aprobar aparatos y comprobar que el rol de base
 `anon` no tenga permisos.

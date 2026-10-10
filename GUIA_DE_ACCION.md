@@ -55,6 +55,10 @@ compilarlo siguiendo únicamente las instrucciones del README.
   al recargar la liga; el PIN no sustituye la asignación de rol en Supabase.
 - [x] Aplicar las migraciones 0006–0008 y habilitar Anonymous Sign-Ins para
   identidades técnicas sin permisos previos.
+- [x] Aplicar 0009 y 0010 en Supabase y comprobar tablas, RPC, RLS, permisos y
+  suscripciones Realtime.
+- [ ] Desplegar la versión del HTML que usa estas migraciones y probar el flujo
+  completo con tres aparatos de servicio, Caja y Cocina.
 - [ ] Crear tu cuenta administradora Auth y asignarle `admin` siguiendo
   [`SUPABASE_ACCESO.md`](./SUPABASE_ACCESO.md).
 - [ ] Probar solicitud pendiente, aprobación, rechazo y revocación con aparatos

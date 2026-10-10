@@ -46,6 +46,12 @@
       border-radius: 12px; background: #fff5dd; color: #664d1e; font-size: .9rem;
     }
     .test-banner { border-color: #bc7800; background: #fff0c8; color: #5a3b00; font-weight: 750; }
+    .connection-banner { display: flex; justify-content: space-between; align-items: center; gap: .75rem; }
+    .connection-banner.connected { border-color: #a8d5b5; background: #eaf6ed; color: #245b36; }
+    .connection-banner.reconnecting, .connection-banner.polling { border-color: #e8cc92; background: #fff5dd; color: #664d1e; }
+    .connection-banner.offline, .connection-banner.error { border-color: #e3b3ad; background: #fff0ed; color: #8a3028; }
+    .connection-copy { display: grid; gap: .2rem; }
+    .connection-detail { font-size: .82rem; font-weight: 400; }
     .nav { display: flex; gap: .5rem; margin-bottom: 1rem; overflow-x: auto; }
     .nav button {
       flex: 1; min-width: 110px; padding: .75rem 1rem; border: 1px solid var(--line);
@@ -173,10 +179,9 @@
   </header>
   <main class="container">
     <div class="notice">
-    <strong>Puesto seguro:</strong> escribe el nombre del aparato y su código. La primera vez, administración
-    debe aprobarlo desde su panel; el personal no requiere correo. Al volver a esta app, se sincroniza
-      con el servidor antes de permitir operaciones. Los pagos Clip se registran manualmente y también
-      deben cobrarse en la terminal.
+      <strong>Acceso por dispositivo:</strong> identifica este dispositivo y escribe el código del puesto.
+      Una persona administradora debe aprobar el acceso la primera vez. Los datos se actualizan al volver
+      a la pantalla. Los pagos con Clip también deben confirmarse en la terminal; aquí solo se registra el pago.
     </div>
     <nav class="nav hidden" id="module-nav" aria-label="Módulos">
       <button type="button" data-view="mesero" aria-current="page">Mesero</button>
@@ -198,6 +203,7 @@
     const SUPABASE_URL = "https://mkirhamxvvdhmnrkozwg.supabase.co";
     const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_zszFg_20dthjs3Ai1p8H4w_RSy2FluG";
     const DRAFT_STORAGE_KEY = "faro-pos-pro-drafts-v1";
+    const ORDER_TOKEN_STORAGE_KEY = "faro-pos-order-token-v1";
     const STATION_STORAGE_KEY = "faro-pos-station-v1";
     const DEVICE_LABEL_STORAGE_KEY = "faro-pos-device-label-v1";
     const STATION_CODES = Object.freeze({ "101": "mesero", "202": "cocina", "303": "caja" });
@@ -235,6 +241,8 @@
       testMode: false,
       category: CATEGORIAS[0],
       selectedTable: null,
+      selectedTableOwner: null,
+      suggestionMode: false,
       draft: [],
       user: null,
       role: null,
@@ -248,13 +256,16 @@
       dataFresh: false,
       syncing: false,
       syncError: "",
-      orderToken: newId(),
+      realtimeConnected: false,
+      lastSyncedAt: null,
+      orderToken: null,
+      orderTokenTable: null,
       kitchenFilter: "todas",
       cashierTable: null,
       cashierSearch: "",
       cashierFilter: "todas",
       closeDate: todayMty(),
-      data: { tables: [], checks: [], nextTicket: 1, drafts: {} }
+      data: { tables: [], checks: [], nextTicket: 1, drafts: {}, owners: [], suggestions: [] }
     };
 
     function newId() {
@@ -278,6 +289,43 @@
       } catch (error) {
         console.error("No se pudieron guardar los borradores.", error);
         toast("No se guardó el borrador en este navegador.", true);
+        return false;
+      }
+    }
+    function orderTokenKey(tableId) {
+      return `${ORDER_TOKEN_STORAGE_KEY}-${state.user?.id}-${state.testMode ? "test" : "live"}-${tableId}`;
+    }
+    function prepareOrderToken(tableId) {
+      try {
+        const key = orderTokenKey(tableId);
+        let token = localStorage.getItem(key);
+        if (!token) {
+          token = newId();
+          localStorage.setItem(key, token);
+        }
+        state.orderToken = token;
+        state.orderTokenTable = tableId;
+        return true;
+      } catch (error) {
+        console.error("No se pudo guardar el identificador seguro de la comanda.", error);
+        state.orderToken = null;
+        state.orderTokenTable = tableId;
+        toast("No se pudo preparar el envío seguro de la comanda. Revisa el almacenamiento de este dispositivo.", true);
+        return false;
+      }
+    }
+    function rotateOrderToken(tableId) {
+      try {
+        const token = newId();
+        localStorage.setItem(orderTokenKey(tableId), token);
+        state.orderToken = token;
+        state.orderTokenTable = tableId;
+        return true;
+      } catch (error) {
+        console.error("No se pudo renovar el identificador de comanda.", error);
+        state.orderToken = null;
+        state.orderTokenTable = tableId;
+        toast("La comanda fue confirmada, pero no se pudo preparar el siguiente envío en este dispositivo.", true);
         return false;
       }
     }
@@ -378,36 +426,37 @@
           hour: "2-digit", minute: "2-digit"
         }).format(new Date());
     }
+    function stationRoleLabel(role) {
+      return ({ mesero: "servicio", cocina: "cocina", caja: "caja" })[role] ?? role;
+    }
     function renderStationCode() {
-      const message = state.authMessage || (state.authReady ? "" : "Comprobando sesión segura…");
+      const message = state.authMessage || (state.authReady ? "" : "Verificando acceso…");
       const boundMessage = state.stationBoundRole
-        ? `Este aparato está fijo en ${state.stationBoundRole}.`
-        : "Al solicitar acceso, este aparato quedará fijo en ese puesto hasta que administración lo revoque.";
+        ? `Este dispositivo está asignado al área de ${stationRoleLabel(state.stationBoundRole)}.`
+        : "Al solicitar acceso, este dispositivo quedará asignado al área seleccionada.";
       return `<section class="panel" style="max-width:440px;margin:2rem auto">
-        <h2>Código del puesto</h2>
-        <p class="muted">${boundMessage} El código solo identifica el puesto; administración debe aprobar el acceso.</p>
+        <h2>Acceso al puesto</h2>
+        <p class="muted">${boundMessage} Una persona administradora debe aprobar el acceso.</p>
         <form id="station-form">
-          <label class="field">Nombre de este aparato
+          <label class="field">Nombre del dispositivo
             <input name="device-label" maxlength="80" value="${escapeHtml(state.deviceLabel)}"
-              placeholder="Ej. Tablet cocina" autocomplete="off" required>
+              placeholder="Ej. Tablet de cocina" autocomplete="off" required>
           </label>
           <label class="field">Código de 3 dígitos
             <input class="station-code" name="station-code" type="password" inputmode="numeric"
               pattern="[0-9]{3}" maxlength="3" autocomplete="off" required autofocus>
           </label>
           <p class="muted" role="status">${escapeHtml(message)}</p>
-          <button class="button primary full" type="submit" ${state.authReady ? "" : "disabled"}>Entrar al puesto</button>
+          <button class="button primary full" type="submit" ${state.authReady ? "" : "disabled"}>Continuar al puesto</button>
         </form>
-        <p class="muted"><a href="./admin-accesos.html">Panel de aprobación para administración</a></p>
       </section>`;
     }
     function renderStationApproval() {
       return `<section class="panel" style="max-width:440px;margin:2rem auto">
-        <h2>Esperando aprobación</h2>
-        <p class="muted">Solicitud para <strong>${escapeHtml(state.deviceLabel)}</strong> en el puesto <strong>${escapeHtml(state.pendingStationRole)}</strong>.</p>
-        <p role="status">${escapeHtml(state.authMessage || "Administración revisará este aparato. La pantalla se actualizará automáticamente.")}</p>
-        <button class="button primary full" type="button" data-action="check-approval" ${state.authReady ? "" : "disabled"}>Comprobar aprobación</button>
-        <p class="muted"><a href="./admin-accesos.html">Abrir panel de administración</a></p>
+        <h2>Acceso en revisión</h2>
+        <p class="muted">Solicitud de <strong>${escapeHtml(state.deviceLabel)}</strong> para el área de <strong>${escapeHtml(stationRoleLabel(state.pendingStationRole))}</strong>.</p>
+        <p role="status">${escapeHtml(state.authMessage || "Una persona administradora revisará la solicitud. Esta pantalla se actualizará automáticamente.")}</p>
+        <button class="button primary full" type="button" data-action="check-approval" ${state.authReady ? "" : "disabled"}>Consultar estado</button>
       </section>`;
     }
     let remoteRefreshPromise = null;
@@ -422,6 +471,7 @@
         const success = await loadRemoteData(showError);
         state.syncing = false;
         state.dataFresh = success;
+        if (success) state.lastSyncedAt = Date.now();
         render();
         remoteRefreshPromise = null;
         return success;
@@ -444,22 +494,30 @@
           state.stationRole = null;
           state.pendingStationRole = null;
           state.awaitingApproval = false;
-          state.data = { tables: [], checks: [], nextTicket: 1, drafts: {} };
-          state.authMessage = "El acceso de este aparato fue revocado o cambió de puesto. Contacta a administración.";
+          state.data = { tables: [], checks: [], nextTicket: 1, drafts: {}, owners: [], suggestions: [] };
+          state.authMessage = "El acceso de este dispositivo ya no está activo. Contacta a administración.";
           return false;
         }
         const tablesQuery = supabaseClient.from("mesas").select("id,nombre,orden,estado,es_prueba")
           .eq("es_prueba", state.testMode).eq("activa", true).order("orden").order("nombre");
-        const [tablesResult, accountsResult] = await Promise.all([
+        const [tablesResult, accountsResult, ownersResult, suggestionsResult] = await Promise.all([
           tablesQuery,
           state.role !== "caja" ? Promise.resolve({ data: null, error: null }) :
             supabaseClient.from("cuentas").select("id,mesa_id,estado,metodo_pago,total,motivo_anulacion,fecha_operativa,mesas!inner(nombre,es_prueba),comandas(id,numero,estado,created_at,comanda_items(id,producto_id,nombre,cantidad,precio_unitario,modificadores,notas))")
-              .eq("mesas.es_prueba", state.testMode).order("abierta_at", { ascending: false })
+              .eq("mesas.es_prueba", state.testMode).order("abierta_at", { ascending: false }),
+          state.role !== "mesero" ? Promise.resolve({ data: [], error: null }) :
+            supabaseClient.rpc("listar_responsables_mesa", { p_es_prueba: state.testMode }),
+          state.role !== "mesero" ? Promise.resolve({ data: [], error: null }) :
+            supabaseClient.rpc("listar_sugerencias_comanda", { p_es_prueba: state.testMode })
         ]);
         const { data: tables, error: tableError } = tablesResult;
         const { data: accounts, error: accountError } = accountsResult;
+        const { data: owners, error: ownersError } = ownersResult;
+        const { data: suggestions, error: suggestionsError } = suggestionsResult;
         if (tableError) throw tableError;
         if (accountError) throw accountError;
+        if (ownersError) throw ownersError;
+        if (suggestionsError) throw suggestionsError;
         let checks = (accounts ?? []).map((account) => ({
           id: account.id,
           tableId: account.mesa_id,
@@ -563,25 +621,43 @@
           })),
           checks,
           nextTicket: checks.flatMap((check) => check.tickets).reduce((max, ticket) => Math.max(max, ticket.number), 0) + 1,
-          drafts: loadDrafts()
+          drafts: loadDrafts(),
+          owners: owners ?? [],
+          suggestions: suggestions ?? []
         };
         return true;
       } catch (error) {
         console.error("No se pudieron sincronizar los datos con Supabase.", error);
-        state.syncError = error.message ?? "No se pudo consultar la base de datos.";
-        if (showError) toast(`Error de sincronización: ${error.message ?? "No se pudo consultar la base de datos."}`, true);
+        state.syncError = "No se pudo actualizar la información. Revisa tu conexión e inténtalo de nuevo.";
+        if (showError) toast(state.syncError, true);
         return false;
       }
     }
     let realtimeChannel = null;
     let refreshTimer = null;
+    let realtimeFallbackTimer = null;
+    function setRealtimeConnection(connected) {
+      state.realtimeConnected = connected;
+      window.clearInterval(realtimeFallbackTimer);
+      realtimeFallbackTimer = null;
+      if (!connected && state.user && state.role && state.stationRole === state.role) {
+        realtimeFallbackTimer = window.setInterval(() => {
+          if (!navigator.onLine || document.visibilityState === "hidden" || state.syncing) return;
+          void refreshRemoteData(false);
+        }, 15_000);
+      }
+      render();
+    }
     function subscribeToChanges() {
       if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
+      setRealtimeConnection(false);
       const tables = state.role !== "caja" ? ["mesas", "comandas", "comanda_items"] :
         ["mesas", "cuentas", "comandas", "comanda_items"];
-      realtimeChannel = supabaseClient.channel(`faro-pos-${state.user.id}`);
+      if (state.role === "mesero") tables.push("mesa_responsables", "sugerencias_comanda");
+      const channel = supabaseClient.channel(`faro-pos-${state.user.id}`);
+      realtimeChannel = channel;
       tables.forEach((table) => {
-        realtimeChannel.on("postgres_changes", { event: "*", schema: "public", table }, () => {
+        channel.on("postgres_changes", { event: "*", schema: "public", table }, () => {
           state.dataFresh = false;
           state.syncError = "";
           render();
@@ -589,9 +665,13 @@
           refreshTimer = window.setTimeout(() => refreshRemoteData(), 250);
         });
       });
-      realtimeChannel.subscribe((status) => {
-        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-          toast("No se pudo conectar la actualización en tiempo real.", true);
+      channel.subscribe((status) => {
+        if (realtimeChannel !== channel) return;
+        if (status === "SUBSCRIBED") {
+          setRealtimeConnection(true);
+          void refreshRemoteData(false);
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+          setRealtimeConnection(false);
         }
       });
     }
@@ -602,7 +682,7 @@
       state.stationRole = null;
       state.pendingStationRole = requestedRole;
       state.dataFresh = false;
-      state.data = { tables: [], checks: [], nextTicket: 1, drafts: {} };
+      state.data = { tables: [], checks: [], nextTicket: 1, drafts: {}, owners: [], suggestions: [] };
       state.authMessage = "";
       if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
       realtimeChannel = null;
@@ -621,7 +701,7 @@
             state.authReady = true;
             state.awaitingApproval = requestStatus === "pending";
             state.authMessage = requestStatus === "pending"
-              ? "Solicitud enviada. Se comprobará automáticamente hasta que administración la apruebe."
+              ? "Solicitud enviada. Esta pantalla se actualizará cuando administración autorice el acceso."
               : requestStatus === "rejected"
                 ? "La solicitud fue rechazada. Contacta a administración si debe revisarse."
                 : requestStatus === "revoked"
@@ -644,16 +724,16 @@
           if (!approvedRole) throw new Error("La aprobación no se reflejó todavía. Intenta comprobar de nuevo.");
           state.role = approvedRole.role;
         } else if (!data || !Object.values(STATION_CODES).includes(data.role)) {
-          throw new Error("Esta identidad no tiene un puesto aprobado.");
+          throw new Error("Este acceso no está autorizado para ningún puesto.");
         } else {
           state.role = data.role;
         }
         if (requestedRole !== state.role) {
-          throw new Error("El código del puesto no coincide con el rol de esta cuenta.");
+          throw new Error("El código no corresponde al puesto autorizado para este acceso.");
         }
         const boundRole = localStorage.getItem(STATION_STORAGE_KEY);
         if (boundRole && boundRole !== requestedRole) {
-          throw new Error(`Este aparato ya está fijo en ${boundRole}.`);
+          throw new Error(`Este dispositivo ya está asignado al puesto de ${boundRole}.`);
         }
         if (!boundRole) localStorage.setItem(STATION_STORAGE_KEY, requestedRole);
         state.stationBoundRole = requestedRole;
@@ -665,8 +745,8 @@
         state.authReady = true;
         if (!await refreshRemoteData()) {
           state.stationRole = null;
-          state.data = { tables: [], checks: [], nextTicket: 1, drafts: {} };
-          state.authMessage = "El puesto se validó, pero no se pudo sincronizar. Revisa la conexión e intenta otra vez.";
+          state.data = { tables: [], checks: [], nextTicket: 1, drafts: {}, owners: [], suggestions: [] };
+          state.authMessage = "No se pudo actualizar la información. Revisa tu conexión e inténtalo de nuevo.";
         } else {
           subscribeToChanges();
         }
@@ -699,7 +779,11 @@
             window.clearTimeout(approvalPollTimer);
             state.dataFresh = false;
             state.syncError = "";
-            state.data = { tables: [], checks: [], nextTicket: 1, drafts: {} };
+            state.realtimeConnected = false;
+            state.lastSyncedAt = null;
+            window.clearInterval(realtimeFallbackTimer);
+            realtimeFallbackTimer = null;
+            state.data = { tables: [], checks: [], nextTicket: 1, drafts: {}, owners: [], suggestions: [] };
             if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
             realtimeChannel = null;
             state.authReady = true;
@@ -709,14 +793,18 @@
             state.role = null;
             state.stationRole = null;
             state.dataFresh = false;
-            state.data = { tables: [], checks: [], nextTicket: 1, drafts: {} };
+            state.realtimeConnected = false;
+            state.lastSyncedAt = null;
+            window.clearInterval(realtimeFallbackTimer);
+            realtimeFallbackTimer = null;
+            state.data = { tables: [], checks: [], nextTicket: 1, drafts: {}, owners: [], suggestions: [] };
             state.authReady = true;
             state.authMessage = "Ingresa el código del puesto para continuar.";
             try {
               state.stationBoundRole = localStorage.getItem(STATION_STORAGE_KEY);
             } catch (error) {
               console.error("No se pudo leer el puesto fijo de este aparato.", error);
-              state.authMessage = "No se pudo validar el puesto fijo de este aparato.";
+              state.authMessage = "No se pudo verificar el puesto asignado a este dispositivo.";
             }
             if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
             realtimeChannel = null;
@@ -724,7 +812,7 @@
           }
         });
       } catch (error) {
-        console.error("No se pudo iniciar la autenticación de Supabase.", error);
+        console.error("No se pudo iniciar la autenticación.", error);
         state.authReady = true;
         state.authMessage = "No se pudo conectar con el servicio de acceso. Intenta recargar la página.";
         render();
@@ -736,7 +824,7 @@
       nav.classList.toggle("hidden", !authorized);
       document.getElementById("sign-out").classList.toggle("hidden", !state.user || state.user.is_anonymous);
       document.getElementById("user-label").textContent = state.user
-        ? `${state.user.is_anonymous ? "Aparato" : state.user.email ?? "Personal"}${authorized ? ` · ${state.stationRole}` : " · Puesto bloqueado"}` : "";
+        ? `${state.user.is_anonymous ? "Dispositivo" : state.user.email ?? "Personal"}${authorized ? ` · ${stationRoleLabel(state.stationRole)}` : " · Acceso pendiente"}` : "";
       if (authorized) {
         const permitted = [state.stationRole];
         nav.querySelectorAll("[data-view]").forEach((button) => {
@@ -755,37 +843,91 @@
       } else {
         const testBanner = `<div class="notice test-banner">
           ${state.testMode
-            ? "MODO DE PRUEBA ACTIVO: comandas y cuentas aisladas; no registrar ni cobrar ventas reales."
-            : "MODO OPERACIÓN: las comandas afectan registros reales. Cambia a prueba antes de ensayar."}
+            ? "Modo de prueba: los pedidos y las cuentas se mantienen separados de las ventas reales."
+            : "Modo operación: los pedidos y cobros se registran en las ventas reales. Activa el modo de prueba antes de practicar."}
           <button class="button ${state.testMode ? "warning" : ""}" type="button" data-action="toggle-test-mode">
-            Cambiar a ${state.testMode ? "operación" : "modo prueba"}
+            ${state.testMode ? "Cambiar a operación" : "Activar modo de prueba"}
           </button>
         </div>`;
+        const connectionState = !navigator.onLine ? "offline" :
+          state.realtimeConnected ? "connected" : "polling";
+        const connectionLabel = {
+          connected: "Conectado · actualización en tiempo real activa",
+          polling: "Conexión parcial · actualización automática cada 15 segundos",
+          offline: "Sin conexión a internet"
+        }[connectionState];
+        const lastSyncLabel = state.lastSyncedAt
+          ? `Última actualización: ${new Intl.DateTimeFormat("es-MX", { hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(state.lastSyncedAt)}`
+          : "Aún no hay una actualización confirmada.";
+        const connectionBanner = `<div class="notice connection-banner ${connectionState}" role="status" aria-live="polite">
+          <div class="connection-copy"><strong>${connectionLabel}</strong>
+            <span class="connection-detail">${state.syncing ? "Actualizando información…" : lastSyncLabel}</span>
+          </div>
+          <button class="button" type="button" data-action="retry-sync" ${state.syncing ? "disabled" : ""}>Reintentar</button>
+        </div>`;
         const syncStatus = state.dataFresh ? "" : `<div class="notice" role="status">${
-          state.syncing ? "Sincronizando con Supabase…" :
-            escapeHtml(state.syncError || "Datos pendientes de sincronización. Las operaciones están bloqueadas.")
+          state.syncing ? "Actualizando información…" :
+            escapeHtml(state.syncError || "No se pudieron actualizar los datos. Las operaciones están temporalmente bloqueadas.")
         }</div>`;
         const view = state.stationRole === "mesero" ? renderWaiter() :
           state.stationRole === "cocina" ? renderKitchen() : renderCashier();
-        app.innerHTML = testBanner + syncStatus + view;
+        app.innerHTML = testBanner + connectionBanner + syncStatus + view;
       }
     }
 
     function renderWaiter() {
       const tables = [...state.data.tables].sort((a, b) => a.order - b.order);
+      const ownerFor = (tableId) => state.data.owners.find((owner) => owner.mesa_id === tableId);
+      const pendingSuggestions = state.data.suggestions.filter((suggestion) =>
+        suggestion.owner_id === state.user?.id && suggestion.estado === "pending");
+      const suggestionStatus = { accepted: "Aceptada", rejected: "Rechazada" };
+      const suggestionItemsText = (suggestion) => (suggestion.items ?? []).map((item) =>
+        `${item.cantidad}× ${item.nombre}${item.modificadores?.length ? ` (${item.modificadores.join(", ")})` : ""}${item.notas ? ` — ${item.notas}` : ""}`
+      ).join("; ");
+      const suggestionInbox = pendingSuggestions.length ? `<section class="panel">
+        <h3>Sugerencias para tus mesas (${pendingSuggestions.length})</h3>
+        ${pendingSuggestions.map((suggestion) => {
+          const tableName = tables.find((table) => table.id === suggestion.mesa_id)?.name ?? "Mesa";
+          return `<article class="ticket-card">
+            <div class="ticket-head"><strong>${escapeHtml(tableName)} · ${escapeHtml(suggestion.requester_nombre)}</strong>
+              <span class="badge pendiente">Pendiente</span></div>
+            <p>${escapeHtml(suggestionItemsText(suggestion))}</p>
+            <div class="actions">
+              <button class="button primary" data-suggestion-response="${escapeHtml(suggestion.id)}" data-accept-suggestion="true">Aceptar y enviar a cocina</button>
+              <button class="button danger" data-suggestion-response="${escapeHtml(suggestion.id)}" data-accept-suggestion="false">Rechazar</button>
+            </div>
+          </article>`;
+        }).join("")}
+      </section>` : "";
+      const suggestionHistory = state.data.suggestions.filter((suggestion) =>
+        suggestion.requester_id === state.user?.id && suggestion.estado !== "pending");
+      const suggestionUpdates = suggestionHistory.length ? `<section class="panel">
+        <h3>Respuesta a tus sugerencias</h3>
+        ${suggestionHistory.slice(0, 5).map((suggestion) => {
+          const tableName = tables.find((table) => table.id === suggestion.mesa_id)?.name ?? "Mesa";
+          return `<p><strong>${escapeHtml(tableName)}:</strong> ${escapeHtml(suggestionItemsText(suggestion))}
+            · ${suggestionStatus[suggestion.estado] ?? escapeHtml(suggestion.estado)}</p>`;
+        }).join("")}
+      </section>` : "";
       if (!state.selectedTable) {
         const recent = state.data.checks.flatMap((check) => check.tickets.map((ticket) => ({
           ...ticket, tableName: check.tableName
         }))).filter((ticket) => Date.now() - Date.parse(ticket.createdAt) < 12 * 60 * 60 * 1000)
           .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
-        return `<h2>Mesero</h2>
-          <div class="section-heading"><h3>Selecciona una mesa</h3><span class="muted">${tables.length} mesas</span></div>
+        return `<h2>Mesero · ${escapeHtml(state.deviceLabel || "este dispositivo")}</h2>
+          ${suggestionInbox}${suggestionUpdates}
+          <div class="section-heading"><h3>Selecciona una mesa</h3>
+            <div class="toolbar"><span class="muted">${tables.length} mesas</span>
+              <button class="button primary" type="button" data-action="add-table">Agregar mesa</button></div>
+          </div>
           <div class="table-grid">${tables.map((table) => {
             const status = tableStatus(table.id);
             const draftPieces = (state.data.drafts[table.id] ?? []).reduce((sum, item) => sum + item.quantity, 0);
+            const owner = ownerFor(table.id);
             return `<button class="table-card ${status === "abierta" ? "occupied" : status === "por_cobrar" ? "due" : ""}"
               data-table="${escapeHtml(table.id)}"><strong>${escapeHtml(table.name)}</strong>
-              <span>${status === "por_cobrar" ? "Por cobrar" : status === "abierta" ? "Ocupada" : "Disponible"}${draftPieces ? ` · Borrador ${draftPieces} pzas.` : ""}</span></button>`;
+              <span>${status === "por_cobrar" ? "Por cobrar" : status === "abierta" ? "Ocupada" : "Disponible"}${draftPieces ? ` · Borrador ${draftPieces} pzas.` : ""}</span>
+              ${owner ? `<span>Responsable: ${escapeHtml(owner.responsable_nombre)}${owner.responsable_id === state.user?.id ? " (tú)" : ""}</span>` : ""}</button>`;
           }).join("")}</div>
           <div class="section-heading"><h3>Comandas recientes</h3></div>
           ${recent.length ? `<div class="ticket-grid">${recent.slice(0, 10).map((ticket) =>
@@ -798,8 +940,12 @@
       const table = state.data.tables.find((item) => item.id === state.selectedTable);
       const products = PRODUCTOS.filter((product) => product.categoria === state.category);
       const totalPieces = state.draft.reduce((sum, item) => sum + item.quantity, 0);
-      return `<div class="section-heading"><h2>Mesero · ${escapeHtml(table?.name ?? "")}</h2>
+      const ownerName = state.selectedTableOwner?.responsable_nombre ?? "Mesero responsable";
+      return `${suggestionInbox}<div class="section-heading"><h2>Mesero · ${escapeHtml(table?.name ?? "")}</h2>
         <button class="button" data-action="back-tables">Cambiar mesa</button></div>
+        <div class="notice">${state.suggestionMode
+          ? `Mesa a cargo de ${escapeHtml(ownerName)}. Tu comanda será una sugerencia y no se enviará a cocina hasta que la acepte.`
+          : `Tú eres responsable de esta mesa. Los demás meseros pueden enviarte sugerencias.`}</div>
         <div class="layout"><section class="panel">
           <div class="categories">${CATEGORIAS.map((category) =>
             `<button class="category-button ${state.category === category ? "active" : ""}" data-category="${escapeHtml(category)}">${escapeHtml(category)}</button>`
@@ -821,7 +967,7 @@
           <div class="receipt-total"><span>Total estimado</span><strong>${money(state.draft.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0))}</strong></div>
           <button class="button primary full" data-action="send-order"
             ${state.draft.length && state.dataFresh && !state.syncing ? "" : "disabled"}>
-            ${state.syncing ? "Sincronizando…" : `Enviar comanda (${totalPieces})`}
+            ${state.syncing ? "Sincronizando…" : `${state.suggestionMode ? "Enviar sugerencia" : "Enviar comanda"} (${totalPieces})`}
           </button>
         </aside></div>`;
     }
@@ -888,7 +1034,7 @@
         ranking.set(item.name, entry);
       });
       const top = [...ranking.entries()].sort((a, b) => b[1].quantity - a[1].quantity).slice(0, 10);
-      return `      <h2>Caja${state.testMode ? " · Pruebas" : ""}</h2>
+      return `      <h2>Caja${state.testMode ? " · Modo de prueba" : ""}</h2>
         <div class="section-heading"><h3>Mesas y cuentas</h3><span class="muted">${active.filter((entry) => entry.check).length} cuentas visibles</span></div>
         <div class="toolbar no-print">
           <input type="search" id="cashier-search" placeholder="Buscar mesa o comanda" aria-label="Buscar mesa o número de comanda" value="${escapeHtml(state.cashierSearch)}">
@@ -975,6 +1121,52 @@
       });
       document.querySelector("[name='main-meat']")?.focus();
     }
+    function openCreateTableDialog() {
+      document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop" data-dismiss-modal>
+        <section class="modal" role="dialog" aria-modal="true" aria-labelledby="new-table-title">
+          <div class="modal-header"><h2 id="new-table-title">Agregar mesa</h2>
+            <button class="small-button" type="button" data-close-modal aria-label="Cerrar">✕</button></div>
+          <p class="muted">${state.testMode
+            ? "La mesa se agregará al área de prueba y no aparecerá en las ventas reales."
+            : "La mesa se agregará al área de operación."}</p>
+          <form id="create-table-form">
+            <label class="field">Nombre de la mesa
+              <input name="table-name" maxlength="80" autocomplete="off" placeholder="Ej. Terraza 1" required>
+            </label>
+            <div class="modal-footer"><button class="button" type="button" data-close-modal>Cancelar</button>
+              <button class="button primary" type="submit">Guardar mesa</button></div>
+          </form>
+        </section></div>`;
+      document.querySelector(".modal-backdrop").addEventListener("click", (event) => {
+        if (event.target.matches("[data-dismiss-modal]")) closeModal();
+      });
+      document.querySelector("[name='table-name']").focus();
+    }
+    async function createTable(form) {
+      if (!await ensureFreshData()) return;
+      const name = form.elements["table-name"].value.trim();
+      if (!name || name.length > 80) {
+        toast("Escribe un nombre de mesa de hasta 80 caracteres.", true);
+        return;
+      }
+      const button = form.querySelector("button[type='submit']");
+      button.disabled = true;
+      const { error } = await supabaseClient.rpc("crear_mesa", {
+        p_nombre: name,
+        p_es_prueba: state.testMode
+      });
+      if (error) {
+        console.error("No se pudo agregar la mesa.", error);
+        toast(error.message.includes("Ya existe una mesa")
+          ? "Ya existe una mesa con ese nombre."
+          : "No se pudo agregar la mesa. Verifica el nombre e inténtalo de nuevo.", true);
+        button.disabled = false;
+        return;
+      }
+      closeModal();
+      if (await refreshRemoteData()) toast(`Mesa ${name} agregada.`);
+      else toast("La mesa se agregó, pero no se pudo actualizar la lista. Actualiza la información.", true);
+    }
     function closeModal() {
       document.getElementById("modal-root").innerHTML = "";
     }
@@ -1020,6 +1212,9 @@
         toast("No se encontró la mesa seleccionada.", true);
         return;
       }
+      if (state.orderTokenTable !== table.id || !state.orderToken) {
+        if (!prepareOrderToken(table.id)) return;
+      }
       const items = state.draft.map((item) => ({
         producto_id: item.productId,
         nombre: item.name,
@@ -1028,6 +1223,29 @@
         modificadores: item.modifiers.map((modifier) => modifier.name),
         notas: item.notes
       }));
+      if (state.suggestionMode) {
+        const { error } = await supabaseClient.rpc("solicitar_sugerencia_comanda", {
+          p_mesa: table.id,
+          p_items: items,
+          p_es_prueba: state.testMode
+        });
+        if (error) {
+          console.error("No se pudo enviar la sugerencia a la mesa.", error);
+          toast(`No se pudo enviar la sugerencia: ${error.message}`, true);
+          return;
+        }
+        toast(`Sugerencia enviada a ${state.selectedTableOwner?.responsable_nombre ?? "la persona responsable"}.`);
+        delete state.data.drafts[table.id];
+        saveDrafts();
+        state.selectedTable = null;
+        state.selectedTableOwner = null;
+        state.suggestionMode = false;
+        state.draft = [];
+        state.orderToken = null;
+        state.orderTokenTable = null;
+        await refreshRemoteData();
+        return;
+      }
       const { error } = await supabaseClient.rpc("enviar_comanda", {
         p_mesa: table.id,
         p_token: state.orderToken,
@@ -1043,9 +1261,25 @@
       toast(state.testMode ? `Comanda de prueba enviada · ${table.name}` : `Comanda enviada · ${table.name}`);
       delete state.data.drafts[table.id];
       saveDrafts();
+      rotateOrderToken(table.id);
       state.selectedTable = null;
+      state.selectedTableOwner = null;
+      state.suggestionMode = false;
       state.draft = [];
-      state.orderToken = newId();
+      await refreshRemoteData();
+    }
+    async function respondToSuggestion(suggestionId, accept) {
+      if (!await ensureFreshData()) return;
+      const { error } = await supabaseClient.rpc("responder_sugerencia_comanda", {
+        p_sugerencia: suggestionId,
+        p_aceptar: accept
+      });
+      if (error) {
+        console.error("No se pudo responder la sugerencia de comanda.", error);
+        toast(`No se pudo responder: ${error.message}`, true);
+        return;
+      }
+      toast(accept ? "Sugerencia aceptada y enviada a cocina." : "Sugerencia rechazada.");
       await refreshRemoteData();
     }
     async function changeTicketStatus(ticketId, nextStatus) {
@@ -1138,8 +1372,12 @@
     }
 
     document.addEventListener("submit", async (event) => {
-      if (event.target.id !== "station-form") return;
+      if (event.target.id !== "station-form" && event.target.id !== "create-table-form") return;
       event.preventDefault();
+      if (event.target.id === "create-table-form") {
+        await createTable(event.target);
+        return;
+      }
       if (!state.authReady) return;
       if (event.target.id === "station-form") {
         const form = event.target;
@@ -1152,12 +1390,12 @@
         }
         const deviceLabel = form.elements["device-label"].value.trim();
         if (!deviceLabel || deviceLabel.length > 80) {
-          state.authMessage = "Escribe un nombre para identificar este aparato (máximo 80 caracteres).";
+          state.authMessage = "Escribe un nombre para identificar este dispositivo (máximo 80 caracteres).";
           render();
           return;
         }
         if (state.stationBoundRole && state.stationBoundRole !== requestedRole) {
-          state.authMessage = "Código incorrecto para el puesto fijo de este aparato.";
+          state.authMessage = "El código no corresponde al puesto asignado a este dispositivo.";
           render();
           return;
         }
@@ -1165,8 +1403,8 @@
           if (!state.stationBoundRole) localStorage.setItem(STATION_STORAGE_KEY, requestedRole);
           localStorage.setItem(DEVICE_LABEL_STORAGE_KEY, deviceLabel);
         } catch (error) {
-          console.error("No se pudo guardar la identidad fija del aparato.", error);
-          state.authMessage = "No se pudo fijar el puesto en este aparato. Habilita el almacenamiento y vuelve a intentar.";
+          console.error("No se pudo guardar la asignación del dispositivo.", error);
+          state.authMessage = "No se pudo guardar la asignación de este dispositivo. Revisa la configuración de almacenamiento del navegador e inténtalo de nuevo.";
           render();
           return;
         }
@@ -1186,9 +1424,9 @@
             state.user = data.user;
             await activateSession(data.user, requestedRole);
           } catch (error) {
-            console.error("No se pudo crear la identidad limitada del aparato.", error);
+            console.error("No se pudo crear la identidad de acceso del dispositivo.", error);
             state.authReady = true;
-            state.authMessage = "No se pudo solicitar acceso. Verifica la conexión y que Supabase permita identidades de aparato; no se otorgará acceso hasta la aprobación administrativa.";
+            state.authMessage = "No fue posible enviar la solicitud de acceso. Revisa tu conexión e inténtalo de nuevo. Si el problema continúa, contacta a administración.";
             render();
           }
         }
@@ -1198,7 +1436,17 @@
     document.addEventListener("click", async (event) => {
       const target = event.target.closest("button");
       if (!target) return;
-      if (target.dataset.action === "sign-out") {
+      if (target.dataset.action === "retry-sync") {
+        if (!navigator.onLine) {
+          toast("Este dispositivo no tiene conexión a internet.", true);
+          return;
+        }
+        state.dataFresh = false;
+        state.syncError = "";
+        setRealtimeConnection(false);
+        subscribeToChanges();
+        await refreshRemoteData();
+      } else if (target.dataset.action === "sign-out") {
         const { error } = await supabaseClient.auth.signOut();
         if (error) {
           console.error("No se pudo cerrar la sesión.", error);
@@ -1209,6 +1457,12 @@
         if (state.user && state.pendingStationRole) {
           await activateSession(state.user, state.pendingStationRole);
         }
+      } else if (target.dataset.action === "add-table") {
+        if (state.stationRole !== "mesero" || state.role !== "mesero") {
+          toast("Solo el área de servicio puede agregar mesas.", true);
+          return;
+        }
+        openCreateTableDialog();
       } else if (target.dataset.action === "toggle-test-mode") {
         if (state.draft.length) {
           toast("Envía o vacía el borrador antes de cambiar de modo.", true);
@@ -1216,21 +1470,24 @@
         }
         const nextMode = !state.testMode;
         const prompt = nextMode
-          ? "Entrar a MODO DE PRUEBA. Las comandas usarán mesas aisladas y no se incluirán en ventas reales. ¿Continuar?"
-          : "Salir del modo de prueba y operar sobre mesas/cuentas reales. ¿Continuar?";
+          ? "¿Activar el modo de prueba? Los pedidos se guardarán por separado y no afectarán las ventas reales."
+          : "¿Cambiar a operación? Los pedidos y cobros se registrarán en las ventas reales.";
         if (!window.confirm(prompt)) return;
         try {
           localStorage.setItem("faro-pos-test-mode-v1", String(nextMode));
         } catch (error) {
           console.error("No se pudo guardar el modo de trabajo.", error);
-          toast("No se pudo guardar el modo en este aparato. No se cambió el área de datos.", true);
+          toast("No se pudo guardar el modo en este dispositivo. No se cambió el área de datos.", true);
           return;
         }
         state.testMode = nextMode;
         state.selectedTable = null;
+        state.selectedTableOwner = null;
+        state.suggestionMode = false;
         state.cashierTable = null;
-        state.orderToken = newId();
-        state.data = { tables: [], checks: [], nextTicket: 1, drafts: {} };
+        state.orderToken = null;
+        state.orderTokenTable = null;
+        state.data = { tables: [], checks: [], nextTicket: 1, drafts: {}, owners: [], suggestions: [] };
         state.dataFresh = false;
         state.syncError = "";
         await refreshRemoteData();
@@ -1243,12 +1500,37 @@
         state.view = target.dataset.view;
         render();
       } else if (target.dataset.table) {
+        if (!await ensureFreshData()) return;
+        const { data, error } = await supabaseClient.rpc("reclamar_mesa", {
+          p_mesa: target.dataset.table,
+          p_es_prueba: state.testMode
+        });
+        if (error) {
+          console.error("No se pudo asignar el responsable de la mesa.", error);
+          toast(`No se pudo abrir la mesa: ${error.message}`, true);
+          await refreshRemoteData();
+          return;
+        }
+        const owner = data?.[0];
+        if (!owner) {
+          toast("No se recibió la asignación de responsable. Sincroniza e intenta de nuevo.", true);
+          return;
+        }
         state.selectedTable = target.dataset.table;
+        prepareOrderToken(state.selectedTable);
+        state.selectedTableOwner = {
+          responsable_id: owner.responsable_id,
+          responsable_nombre: owner.responsable_nombre
+        };
+        state.suggestionMode = !owner.es_responsable;
         state.draft = structuredClone(state.data.drafts[state.selectedTable] ?? []);
+        await refreshRemoteData();
         render();
       } else if (target.dataset.action === "back-tables") {
         if (!persistDraft()) return;
         state.selectedTable = null;
+        state.selectedTableOwner = null;
+        state.suggestionMode = false;
         render();
       } else if (target.dataset.category) {
         state.category = target.dataset.category;
@@ -1273,6 +1555,8 @@
         render();
       } else if (target.dataset.action === "send-order") {
         sendOrder();
+      } else if (target.dataset.suggestionResponse) {
+        respondToSuggestion(target.dataset.suggestionResponse, target.dataset.acceptSuggestion === "true");
       } else if (target.dataset.ticketStatus) {
         changeTicketStatus(target.dataset.ticketStatus, target.dataset.nextStatus);
       } else if (target.dataset.kitchenFilter) {
@@ -1347,7 +1631,19 @@
     });
     window.addEventListener("focus", syncAfterResume);
     window.addEventListener("pageshow", syncAfterResume);
-    window.addEventListener("online", syncAfterResume);
+    window.addEventListener("offline", () => {
+      state.dataFresh = false;
+      state.syncError = "Sin conexión a internet. Las operaciones están temporalmente bloqueadas.";
+      setRealtimeConnection(false);
+    });
+    window.addEventListener("online", () => {
+      if (!state.user || !state.role || state.stationRole !== state.role) return;
+      setRealtimeConnection(false);
+      state.dataFresh = false;
+      state.syncError = "";
+      subscribeToChanges();
+      void refreshRemoteData();
+    });
 
     updateClock();
     window.setInterval(() => {
