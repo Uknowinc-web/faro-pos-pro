@@ -21,6 +21,8 @@
       --muted: #68716b;
       --line: #dedfd7;
       --card: #fffefa;
+      --surface: #fff;
+      --shadow: 0 8px 24px #18362a0d;
     }
     * { box-sizing: border-box; }
     body { margin: 0; min-width: 320px; min-height: 100vh; }
@@ -28,9 +30,11 @@
     button { cursor: pointer; }
     button:disabled { cursor: not-allowed; opacity: .55; }
     .topbar {
+      position: sticky; top: 0; z-index: 4;
       display: flex; align-items: center; justify-content: space-between; gap: 1rem;
-      padding: 1rem max(1rem, calc((100vw - 1200px) / 2));
+      padding: .8rem max(1rem, calc((100vw - 1200px) / 2));
       background: var(--green); color: #fff;
+      box-shadow: 0 3px 16px #14251d2e;
     }
     .brand { display: flex; align-items: center; gap: .75rem; }
     .brand-mark {
@@ -40,50 +44,65 @@
     .brand h1 { margin: 0; font-size: 1.05rem; }
     .brand p { margin: .15rem 0 0; color: #cfddd5; font-size: .8rem; }
     .clock { text-align: right; font-size: .9rem; color: #e0ebe4; }
-    .container { width: min(1200px, 100%); margin: 0 auto; padding: 1rem; }
+    .container { width: min(1200px, 100%); margin: 0 auto; padding: 1.15rem; }
     .notice {
       padding: .8rem 1rem; margin-bottom: 1rem; border: 1px solid #e8cc92;
       border-radius: 12px; background: #fff5dd; color: #664d1e; font-size: .9rem;
     }
+    .access-notice { max-width: 760px; margin: 1.5rem auto; line-height: 1.55; }
+    .access-card { width: min(480px, 100%); margin: 2rem auto; padding: clamp(1.25rem, 4vw, 2rem); }
+    .form-status { min-height: 1.4rem; margin: .8rem 0; color: var(--muted); }
+    .approval-card { text-align: center; }
+    .approval-icon { display: grid; width: 56px; height: 56px; margin: 0 auto 1rem; place-items: center; border-radius: 50%; background: var(--green-light); color: var(--green); font-size: 1.6rem; font-weight: 800; }
     .test-banner { border-color: #bc7800; background: #fff0c8; color: #5a3b00; font-weight: 750; }
+    .test-banner { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
     .connection-banner { display: flex; justify-content: space-between; align-items: center; gap: .75rem; }
     .connection-banner.connected { border-color: #a8d5b5; background: #eaf6ed; color: #245b36; }
     .connection-banner.reconnecting, .connection-banner.polling { border-color: #e8cc92; background: #fff5dd; color: #664d1e; }
     .connection-banner.offline, .connection-banner.error { border-color: #e3b3ad; background: #fff0ed; color: #8a3028; }
     .connection-copy { display: grid; gap: .2rem; }
     .connection-detail { font-size: .82rem; font-weight: 400; }
-    .nav { display: flex; gap: .5rem; margin-bottom: 1rem; overflow-x: auto; }
+    .field-help { margin: -.2rem 0 0; color: var(--muted); font-size: .82rem; line-height: 1.4; }
+    .nav { display: flex; gap: .5rem; margin-bottom: .75rem; overflow-x: auto; }
     .nav button {
-      flex: 1; min-width: 110px; padding: .75rem 1rem; border: 1px solid var(--line);
+      flex: 1; min-width: 110px; min-height: 44px; padding: .65rem 1rem; border: 1px solid var(--line);
       border-radius: 12px; background: var(--card); color: #38423c; font-weight: 700;
     }
     .nav button[aria-current="page"] { border-color: var(--green); background: var(--green); color: #fff; }
-    h2 { margin: 0 0 1rem; font-size: 1.55rem; }
+    h2 { margin: 0 0 .45rem; font-size: clamp(1.4rem, 2.5vw, 1.75rem); letter-spacing: -.025em; }
     h3 { margin: 0 0 .75rem; font-size: 1.15rem; }
     .muted { color: var(--muted); }
-    .panel { padding: 1rem; border: 1px solid var(--line); border-radius: 16px; background: var(--card); }
-    .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 390px); gap: 1rem; align-items: start; }
-    .section-heading { display: flex; justify-content: space-between; align-items: center; gap: .75rem; margin: 1.25rem 0 .6rem; }
+    .page-heading { display: flex; justify-content: space-between; align-items: end; gap: 1rem; margin: .35rem 0 1.1rem; }
+    .page-heading p { margin: .25rem 0 0; color: var(--muted); }
+    .eyebrow { margin: 0 0 .25rem; color: var(--green); font-size: .75rem; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
+    .panel { padding: 1.1rem; border: 1px solid var(--line); border-radius: 16px; background: var(--card); box-shadow: var(--shadow); }
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 390px); gap: 1rem; align-items: start; }
+    .section-heading { display: flex; justify-content: space-between; align-items: center; gap: .75rem; margin: 1.4rem 0 .7rem; }
     .section-heading h3 { margin: 0; }
+    .section-description { margin: .2rem 0 0; color: var(--muted); font-size: .9rem; }
     .table-grid, .product-grid, .ticket-grid, .stats {
-      display: grid; grid-template-columns: repeat(auto-fill, minmax(135px, 1fr)); gap: .65rem;
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)); gap: .75rem;
     }
     .table-card, .product-card, .ticket-card {
-      padding: .85rem; border: 1px solid var(--line); border-radius: 13px;
-      background: var(--card); color: inherit; text-align: left;
+      padding: 1rem; border: 1px solid var(--line); border-radius: 14px;
+      background: var(--card); color: inherit; text-align: left; transition: border-color .15s, box-shadow .15s, transform .15s;
     }
-    .table-card { min-height: 94px; }
-    .table-card strong, .product-card strong { display: block; }
-    .table-card span, .product-card span { display: block; margin-top: .35rem; font-size: .82rem; color: var(--muted); }
-    .table-card.selected { outline: 3px solid #9cbcac; border-color: var(--green); }
-    .table-card.occupied { background: #eef5f0; }
-    .table-card.due { background: #fff4de; }
+    .table-card { min-height: 118px; }
+    .table-card strong, .product-card strong { display: block; font-size: 1rem; }
+    .table-card span, .product-card span { display: block; margin-top: .45rem; font-size: .84rem; color: var(--muted); }
+    .table-card:hover, .product-card:hover { transform: translateY(-2px); border-color: #9cbcac; box-shadow: 0 8px 20px #18362a12; }
+    .table-card.selected, .table-card:focus-visible, .product-card:focus-visible { outline: 3px solid #9cbcac; border-color: var(--green); }
+    .table-card.occupied { border-left: 4px solid #387451; background: #eef5f0; }
+    .table-card.due { border-left: 4px solid #c58419; background: #fff4de; }
+    .table-status { display: inline-flex !important; width: fit-content; align-items: center; margin-top: .7rem !important; padding: .25rem .55rem; border-radius: 99px; background: #edf0ed; color: #49564e !important; font-size: .76rem !important; font-weight: 750; }
+    .table-status.occupied { background: #dff1e5; color: #1f613a !important; }
+    .table-status.due { background: #fff0c8; color: #75570d !important; }
     .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
     .toolbar select, .toolbar input { min-height: 40px; }
     .toolbar input[type="search"] { min-width: min(240px, 100%); padding: .5rem .65rem; border: 1px solid var(--line); border-radius: 9px; }
     .categories { display: flex; gap: .45rem; overflow-x: auto; padding: .2rem 0 .7rem; }
     .category-button, .button, .small-button {
-      padding: .65rem .85rem; border: 1px solid var(--line); border-radius: 10px;
+      min-height: 44px; padding: .65rem .9rem; border: 1px solid var(--line); border-radius: 10px;
       background: #fff; color: #2d3931; font-weight: 650;
     }
     .category-button { white-space: nowrap; }
@@ -91,8 +110,9 @@
     .button.primary { border-color: var(--green); background: var(--green); color: #fff; }
     .button.warning { border-color: #e5c273; background: var(--yellow); color: #594516; }
     .button.danger { border-color: #e3b3ad; background: #fff0ed; color: var(--red); }
-    .button.full { width: 100%; min-height: 48px; }
-    .small-button { padding: .4rem .6rem; }
+    .button.full { width: 100%; min-height: 52px; }
+    .button:hover:not(:disabled), .category-button:hover:not(:disabled) { filter: brightness(.97); }
+    .small-button { min-width: 42px; padding: .4rem .6rem; }
     .cart-list, .line-list { display: grid; gap: .55rem; }
     .cart-item, .line-item {
       display: flex; justify-content: space-between; align-items: center; gap: .65rem;
@@ -101,12 +121,15 @@
     .cart-item p, .line-item p { margin: 0; }
     .cart-item .detail, .line-item .detail { margin-top: .25rem; color: var(--muted); font-size: .8rem; }
     .cart-controls { display: flex; align-items: center; gap: .35rem; flex-shrink: 0; }
-    .cart-controls button { width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
-    .sticky { position: sticky; top: 1rem; }
+    .cart-controls button { width: 42px; height: 42px; border: 1px solid var(--line); border-radius: 10px; background: #fff; font-size: 1.15rem; }
+    .sticky { position: sticky; top: 5rem; }
     .empty { padding: 1.5rem .5rem; color: var(--muted); text-align: center; }
     .ticket-card { display: flex; flex-direction: column; gap: .55rem; }
+    .ticket-card.priority { border-left: 4px solid #b83a2d; }
+    .ticket-card.is-preparing { border-left: 4px solid #d29227; }
     .ticket-head { display: flex; justify-content: space-between; align-items: start; gap: .4rem; }
     .ticket-head strong { font-size: 1.15rem; }
+    .kitchen-table { margin: -.25rem 0 .1rem; color: var(--green); font-size: 1.35rem; font-weight: 800; }
     .badge { display: inline-flex; padding: .25rem .5rem; border-radius: 99px; background: #edf0ed; font-size: .76rem; font-weight: 700; }
     .badge.preparacion { background: #fff0c8; }
     .badge.listo, .badge.pagada { background: #dff1e5; color: #1f613a; }
@@ -123,6 +146,18 @@
     .receipt-row { display: flex; justify-content: space-between; gap: .6rem; padding: .45rem 0; border-bottom: 1px solid #ecece5; }
     .receipt-total { display: flex; justify-content: space-between; margin-top: .8rem; font-weight: 800; font-size: 1.25rem; }
     .actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .75rem; }
+    .summary-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: .65rem; margin: 0 0 1rem; }
+    .summary-item { padding: .8rem .9rem; border: 1px solid var(--line); border-radius: 13px; background: var(--card); }
+    .summary-item span { display: block; color: var(--muted); font-size: .8rem; }
+    .summary-item strong { display: block; margin-top: .2rem; color: var(--green); font-size: 1.15rem; }
+    .suggestion-panel { margin-bottom: 1rem; border-color: #e5c273; }
+    .suggestion-panel > p { margin: .25rem 0; }
+    .cashier-summary .summary-item.emphasis { border-color: #e5c273; background: #fff8e9; }
+    .cashier-layout { grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr); }
+    .cashier-receipt { position: sticky; top: 5rem; }
+    .payment-note { margin: .65rem 0 0; padding: .65rem .75rem; border-radius: 10px; background: #f2f3ee; font-size: .84rem; line-height: 1.45; }
+    .kitchen-toolbar { justify-content: space-between; padding: .5rem; border-radius: 14px; background: #eaece6; }
+    .kitchen-toolbar .button { flex: 1; }
     .modal-backdrop {
       position: fixed; inset: 0; z-index: 5; display: grid; place-items: end center;
       padding: 1rem; background: #10171399;
@@ -158,9 +193,32 @@
     .hidden { display: none !important; }
     @media (max-width: 760px) {
       .layout { grid-template-columns: 1fr; }
-      .sticky { position: static; }
-      .topbar { align-items: start; }
+      .cashier-layout { grid-template-columns: 1fr; }
+      .topbar { align-items: center; }
       .clock { font-size: .8rem; }
+      .container { padding: .75rem; }
+      .page-heading { align-items: start; }
+      .table-grid, .product-grid, .ticket-grid { grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)); }
+      .sticky { position: static; }
+      .sticky.has-draft { position: sticky; bottom: 0; z-index: 2; max-height: 48vh; overflow: auto; border-radius: 16px 16px 0 0; box-shadow: 0 -8px 30px #18362a1c; padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+      .cashier-receipt { position: static; }
+      .test-banner { align-items: start; }
+      .test-banner .button { flex-shrink: 0; }
+      .kitchen-toolbar { display: grid; grid-template-columns: repeat(3, 1fr); }
+      .kitchen-toolbar .badge { grid-column: 1 / -1; text-align: center; }
+    }
+    @media (max-width: 430px) {
+      .brand-mark { width: 38px; height: 38px; }
+      .brand p { font-size: .72rem; }
+      .clock { max-width: 105px; }
+      .page-heading { flex-direction: column; }
+      .test-banner { flex-direction: column; }
+      .table-grid, .product-grid, .ticket-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .55rem; }
+      .table-card, .product-card, .ticket-card { padding: .8rem; }
+      .connection-banner { align-items: stretch; }
+      .connection-banner .button { min-width: 98px; }
+      .section-heading { align-items: start; }
+      .toolbar { gap: .4rem; }
     }
     @media print {
       .topbar, .notice, .nav, .no-print { display: none !important; }
@@ -178,10 +236,8 @@
     <div class="clock" id="clock" aria-live="polite"></div>
   </header>
   <main class="container">
-    <div class="notice">
-      <strong>Acceso por dispositivo:</strong> identifica este dispositivo y escribe el código del puesto.
-      Una persona administradora debe aprobar el acceso la primera vez. Los datos se actualizan al volver
-      a la pantalla. Los pagos con Clip también deben confirmarse en la terminal; aquí solo se registra el pago.
+    <div class="notice access-notice" id="access-notice">
+      <strong>Configura este dispositivo:</strong> indica su nombre y el código del área. Administración autorizará el acceso la primera vez.
     </div>
     <nav class="nav hidden" id="module-nav" aria-label="Módulos">
       <button type="button" data-view="mesero" aria-current="page">Mesero</button>
@@ -434,9 +490,10 @@
       const boundMessage = state.stationBoundRole
         ? `Este dispositivo está asignado al área de ${stationRoleLabel(state.stationBoundRole)}.`
         : "Al solicitar acceso, este dispositivo quedará asignado al área seleccionada.";
-      return `<section class="panel" style="max-width:440px;margin:2rem auto">
-        <h2>Acceso al puesto</h2>
-        <p class="muted">${boundMessage} Una persona administradora debe aprobar el acceso.</p>
+      return `<section class="panel access-card">
+        <p class="eyebrow">Configuración inicial</p>
+        <h2>Vincular dispositivo</h2>
+        <p class="muted">${boundMessage} El acceso se activa después de la autorización.</p>
         <form id="station-form">
           <label class="field">Nombre del dispositivo
             <input name="device-label" maxlength="80" value="${escapeHtml(state.deviceLabel)}"
@@ -445,18 +502,21 @@
           <label class="field">Código de 3 dígitos
             <input class="station-code" name="station-code" type="password" inputmode="numeric"
               pattern="[0-9]{3}" maxlength="3" autocomplete="off" required autofocus>
+            <span class="field-help">Servicio 101 · Cocina 202 · Caja 303</span>
           </label>
-          <p class="muted" role="status">${escapeHtml(message)}</p>
-          <button class="button primary full" type="submit" ${state.authReady ? "" : "disabled"}>Continuar al puesto</button>
+          <p class="form-status" role="status">${escapeHtml(message)}</p>
+          <button class="button primary full" type="submit" ${state.authReady ? "" : "disabled"}>Solicitar acceso</button>
         </form>
       </section>`;
     }
     function renderStationApproval() {
-      return `<section class="panel" style="max-width:440px;margin:2rem auto">
-        <h2>Acceso en revisión</h2>
+      return `<section class="panel access-card approval-card">
+        <div class="approval-icon" aria-hidden="true">✓</div>
+        <p class="eyebrow">Solicitud enviada</p>
+        <h2>Esperando autorización</h2>
         <p class="muted">Solicitud de <strong>${escapeHtml(state.deviceLabel)}</strong> para el área de <strong>${escapeHtml(stationRoleLabel(state.pendingStationRole))}</strong>.</p>
-        <p role="status">${escapeHtml(state.authMessage || "Una persona administradora revisará la solicitud. Esta pantalla se actualizará automáticamente.")}</p>
-        <button class="button primary full" type="button" data-action="check-approval" ${state.authReady ? "" : "disabled"}>Consultar estado</button>
+        <p class="form-status" role="status">${escapeHtml(state.authMessage || "Administración debe autorizar este dispositivo. Esta pantalla se actualizará automáticamente.")}</p>
+        <button class="button full" type="button" data-action="check-approval" ${state.authReady ? "" : "disabled"}>Actualizar estado</button>
       </section>`;
     }
     let remoteRefreshPromise = null;
@@ -838,6 +898,7 @@
         else button.removeAttribute("aria-current");
       });
       const app = document.getElementById("app");
+      document.getElementById("access-notice").classList.toggle("hidden", authorized);
       if (!authorized) {
         app.innerHTML = state.awaitingApproval ? renderStationApproval() : renderStationCode();
       } else {
@@ -884,8 +945,8 @@
       const suggestionItemsText = (suggestion) => (suggestion.items ?? []).map((item) =>
         `${item.cantidad}× ${item.nombre}${item.modificadores?.length ? ` (${item.modificadores.join(", ")})` : ""}${item.notas ? ` — ${item.notas}` : ""}`
       ).join("; ");
-      const suggestionInbox = pendingSuggestions.length ? `<section class="panel">
-        <h3>Sugerencias para tus mesas (${pendingSuggestions.length})</h3>
+      const suggestionInbox = pendingSuggestions.length ? `<section class="panel suggestion-panel">
+        <p class="eyebrow">Requieren tu respuesta</p><h3>Sugerencias recibidas · ${pendingSuggestions.length}</h3>
         ${pendingSuggestions.map((suggestion) => {
           const tableName = tables.find((table) => table.id === suggestion.mesa_id)?.name ?? "Mesa";
           return `<article class="ticket-card">
@@ -910,26 +971,39 @@
         }).join("")}
       </section>` : "";
       if (!state.selectedTable) {
+        const occupiedTables = tables.filter((table) => tableStatus(table.id) === "abierta").length;
+        const dueTables = tables.filter((table) => tableStatus(table.id) === "por_cobrar").length;
+        const myTables = state.data.owners.filter((owner) => owner.responsable_id === state.user?.id).length;
         const recent = state.data.checks.flatMap((check) => check.tickets.map((ticket) => ({
           ...ticket, tableName: check.tableName
         }))).filter((ticket) => Date.now() - Date.parse(ticket.createdAt) < 12 * 60 * 60 * 1000)
           .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
-        return `<h2>Mesero · ${escapeHtml(state.deviceLabel || "este dispositivo")}</h2>
+        return `<header class="page-heading"><div><p class="eyebrow">Área de servicio</p>
+          <h2>Hola, ${escapeHtml(state.deviceLabel || "equipo de servicio")}</h2>
+          <p>Elige una mesa para comenzar o continuar una comanda.</p></div>
+          <button class="button primary" type="button" data-action="add-table">＋ Agregar mesa</button></header>
+          <div class="summary-strip" aria-label="Resumen de mesas">
+            <div class="summary-item"><span>Mesas disponibles</span><strong>${tables.length - occupiedTables - dueTables}</strong></div>
+            <div class="summary-item"><span>En servicio</span><strong>${occupiedTables}</strong></div>
+            <div class="summary-item"><span>A tu cargo</span><strong>${myTables}</strong></div>
+          </div>
           ${suggestionInbox}${suggestionUpdates}
-          <div class="section-heading"><h3>Selecciona una mesa</h3>
-            <div class="toolbar"><span class="muted">${tables.length} mesas</span>
-              <button class="button primary" type="button" data-action="add-table">Agregar mesa</button></div>
+          <div class="section-heading"><div><h3>Mesas</h3>
+            <p class="section-description">El nombre del responsable aparece en las mesas ocupadas.</p></div>
+            <span class="badge">${tables.length} en total</span>
           </div>
           <div class="table-grid">${tables.map((table) => {
             const status = tableStatus(table.id);
             const draftPieces = (state.data.drafts[table.id] ?? []).reduce((sum, item) => sum + item.quantity, 0);
             const owner = ownerFor(table.id);
+            const statusText = status === "por_cobrar" ? "Por cobrar" : status === "abierta" ? "En servicio" : "Disponible";
             return `<button class="table-card ${status === "abierta" ? "occupied" : status === "por_cobrar" ? "due" : ""}"
               data-table="${escapeHtml(table.id)}"><strong>${escapeHtml(table.name)}</strong>
-              <span>${status === "por_cobrar" ? "Por cobrar" : status === "abierta" ? "Ocupada" : "Disponible"}${draftPieces ? ` · Borrador ${draftPieces} pzas.` : ""}</span>
-              ${owner ? `<span>Responsable: ${escapeHtml(owner.responsable_nombre)}${owner.responsable_id === state.user?.id ? " (tú)" : ""}</span>` : ""}</button>`;
+              <span class="table-status ${status === "abierta" ? "occupied" : status === "por_cobrar" ? "due" : ""}">${statusText}</span>
+              ${owner ? `<span>A cargo de ${owner.responsable_id === state.user?.id ? "ti" : escapeHtml(owner.responsable_nombre)}</span>` : ""}
+              ${draftPieces ? `<span>Borrador guardado · ${draftPieces} pzas.</span>` : ""}</button>`;
           }).join("")}</div>
-          <div class="section-heading"><h3>Comandas recientes</h3></div>
+          <div class="section-heading"><div><h3>Comandas recientes</h3><p class="section-description">Actividad de las últimas 12 horas.</p></div></div>
           ${recent.length ? `<div class="ticket-grid">${recent.slice(0, 10).map((ticket) =>
             `<article class="ticket-card"><div class="ticket-head"><strong>#${ticket.number} · ${escapeHtml(ticket.tableName)}</strong>
             <span class="badge ${escapeHtml(ticket.status)}">${statusLabel(ticket.status)}</span></div>
@@ -941,21 +1015,22 @@
       const products = PRODUCTOS.filter((product) => product.categoria === state.category);
       const totalPieces = state.draft.reduce((sum, item) => sum + item.quantity, 0);
       const ownerName = state.selectedTableOwner?.responsable_nombre ?? "Mesero responsable";
-      return `${suggestionInbox}<div class="section-heading"><h2>Mesero · ${escapeHtml(table?.name ?? "")}</h2>
-        <button class="button" data-action="back-tables">Cambiar mesa</button></div>
-        <div class="notice">${state.suggestionMode
+      return `${suggestionInbox}<header class="page-heading"><div><p class="eyebrow">${state.suggestionMode ? "Sugerencia para otra mesa" : "Comanda nueva"}</p>
+        <h2>${escapeHtml(table?.name ?? "")}</h2><p>${state.suggestionMode
           ? `Mesa a cargo de ${escapeHtml(ownerName)}. Tu comanda será una sugerencia y no se enviará a cocina hasta que la acepte.`
-          : `Tú eres responsable de esta mesa. Los demás meseros pueden enviarte sugerencias.`}</div>
+          : `Responsable: ${escapeHtml(ownerName)}. Puedes agregar artículos a la comanda.`}</p></div>
+        <button class="button" data-action="back-tables">← Volver a mesas</button></header>
         <div class="layout"><section class="panel">
+          <p class="eyebrow">1 · Elige una categoría y un producto</p>
           <div class="categories">${CATEGORIAS.map((category) =>
-            `<button class="category-button ${state.category === category ? "active" : ""}" data-category="${escapeHtml(category)}">${escapeHtml(category)}</button>`
+            `<button class="category-button ${state.category === category ? "active" : ""}" aria-pressed="${state.category === category}" data-category="${escapeHtml(category)}">${escapeHtml(category)}</button>`
           ).join("")}</div>
           <div class="product-grid">${products.map((product) =>
-            `<button class="product-card" data-product="${product.id}"><strong>${escapeHtml(product.nombre)}</strong>
+            `<button class="product-card" data-product="${product.id}" aria-label="Agregar ${escapeHtml(product.nombre)}, ${money(product.precio)}"><strong>${escapeHtml(product.nombre)}</strong>
             <span>${money(product.precio)}${product.mezcla ? " · Personalizable" : ""}</span></button>`
           ).join("")}</div>
         </section>
-        <aside class="panel sticky"><h3>Comanda</h3>
+        <aside class="panel sticky ${state.draft.length ? "has-draft" : ""}"><p class="eyebrow">2 · Revisa y envía</p><h3>Comanda · ${totalPieces} ${totalPieces === 1 ? "artículo" : "artículos"}</h3>
           ${state.draft.length ? `<div class="cart-list">${state.draft.map((item, index) =>
             `<div class="cart-item"><div><p><strong>${item.quantity}× ${escapeHtml(item.name)}</strong></p>
               ${item.modifiers.length || item.notes ? `<p class="detail">${escapeHtml([...item.modifiers.map((modifier) => modifier.name), item.notes].filter(Boolean).join(" · "))}</p>` : ""}
@@ -983,11 +1058,18 @@
         ticket.items.some((item) => ["pendiente", "preparacion"].includes(item.status ?? ticket.status)))
         .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
       const tickets = allTickets.filter((ticket) => state.kitchenFilter === "todas" || ticket.status === state.kitchenFilter);
-      return `<div class="section-heading"><h2>Cocina</h2>
-        <div class="toolbar"><span class="badge">${tickets.length} activas · ${allTickets.filter((ticket) => ticket.status === "pendiente").length} nuevas</span>
-        <button class="button ${state.kitchenFilter === "todas" ? "primary" : ""}" data-kitchen-filter="todas">Todas</button>
-        <button class="button ${state.kitchenFilter === "pendiente" ? "primary" : ""}" data-kitchen-filter="pendiente">Nuevas</button>
-        <button class="button ${state.kitchenFilter === "preparacion" ? "primary" : ""}" data-kitchen-filter="preparacion">Preparando</button></div></div>
+      return `<header class="page-heading"><div><p class="eyebrow">Área de preparación</p><h2>Cocina</h2>
+        <p>Las comandas nuevas aparecen aquí automáticamente.</p></div></header>
+        <div class="summary-strip" aria-label="Resumen de cocina">
+          <div class="summary-item"><span>Activas</span><strong>${allTickets.length}</strong></div>
+          <div class="summary-item"><span>Nuevas</span><strong>${allTickets.filter((ticket) => ticket.status === "pendiente").length}</strong></div>
+          <div class="summary-item"><span>En preparación</span><strong>${allTickets.filter((ticket) => ticket.status === "preparacion").length}</strong></div>
+        </div>
+        <div class="toolbar kitchen-toolbar" aria-label="Filtrar comandas">
+        <span class="badge">${tickets.length} ${tickets.length === 1 ? "comanda visible" : "comandas visibles"}</span>
+        <button class="button ${state.kitchenFilter === "todas" ? "primary" : ""}" aria-pressed="${state.kitchenFilter === "todas"}" data-kitchen-filter="todas">Todas</button>
+        <button class="button ${state.kitchenFilter === "pendiente" ? "primary" : ""}" aria-pressed="${state.kitchenFilter === "pendiente"}" data-kitchen-filter="pendiente">Nuevas</button>
+        <button class="button ${state.kitchenFilter === "preparacion" ? "primary" : ""}" aria-pressed="${state.kitchenFilter === "preparacion"}" data-kitchen-filter="preparacion">En preparación</button></div>
         ${tickets.length ? `<div class="ticket-grid">${tickets.map((ticket) => {
           const activeItems = ticket.items.filter((item) => ["pendiente", "preparacion"].includes(item.status ?? ticket.status));
           const ticketStatus = activeItems.some((item) => (item.status ?? ticket.status) === "pendiente")
@@ -995,8 +1077,10 @@
           const next = ticketStatus === "pendiente" ? "preparacion" : "listo";
           const label = ticketStatus === "pendiente" ? "Empezar preparación" : "Marcar listo";
           const age = elapsedMinutes(ticket.createdAt);
-          return `<article class="ticket-card"><div class="ticket-head"><strong>#${ticket.number} · ${escapeHtml(ticket.tableName)}</strong>
+          return `<article class="ticket-card ${age >= 15 ? "priority" : ticketStatus === "preparacion" ? "is-preparing" : ""}">
+            <div class="ticket-head"><strong>Comanda #${ticket.number}</strong>
               <span class="badge ${ticketStatus}">${statusLabel(ticketStatus)}</span></div>
+            <p class="kitchen-table">${escapeHtml(ticket.tableName)}</p>
             <div class="toolbar"><span class="muted">Recibida ${timeMty(ticket.createdAt)}</span>
               <span class="badge ${age >= 15 ? "urgent" : ""}" aria-label="Tiempo transcurrido">${elapsedLabel(age)}${age >= 15 ? " · Prioridad" : ""}</span></div>
             <div class="ticket-items">${activeItems.map((item) =>
@@ -1005,8 +1089,8 @@
                 ${item.notes ? `<p class="detail"><strong>Nota:</strong> ${escapeHtml(item.notes)}</p>` : ""}
               </div>`
             ).join("")}</div>
-            <button class="button ${next === "listo" ? "primary" : "warning"}" data-ticket-status="${ticket.id}" data-next-status="${next}">${label}</button></article>`;
-        }).join("")}</div>` : `<div class="panel empty">No hay comandas pendientes.</div>`}`;
+            <button class="button ${next === "listo" ? "primary" : "warning"} full" data-ticket-status="${ticket.id}" data-next-status="${next}">${label}</button></article>`;
+        }).join("")}</div>` : `<div class="panel empty"><strong>No hay comandas pendientes</strong><br>Los nuevos pedidos aparecerán aquí automáticamente.</div>`}`;
     }
     function renderCashier() {
       const active = state.data.tables.map((table) => ({ table, check: activeCheck(table.id) }))
@@ -1023,6 +1107,8 @@
       const settled = state.data.checks.filter((check) => check.operatingDate === date && ["pagada", "anulada"].includes(check.status));
       const paid = settled.filter((check) => check.status === "pagada");
       const voided = settled.filter((check) => check.status === "anulada");
+      const dueCount = state.data.tables.filter((table) => activeCheck(table.id)?.status === "por_cobrar").length;
+      const openCount = state.data.tables.filter((table) => activeCheck(table.id)?.status === "abierta").length;
       const sales = paid.reduce((sum, check) => sum + check.total, 0);
       const cash = paid.filter((check) => check.paymentMethod === "efectivo").reduce((sum, check) => sum + check.total, 0);
       const clip = paid.filter((check) => check.paymentMethod === "clip").reduce((sum, check) => sum + check.total, 0);
@@ -1034,23 +1120,29 @@
         ranking.set(item.name, entry);
       });
       const top = [...ranking.entries()].sort((a, b) => b[1].quantity - a[1].quantity).slice(0, 10);
-      return `      <h2>Caja${state.testMode ? " · Modo de prueba" : ""}</h2>
-        <div class="section-heading"><h3>Mesas y cuentas</h3><span class="muted">${active.filter((entry) => entry.check).length} cuentas visibles</span></div>
+      return `      <header class="page-heading"><div><p class="eyebrow">Área de cobro</p><h2>Caja</h2>
+        <p>${state.testMode ? "Modo de prueba · los cobros no afectan las ventas reales." : "Revisa la cuenta antes de registrar el pago."}</p></div></header>
+        <div class="summary-strip cashier-summary" aria-label="Resumen de caja">
+          <div class="summary-item"><span>Cuentas abiertas</span><strong>${openCount}</strong></div>
+          <div class="summary-item emphasis"><span>Por cobrar</span><strong>${dueCount}</strong></div>
+          <div class="summary-item"><span>Ventas cobradas</span><strong>${money(sales)}</strong></div>
+        </div>
+        <div class="section-heading"><div><h3>Mesas y cuentas</h3><p class="section-description">${active.filter((entry) => entry.check).length} cuentas activas</p></div></div>
         <div class="toolbar no-print">
           <input type="search" id="cashier-search" placeholder="Buscar mesa o comanda" aria-label="Buscar mesa o número de comanda" value="${escapeHtml(state.cashierSearch)}">
-          <button class="button ${state.cashierFilter === "todas" ? "primary" : ""}" data-cashier-filter="todas">Todas</button>
-          <button class="button ${state.cashierFilter === "con_cuenta" ? "primary" : ""}" data-cashier-filter="con_cuenta">Con cuenta</button>
-          <button class="button ${state.cashierFilter === "por_cobrar" ? "primary" : ""}" data-cashier-filter="por_cobrar">Por cobrar</button>
+          <button class="button ${state.cashierFilter === "todas" ? "primary" : ""}" aria-pressed="${state.cashierFilter === "todas"}" data-cashier-filter="todas">Todas</button>
+          <button class="button ${state.cashierFilter === "con_cuenta" ? "primary" : ""}" aria-pressed="${state.cashierFilter === "con_cuenta"}" data-cashier-filter="con_cuenta">Con cuenta</button>
+          <button class="button ${state.cashierFilter === "por_cobrar" ? "primary" : ""}" aria-pressed="${state.cashierFilter === "por_cobrar"}" data-cashier-filter="por_cobrar">Por cobrar</button>
         </div>
-        <div class="layout"><div><div class="table-grid">${active.map(({ table, check }) => {
+        <div class="layout cashier-layout"><div><div class="table-grid">${active.map(({ table, check }) => {
           const status = check?.status ?? "disponible";
           const total = check ? check.tickets.reduce((sum, ticket) => sum + ticketTotal(ticket), 0) : null;
           return `<button class="table-card ${status === "abierta" ? "occupied" : status === "por_cobrar" ? "due" : ""} ${state.cashierTable === table.id ? "selected" : ""}"
             data-cashier-table="${escapeHtml(table.id)}"><strong>${escapeHtml(table.name)}</strong>
-            <span>${status === "disponible" ? "Disponible" : status === "por_cobrar" ? "Por cobrar" : "Ocupada"}</span>
+            <span class="table-status ${status === "por_cobrar" ? "due" : status === "abierta" ? "occupied" : ""}">${status === "disponible" ? "Disponible" : status === "por_cobrar" ? "Por cobrar" : "Cuenta abierta"}</span>
             ${check ? `<span><strong>${money(total)}</strong></span><span>Comanda #${check.tickets.at(-1)?.number ?? "—"}</span>` : ""}</button>`;
         }).join("")}</div></div>
-        <aside class="panel">${selected?.check ? renderReceipt(selected.table, selected.check) :
+        <aside class="panel cashier-receipt">${selected?.check ? renderReceipt(selected.table, selected.check) :
           `<p class="empty">${selected ? `${escapeHtml(selected.table.name)} no tiene cuenta activa.` : "Selecciona una mesa con cuenta activa."}</p>`}</aside></div>
         <div class="section-heading"><h3>Corte de caja</h3><div class="toolbar">
           <label for="close-date" class="muted">Fecha (Monterrey)</label>
@@ -1078,6 +1170,9 @@
             ${item.modifiers.length ? `<small class="detail" style="display:block">${escapeHtml(item.modifiers.map((modifier) => modifier.name).join(" · "))}</small>` : ""}</span>
             <strong>${money(item.quantity * item.unitPrice)}</strong></div>`).join("")}`).join("")}
           <div class="receipt-total"><span>Total</span><span>${money(total)}</span></div></div>
+        <p class="payment-note">${state.testMode
+          ? "Modo de prueba: los botones simulan el pago y no registran una venta real."
+          : "Antes de cobrar, confirma el total con el cliente. Para Clip, realiza primero el cobro en la terminal y regístralo aquí después."}</p>
         <div class="actions no-print">
           ${check.status !== "por_cobrar" ? `<button class="button warning" data-mark-due="${check.id}">${state.testMode ? "Prueba por cobrar" : "Marcar por cobrar"}</button>` : ""}
           <button class="button primary" data-pay="${check.id}" data-method="efectivo">${state.testMode ? "Simular efectivo" : "Cobrar efectivo"}</button>
