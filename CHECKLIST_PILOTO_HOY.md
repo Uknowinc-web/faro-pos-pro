@@ -6,8 +6,8 @@
   `https://faro-pos-pro.vercel.app/`.
 - [x] Aplicar en Supabase las migraciones 0009 y 0010 en orden; validar tablas,
   RLS, RPC, permisos y suscripciones Realtime.
-- [ ] Desplegar la versión actualizada del HTML después de las migraciones y
-  completar el recorrido con los cinco aparatos antes de operar ventas reales.
+- [x] Desplegar la versión actualizada del HTML después de las migraciones.
+- [ ] Completar el recorrido con los cinco aparatos antes de operar ventas reales.
 - [x] Habilitar **Anonymous Sign-Ins** y **Allow new users to sign up** para
   permitir el acceso de los dispositivos. La segunda opción también permite
   registros por correo; dichos usuarios no tienen acceso al POS sin autorización.
