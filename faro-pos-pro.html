@@ -483,6 +483,13 @@
     function stationRoleLabel(role) {
       return ({ mesero: "servicio", cocina: "cocina", caja: "caja" })[role] ?? role;
     }
+    function stationHeading(role) {
+      return ({
+        mesero: "Mesero — Toma de Comandas",
+        cocina: "Cocina — KDS (Kitchen Display System)",
+        caja: "Caja — Cobro y Corte"
+      })[role] ?? role;
+    }
     function renderStationCode() {
       const message = state.authMessage || (state.authReady ? "" : "Verificando acceso…");
       const boundMessage = state.stationBoundRole
@@ -976,7 +983,7 @@
           ...ticket, tableName: check.tableName
         }))).filter((ticket) => Date.now() - Date.parse(ticket.createdAt) < 12 * 60 * 60 * 1000)
           .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
-        return `<header class="page-heading"><div><p class="eyebrow">Área de servicio</p>
+        return `<header class="page-heading"><div><p class="eyebrow">${escapeHtml(stationHeading("mesero"))}</p>
           <h2>Hola, ${escapeHtml(state.deviceLabel || "equipo de servicio")}</h2>
           <p>Elige una mesa para comenzar o continuar una comanda.</p></div>
           <button class="button primary" type="button" data-action="add-table">＋ Agregar mesa</button></header>
@@ -1056,7 +1063,7 @@
         ticket.items.some((item) => ["pendiente", "preparacion"].includes(item.status ?? ticket.status)))
         .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
       const tickets = allTickets.filter((ticket) => state.kitchenFilter === "todas" || ticket.status === state.kitchenFilter);
-      return `<header class="page-heading"><div><p class="eyebrow">Área de preparación</p><h2>Cocina</h2>
+      return `<header class="page-heading"><div><p class="eyebrow">${escapeHtml(stationHeading("cocina"))}</p><h2>Cocina</h2>
         <p>Las comandas nuevas aparecen aquí automáticamente.</p></div></header>
         <div class="summary-strip" aria-label="Resumen de cocina">
           <div class="summary-item"><span>Activas</span><strong>${allTickets.length}</strong></div>
@@ -1118,7 +1125,7 @@
         ranking.set(item.name, entry);
       });
       const top = [...ranking.entries()].sort((a, b) => b[1].quantity - a[1].quantity).slice(0, 10);
-      return `      <header class="page-heading"><div><p class="eyebrow">Área de cobro</p><h2>Caja</h2>
+      return `      <header class="page-heading"><div><p class="eyebrow">${escapeHtml(stationHeading("caja"))}</p><h2>Caja</h2>
         <p>${state.testMode ? "Modo de prueba · los cobros no afectan las ventas reales." : "Revisa la cuenta antes de registrar el pago."}</p></div></header>
         <div class="summary-strip cashier-summary" aria-label="Resumen de caja">
           <div class="summary-item"><span>Cuentas abiertas</span><strong>${openCount}</strong></div>
