@@ -9,7 +9,7 @@
 - [x] Desplegar la versión actualizada del HTML después de las migraciones.
 - [x] Aplicar la migración 0011 y verificar los códigos generados y los
   permisos de lectura directa.
-- [ ] Desplegar la versión que valida los códigos en Supabase antes de
+- [x] Desplegar la versión que valida los códigos en Supabase antes de
   compartirlos desde el panel de administración.
 - [ ] Completar el recorrido con los cinco aparatos antes de operar ventas reales.
 - [x] Habilitar **Anonymous Sign-Ins** y **Allow new users to sign up** para
