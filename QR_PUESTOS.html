@@ -2,7 +2,7 @@
 <html lang="es">
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#17332b">
     <title>Accesos del equipo — Tacos El Faro</title>
     <style>
@@ -34,6 +34,15 @@
       @media (max-width: 760px) {
         body { padding: 1rem; }
         .grid { grid-template-columns: 1fr; }
+      }
+      html { -webkit-text-size-adjust: 100%; }
+      body { padding-left: max(2rem, env(safe-area-inset-left)); padding-right: max(2rem, env(safe-area-inset-right)); padding-top: max(2rem, env(safe-area-inset-top)); padding-bottom: max(2rem, env(safe-area-inset-bottom)); }
+      .print { touch-action: manipulation; }
+      .print:focus-visible { outline: 3px solid #2f7f5f; outline-offset: 2px; }
+      .print:active { filter: brightness(.9); }
+      @media (max-width: 760px) {
+        body { padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left)); }
+        .station img { width: min(100%, 240px); }
       }
       @media print {
         body { padding: 0; background: white; }
