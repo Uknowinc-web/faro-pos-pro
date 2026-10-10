@@ -36,12 +36,23 @@ En el SQL Editor del proyecto Supabase, ejecutar una vez y en orden:
 10. `drizzle/migrations/0009_responsable_de_mesa_y_sugerencias.sql`.
 11. `drizzle/migrations/0010_crear_mesas_desde_servicio.sql`.
 12. `drizzle/migrations/0011_codigos_puesto_solo_administracion.sql`.
+13. `drizzle/migrations/0012_panel_admin_operacion.sql`.
 
 La migración 0011 ya se aplicó en el proyecto Supabase de producción. Se
 generaron tres códigos aleatorios y se verificó que los RPC existan y que ni
 `anon` ni `authenticated` puedan leer directamente la tabla. Consulta y
 comparte los códigos desde el panel de administración una vez que la nueva
 versión esté desplegada.
+
+La migración **0012** añade el panel de operación en vivo y la bitácora por
+dispositivo. Hay que ejecutarla en el SQL Editor antes de usar las pestañas
+Operación y Bitácora de [`admin-accesos.html`](./admin-accesos.html). Crea
+`audit_acciones`, instrumenta cobros/anulaciones/comandas/reclamos, permite a
+`admin` leer `mesa_responsables`, expone `panel_operacion_vivo` y
+`listar_auditoria_admin`, y añade `audit_acciones` a Realtime. Tras aplicarla,
+confirma en **Database → Publications → supabase_realtime** que la tabla
+aparezca (si el `ALTER PUBLICATION` fallara por ya existir, no hace falta
+repetirlo).
 
 En el proyecto Faro conectado, 0009 y 0010 ya se aplicaron en ese orden desde el
 SQL Editor. Se verificó que existan las tablas y RPC, que RLS esté habilitado en
@@ -62,6 +73,19 @@ el responsable la acepta o rechaza. Al cobrar o anular la cuenta se libera al
 responsable de la mesa y se rechazan sugerencias pendientes.
 La 0010 permite agregar mesas únicamente a personal de servicio autorizado; la
 función valida el nombre y asigna automáticamente el área de prueba u operación.
+La 0012 registra auditoría por dispositivo y alimenta el panel administrativo
+de corte, piso, cocina y bitácora.
+
+### Probar el panel de operación (0012)
+
+1. Con cuenta `admin`, abre `admin-accesos.html` e inicia sesión.
+2. En **Operación**, confirma corte del día (Monterrey), mesas con mesero y
+   orden, y colas de cocina; alterna **Modo prueba** y verifica aislamiento.
+3. Desde aparatos aprobados: reclamar mesa, enviar comanda, pasar a preparación,
+   cobrar y anular. En **Bitácora** deben aparecer dispositivo, rol, acción y
+   monto cuando aplique.
+4. Con un usuario no admin (o anónimo), `panel_operacion_vivo` y
+   `listar_auditoria_admin` deben fallar por autorización.
 
 ## Configurar Authentication
 

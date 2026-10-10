@@ -104,8 +104,8 @@ de mezcla, precios base, recargos y productos que no admiten mezcla.
   está disponible la impresión del navegador.
 - [ ] Aclarar si Clip será un registro manual o una integración real con
   terminal; la pantalla actual no procesa pagos.
-- [ ] Guardar auditoría de cambios de estado, cobros y anulaciones con usuario,
-  fecha, motivo y monto.
+- [x] Guardar auditoría de cambios de estado, cobros y anulaciones con usuario,
+  fecha, motivo y monto (migración 0012 + bitácora en `admin-accesos.html`).
 
 **Terminado cuando:** casos de uso normales, reintentos, errores de red y
 operaciones concurrentes conservan una cuenta y un total correctos, con historial

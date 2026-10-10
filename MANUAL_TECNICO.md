@@ -16,7 +16,7 @@ Tienes dos maneras directas de obtener el código completo del proyecto:
 ## 2. Esquema y seguridad de base de datos
 
 Las migraciones SQL vigentes están en `drizzle/migrations`. En una base nueva,
-ejecutar 0000–0011 en orden; en una base ya migrada, ejecutar únicamente las
+ejecutar 0000–0012 en orden; en una base ya migrada, ejecutar únicamente las
 pendientes. La 0003 cierra permisos directos al rol PostgreSQL `anon`, define
 roles y restringe las consultas y operaciones RPC. La 0004 verifica catálogo,
 modificadores y precio en PostgreSQL. La 0005 limita las cuentas al rol de caja
@@ -31,7 +31,10 @@ el responsable debe aceptar o rechazar. La asignación termina cuando caja cobra
 o anula la cuenta. 0010 permite que personal de servicio autorizado agregue
 mesas mediante una RPC y revoca la inserción directa a la tabla. 0011 genera códigos aleatorios
 para los puestos, valida el código en Supabase y permite consultarlos solo a
-una cuenta administradora.
+una cuenta administradora. 0012 crea `audit_acciones`, instrumenta las RPC
+operativas, y expone `panel_operacion_vivo` / `listar_auditoria_admin` para el
+panel de supervisión en [`admin-accesos.html`](./admin-accesos.html) (corte en
+vivo, piso, cocina y bitácora por dispositivo).
 
 **No uses los fragmentos SQL históricos de esta sección como mecanismo de
 despliegue.** La autorización canónica está en
@@ -42,7 +45,8 @@ despliegue.** La autorización canónica está en
 [`0007_modo_prueba_aislado.sql`](./drizzle/migrations/0007_modo_prueba_aislado.sql) y
 [`0008_validar_modo_en_operaciones.sql`](./drizzle/migrations/0008_validar_modo_en_operaciones.sql) y
 [`0009_responsable_de_mesa_y_sugerencias.sql`](./drizzle/migrations/0009_responsable_de_mesa_y_sugerencias.sql) y
-[`0010_crear_mesas_desde_servicio.sql`](./drizzle/migrations/0010_crear_mesas_desde_servicio.sql).
+[`0010_crear_mesas_desde_servicio.sql`](./drizzle/migrations/0010_crear_mesas_desde_servicio.sql) y
+[`0012_panel_admin_operacion.sql`](./drizzle/migrations/0012_panel_admin_operacion.sql).
 Consulta [SUPABASE_ACCESO.md](./SUPABASE_ACCESO.md) para aplicar migraciones,
 configurar la cuenta `admin`, aprobar aparatos y comprobar que el rol de base
 `anon` no tenga permisos.

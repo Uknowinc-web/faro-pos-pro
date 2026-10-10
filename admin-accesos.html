@@ -4,39 +4,43 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#17332b">
-  <title>Administración de accesos — Tacos El Faro</title>
+  <title>Administración — Tacos El Faro</title>
   <style>
     :root { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #202923; background: #f5f5ef; --green: #173f32; --line: #dedfd7; --muted: #68716b; --card: #fffefa; --shadow: 0 8px 24px #18362a0d; }
     * { box-sizing: border-box; }
     body { margin: 0; min-width: 320px; }
-    header { position: sticky; top: 0; z-index: 2; padding: 1rem max(1rem, calc((100vw - 920px) / 2)); background: var(--green); color: white; box-shadow: 0 3px 16px #14251d2e; }
+    header { position: sticky; top: 0; z-index: 2; padding: 1rem max(1rem, calc((100vw - 1100px) / 2)); background: var(--green); color: white; box-shadow: 0 3px 16px #14251d2e; }
     header h1 { margin: 0; font-size: 1.15rem; }
-    main { width: min(920px, 100%); margin: auto; padding: 1.25rem; }
-    .panel, article { padding: 1.1rem; border: 1px solid var(--line); border-radius: 16px; background: var(--card); box-shadow: var(--shadow); }
+    main { width: min(1100px, 100%); margin: auto; padding: 1.25rem; }
+    .panel, article, .card { padding: 1.1rem; border: 1px solid var(--line); border-radius: 16px; background: var(--card); box-shadow: var(--shadow); }
     .panel { max-width: 480px; margin: 2rem auto; }
     h2 { margin: 0 0 .4rem; letter-spacing: -.02em; }
+    h3 { margin: 0 0 .6rem; font-size: 1rem; }
     label { display: grid; gap: .4rem; margin: 1rem 0; font-weight: 650; }
-    input { width: 100%; min-height: 48px; padding: .7rem; border: 1px solid var(--line); border-radius: 10px; font: inherit; }
-    input:focus-visible, button:focus-visible { outline: 3px solid #91b7a2; outline-offset: 2px; }
+    input, select { width: 100%; min-height: 48px; padding: .7rem; border: 1px solid var(--line); border-radius: 10px; font: inherit; background: #fff; }
+    input:focus-visible, button:focus-visible, select:focus-visible { outline: 3px solid #91b7a2; outline-offset: 2px; }
     button { min-height: 44px; padding: .6rem .9rem; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: #26372f; font: inherit; font-weight: 650; cursor: pointer; }
     button:disabled { opacity: .55; cursor: wait; }
     button.primary { border-color: var(--green); background: var(--green); color: white; }
     button.danger { border-color: #e3b3ad; background: #fff0ed; color: #a63c32; }
+    button.tab { border-radius: 999px; background: #eef2ef; border-color: transparent; }
+    button.tab[aria-selected="true"] { background: var(--green); color: white; border-color: var(--green); }
     .full { width: 100%; min-height: 46px; }
     .muted { color: var(--muted); }
     .eyebrow { margin: 0 0 .25rem; color: var(--green); font-size: .75rem; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
     .message { min-height: 1.5rem; }
-    .requests { display: grid; gap: .8rem; margin-top: 1rem; }
+    .requests, .audit-list { display: grid; gap: .8rem; margin-top: 1rem; }
     .dashboard-heading { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding-bottom: .8rem; border-bottom: 1px solid var(--line); }
     .dashboard-heading p { margin: .25rem 0 0; }
-    article { box-shadow: none; }
+    article, .card { box-shadow: none; }
     .request-head, .actions { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .5rem; }
     .request-head h3 { margin: 0; }
     .actions { justify-content: start; margin-top: .75rem; }
+    .tabs { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0; }
     .status { display: inline-block; padding: .2rem .55rem; border-radius: 99px; background: #edf0ed; font-size: .8rem; font-weight: 700; }
-    .status.pending { background: #fff0c8; }
-    .status.approved { background: #dff1e5; color: #1f613a; }
-    .status.rejected, .status.revoked { background: #fae0dc; color: #922e25; }
+    .status.pending, .status.pendiente { background: #fff0c8; }
+    .status.approved, .status.ocupada, .status.preparacion { background: #dff1e5; color: #1f613a; }
+    .status.rejected, .status.revoked, .status.por_cobrar { background: #fae0dc; color: #922e25; }
     header .brand { display: flex; align-items: center; gap: .75rem; }
     header img { width: 46px; height: 46px; border-radius: 50%; }
     header p { margin: .15rem 0 0; color: #cfddd5; font-size: .85rem; }
@@ -45,6 +49,25 @@
     .code-card { padding: .8rem; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
     .code-card p { margin: .3rem 0 0; }
     .code-card code { font-size: 1.2rem; font-weight: 800; letter-spacing: .12em; color: var(--green); }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: .75rem; margin: 1rem 0; }
+    .stat { padding: .9rem; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+    .stat span { display: block; color: var(--muted); font-size: .8rem; font-weight: 650; }
+    .stat strong { display: block; margin-top: .35rem; font-size: 1.25rem; }
+    .section-block { margin: 1.4rem 0; }
+    .section-head { display: flex; justify-content: space-between; align-items: end; gap: 1rem; margin-bottom: .75rem; flex-wrap: wrap; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
+    .floor-grid, .device-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: .8rem; }
+    .card ul { margin: .5rem 0 0; padding-left: 1.1rem; }
+    .card li { margin: .2rem 0; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+    .toolbar label { margin: 0; display: flex; align-items: center; gap: .45rem; font-weight: 650; }
+    .toolbar input[type="checkbox"] { width: auto; min-height: auto; }
+    .toolbar select { width: auto; min-width: 140px; min-height: 44px; }
+    .audit-row { display: grid; gap: .25rem; }
+    .audit-meta { display: flex; flex-wrap: wrap; gap: .5rem .9rem; color: var(--muted); font-size: .9rem; }
+    @media (max-width: 720px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
     @media (max-width: 560px) {
       main { padding: .75rem; }
       .dashboard-heading { align-items: start; flex-direction: column; }
@@ -52,7 +75,7 @@
       .request-head { align-items: start; }
       .request-head .actions { width: 100%; }
       .request-head .actions button { flex: 1; }
-      article { padding: .9rem; }
+      article, .card { padding: .9rem; }
     }
     [hidden] { display: none !important; }
   </style>
@@ -61,13 +84,13 @@
   <header>
     <div class="brand">
       <img src="./logo-tacos-el-faro.svg" alt="">
-      <div><h1>Tacos El Faro</h1><p>Administración de accesos</p></div>
+      <div><h1>Tacos El Faro</h1><p>Administración</p></div>
     </div>
   </header>
   <main>
     <section id="login" class="panel" hidden>
       <h2>Acceso de administración</h2>
-      <p class="muted">Inicia sesión para revisar las solicitudes y administrar los dispositivos autorizados.</p>
+      <p class="muted">Inicia sesión para supervisar la jornada, revisar la bitácora y administrar dispositivos.</p>
       <form id="login-form">
         <label>Correo electrónico<input name="email" type="email" autocomplete="username" required></label>
         <label>Contraseña<input name="password" type="password" autocomplete="current-password" required></label>
@@ -77,23 +100,107 @@
     </section>
     <section id="dashboard" hidden>
       <div class="dashboard-heading">
-        <div><p class="eyebrow">Panel de control</p><h2>Accesos del equipo</h2><p id="admin-label" class="muted"></p></div>
+        <div>
+          <p class="eyebrow">Panel de control</p>
+          <h2 id="dashboard-title">Operación en vivo</h2>
+          <p id="admin-label" class="muted"></p>
+        </div>
         <div class="actions">
-          <button id="toggle-codes" type="button" aria-expanded="false">Consultar códigos de puesto</button>
-          <button id="refresh" type="button">Actualizar solicitudes</button>
+          <button id="refresh" type="button">Actualizar</button>
           <button id="sign-out" type="button">Cerrar sesión</button>
         </div>
       </div>
-      <section id="codes-panel" class="codes-panel" hidden>
-        <article>
-          <h3>Códigos de puesto</h3>
-          <p class="muted">Compártelos directamente con el equipo de cada área. La autorización del dispositivo sigue siendo obligatoria.</p>
-          <p id="codes-message" class="message" role="status"></p>
-          <div id="codes-list" class="codes-grid"></div>
-        </article>
+
+      <nav class="tabs" role="tablist" aria-label="Secciones de administración">
+        <button class="tab" type="button" role="tab" id="tab-operacion" data-tab="operacion" aria-selected="true" aria-controls="panel-operacion">Operación</button>
+        <button class="tab" type="button" role="tab" id="tab-accesos" data-tab="accesos" aria-selected="false" aria-controls="panel-accesos">Accesos</button>
+        <button class="tab" type="button" role="tab" id="tab-bitacora" data-tab="bitacora" aria-selected="false" aria-controls="panel-bitacora">Bitácora</button>
+      </nav>
+
+      <section id="panel-operacion" role="tabpanel" aria-labelledby="tab-operacion">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Jornada</p>
+            <h3 id="ops-date-label">Corte en vivo</h3>
+          </div>
+          <div class="toolbar">
+            <label><input id="test-mode" type="checkbox"> Modo prueba</label>
+          </div>
+        </div>
+        <p id="ops-message" class="message" role="status"></p>
+        <div id="corte-stats" class="stats"></div>
+
+        <div class="section-block">
+          <div class="section-head">
+            <h3>Piso</h3>
+            <p class="muted">Meseros, mesas y órdenes abiertas</p>
+          </div>
+          <div id="floor-grid" class="floor-grid"></div>
+        </div>
+
+        <div class="section-block">
+          <div class="section-head">
+            <h3>Cocina</h3>
+            <p class="muted">Pendientes y en elaboración</p>
+          </div>
+          <div class="grid-2">
+            <div class="card">
+              <h3>Pendientes</h3>
+              <div id="kitchen-pending"></div>
+            </div>
+            <div class="card">
+              <h3>En elaboración</h3>
+              <div id="kitchen-prep"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-block">
+          <div class="section-head">
+            <h3>Dispositivos activos</h3>
+            <p class="muted">Puestos aprobados y su última acción</p>
+          </div>
+          <div id="device-grid" class="device-grid"></div>
+        </div>
       </section>
-      <p id="dashboard-message" class="message" role="status">Revisa el nombre y el área antes de autorizar cada dispositivo.</p>
-      <div id="requests" class="requests"></div>
+
+      <section id="panel-accesos" role="tabpanel" aria-labelledby="tab-accesos" hidden>
+        <div class="actions" style="margin-top:0">
+          <button id="toggle-codes" type="button" aria-expanded="false">Consultar códigos de puesto</button>
+        </div>
+        <section id="codes-panel" class="codes-panel" hidden>
+          <article>
+            <h3>Códigos de puesto</h3>
+            <p class="muted">Compártelos directamente con el equipo de cada área. La autorización del dispositivo sigue siendo obligatoria.</p>
+            <p id="codes-message" class="message" role="status"></p>
+            <div id="codes-list" class="codes-grid"></div>
+          </article>
+        </section>
+        <p id="dashboard-message" class="message" role="status">Revisa el nombre y el área antes de autorizar cada dispositivo.</p>
+        <div id="requests" class="requests"></div>
+      </section>
+
+      <section id="panel-bitacora" role="tabpanel" aria-labelledby="tab-bitacora" hidden>
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Seguimiento</p>
+            <h3>Acciones del día</h3>
+          </div>
+          <div class="toolbar">
+            <label>Rol
+              <select id="audit-role-filter">
+                <option value="">Todos</option>
+                <option value="mesero">Servicio</option>
+                <option value="cocina">Cocina</option>
+                <option value="caja">Caja</option>
+                <option value="admin">Admin</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <p id="audit-message" class="message" role="status"></p>
+        <div id="audit-list" class="audit-list"></div>
+      </section>
     </section>
   </main>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -106,18 +213,80 @@
     const dashboard = document.getElementById("dashboard");
     const loginMessage = document.getElementById("login-message");
     const dashboardMessage = document.getElementById("dashboard-message");
+    const opsMessage = document.getElementById("ops-message");
+    const auditMessage = document.getElementById("audit-message");
     const requestsRoot = document.getElementById("requests");
+    const titles = {
+      operacion: "Operación en vivo",
+      accesos: "Accesos del equipo",
+      bitacora: "Bitácora de acciones"
+    };
     let currentUser = null;
+    let activeTab = "operacion";
     let refreshTimer = null;
+    let realtimeChannel = null;
+    let latestAudit = [];
+    let testMode = false;
 
     function escapeHtml(value) {
-      return String(value).replace(/[&<>"']/g, (char) => ({
+      return String(value ?? "").replace(/[&<>"']/g, (char) => ({
         "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
       })[char]);
     }
     function roleLabel(role) {
-      return ({ mesero: "Servicio", cocina: "Cocina", caja: "Caja" })[role] ?? role;
+      return ({ mesero: "Servicio", cocina: "Cocina", caja: "Caja", admin: "Admin" })[role] ?? role;
     }
+    function mesaEstadoLabel(status) {
+      return ({
+        disponible: "Disponible",
+        ocupada: "Ocupada",
+        por_cobrar: "Por cobrar"
+      })[status] ?? status;
+    }
+    function actionLabel(accion) {
+      return ({
+        enviar_comanda: "envió comanda",
+        reclamar_mesa: "reclamó mesa",
+        actualizar_comanda: "actualizó comanda",
+        cobrar_cuenta: "cobró",
+        anular_cuenta: "anuló"
+      })[accion] ?? accion;
+    }
+    function money(value) {
+      return new Intl.NumberFormat("es-MX", {
+        style: "currency", currency: "MXN"
+      }).format(Number(value) || 0);
+    }
+    function formatDate(value) {
+      return new Intl.DateTimeFormat("es-MX", {
+        dateStyle: "medium", timeStyle: "short", timeZone: "America/Monterrey"
+      }).format(new Date(value));
+    }
+    function formatTime(value) {
+      return new Intl.DateTimeFormat("es-MX", {
+        timeStyle: "short", timeZone: "America/Monterrey"
+      }).format(new Date(value));
+    }
+    function formatDay(value) {
+      return new Intl.DateTimeFormat("es-MX", {
+        dateStyle: "medium", timeZone: "America/Monterrey"
+      }).format(typeof value === "string" && value.length === 10
+        ? new Date(`${value}T12:00:00`)
+        : new Date(value));
+    }
+
+    function setActiveTab(tab) {
+      activeTab = tab;
+      document.getElementById("dashboard-title").textContent = titles[tab] ?? "Administración";
+      document.querySelectorAll(".tab").forEach((button) => {
+        const selected = button.dataset.tab === tab;
+        button.setAttribute("aria-selected", String(selected));
+      });
+      document.getElementById("panel-operacion").hidden = tab !== "operacion";
+      document.getElementById("panel-accesos").hidden = tab !== "accesos";
+      document.getElementById("panel-bitacora").hidden = tab !== "bitacora";
+    }
+
     async function loadStationCodes() {
       const message = document.getElementById("codes-message");
       const list = document.getElementById("codes-list");
@@ -142,52 +311,148 @@
       </div>`).join("");
       message.textContent = "Estos códigos solo están disponibles en esta sesión de administración.";
     }
-    function formatDate(value) {
-      return new Intl.DateTimeFormat("es-MX", {
-        dateStyle: "medium", timeStyle: "short", timeZone: "America/Monterrey"
-      }).format(new Date(value));
-    }
-    function showLogin(message = "") {
-      window.clearInterval(refreshTimer);
-      dashboard.hidden = true;
-      loginSection.hidden = false;
-      loginMessage.textContent = message;
-      document.getElementById("codes-panel").hidden = true;
-      document.getElementById("codes-list").replaceChildren();
-      document.getElementById("codes-message").textContent = "";
-      const codesButton = document.getElementById("toggle-codes");
-      codesButton.setAttribute("aria-expanded", "false");
-      codesButton.textContent = "Consultar códigos de puesto";
-    }
-    async function requireAdmin(user) {
-      const { data, error } = await supabaseClient.from("staff_roles")
-        .select("role").eq("user_id", user.id).maybeSingle();
-      if (error) throw error;
-      if (data?.role !== "admin") {
-        const { error: signOutError } = await supabaseClient.auth.signOut();
-        if (signOutError) console.error("No se pudo cerrar la sesión sin rol administrador.", signOutError);
-        throw new Error("Esta cuenta no tiene permisos de administración.");
+
+    function renderKitchenList(root, tickets) {
+      if (!tickets?.length) {
+        root.innerHTML = `<p class="muted">Sin comandas en esta cola.</p>`;
+        return;
       }
-      currentUser = user;
-      loginSection.hidden = true;
-      dashboard.hidden = false;
-      document.getElementById("codes-panel").hidden = true;
-      document.getElementById("toggle-codes").setAttribute("aria-expanded", "false");
-      document.getElementById("toggle-codes").textContent = "Consultar códigos de puesto";
-      document.getElementById("admin-label").textContent = `Sesión iniciada: ${user.email}`;
-      await loadRequests();
-      window.clearInterval(refreshTimer);
-      refreshTimer = window.setInterval(() => { void loadRequests(); }, 15000);
+      root.innerHTML = tickets.map((ticket) => {
+        const items = (ticket.items || []).map((item) =>
+          `<li>${escapeHtml(item.cantidad)}× ${escapeHtml(item.nombre)}${
+            item.notas ? ` <span class="muted">(${escapeHtml(item.notas)})</span>` : ""
+          }</li>`
+        ).join("");
+        return `<article style="margin-top:.65rem">
+          <div class="request-head">
+            <h3>#${escapeHtml(ticket.numero)} · ${escapeHtml(ticket.mesa)}</h3>
+            <span class="status ${escapeHtml(ticket.estado)}">${escapeHtml(ticket.estado)}</span>
+          </div>
+          <p class="muted">${escapeHtml(formatTime(ticket.created_at))}${
+            ticket.mesero ? ` · ${escapeHtml(ticket.mesero)}` : ""
+          }</p>
+          <ul>${items || "<li class='muted'>Sin artículos</li>"}</ul>
+        </article>`;
+      }).join("");
     }
-    document.getElementById("toggle-codes").addEventListener("click", async (event) => {
-      const button = event.currentTarget;
-      const panel = document.getElementById("codes-panel");
-      const show = panel.hidden;
-      panel.hidden = !show;
-      button.setAttribute("aria-expanded", String(show));
-      button.textContent = show ? "Ocultar códigos de puesto" : "Consultar códigos de puesto";
-      if (show && currentUser) await loadStationCodes();
-    });
+
+    function renderOperacion(data) {
+      const corte = data.corte || {};
+      document.getElementById("ops-date-label").textContent =
+        `Corte en vivo · ${formatDay(data.fecha_operativa)}${data.es_prueba ? " (prueba)" : ""}`;
+      document.getElementById("corte-stats").innerHTML = `
+        <div class="stat"><span>Total del día</span><strong>${escapeHtml(money(corte.total))}</strong></div>
+        <div class="stat"><span>Efectivo</span><strong>${escapeHtml(money(corte.efectivo))}</strong></div>
+        <div class="stat"><span>Clip</span><strong>${escapeHtml(money(corte.clip))}</strong></div>
+        <div class="stat"><span>Tickets pagados</span><strong>${escapeHtml(corte.tickets_pagados ?? 0)}</strong></div>
+        <div class="stat"><span>Tickets anulados</span><strong>${escapeHtml(corte.tickets_anulados ?? 0)}</strong></div>
+      `;
+
+      const floor = data.piso || [];
+      const floorRoot = document.getElementById("floor-grid");
+      floorRoot.innerHTML = floor.length ? floor.map((mesa) => {
+        const items = (mesa.items || []).map((item) =>
+          `<li>${escapeHtml(item.cantidad)}× ${escapeHtml(item.nombre)}</li>`
+        ).join("");
+        return `<article class="card">
+          <div class="request-head">
+            <h3>${escapeHtml(mesa.nombre)}</h3>
+            <span class="status ${escapeHtml(mesa.estado)}">${escapeHtml(mesaEstadoLabel(mesa.estado))}</span>
+          </div>
+          <p><strong>Mesero:</strong> ${escapeHtml(mesa.responsable || "Sin asignar")}</p>
+          <p><strong>Cuenta:</strong> ${escapeHtml(mesa.cuenta_estado || "—")} · ${escapeHtml(money(mesa.subtotal))}</p>
+          <ul>${items || "<li class='muted'>Sin orden todavía</li>"}</ul>
+        </article>`;
+      }).join("") : `<article class="card muted">No hay mesas activas en este momento.</article>`;
+
+      renderKitchenList(document.getElementById("kitchen-pending"), data.cocina?.pendiente || []);
+      renderKitchenList(document.getElementById("kitchen-prep"), data.cocina?.preparacion || []);
+
+      const devices = data.dispositivos_activos || [];
+      const deviceRoot = document.getElementById("device-grid");
+      deviceRoot.innerHTML = devices.length ? devices.map((device) => {
+        const last = device.ultima_accion;
+        return `<article class="card">
+          <div class="request-head">
+            <h3>${escapeHtml(device.device_label)}</h3>
+            <span class="status approved">${escapeHtml(roleLabel(device.role))}</span>
+          </div>
+          <p class="muted">${last
+            ? `${escapeHtml(actionLabel(last.accion))} · ${escapeHtml(formatTime(last.created_at))}${
+                last.monto != null ? ` · ${escapeHtml(money(last.monto))}` : ""
+              }`
+            : "Sin acciones registradas hoy"}</p>
+        </article>`;
+      }).join("") : `<article class="card muted">No hay dispositivos de servicio aprobados.</article>`;
+    }
+
+    function renderAudit(acciones) {
+      const roleFilter = document.getElementById("audit-role-filter").value;
+      const filtered = roleFilter
+        ? acciones.filter((item) => item.role === roleFilter)
+        : acciones;
+      const root = document.getElementById("audit-list");
+      if (!filtered.length) {
+        root.innerHTML = `<article class="muted">No hay acciones registradas para este filtro.</article>`;
+        return;
+      }
+      root.innerHTML = filtered.map((item) => {
+        const detalle = item.detalle || {};
+        const extra = item.accion === "cobrar_cuenta" && detalle.metodo_pago
+          ? ` · ${escapeHtml(detalle.metodo_pago)}`
+          : item.accion === "anular_cuenta" && detalle.motivo
+            ? ` · motivo: ${escapeHtml(detalle.motivo)}`
+            : item.accion === "actualizar_comanda" && detalle.estado_nuevo
+              ? ` · ${escapeHtml(detalle.estado_anterior)} → ${escapeHtml(detalle.estado_nuevo)}`
+              : "";
+        return `<article class="audit-row">
+          <div class="request-head">
+            <h3>${escapeHtml(formatTime(item.created_at))} · ${escapeHtml(item.device_label)}</h3>
+            <span class="status approved">${escapeHtml(roleLabel(item.role))}</span>
+          </div>
+          <p><strong>${escapeHtml(actionLabel(item.accion))}</strong>${
+            item.mesa_nombre ? ` · ${escapeHtml(item.mesa_nombre)}` : ""
+          }${item.monto != null ? ` · ${escapeHtml(money(item.monto))}` : ""}${extra}</p>
+          <div class="audit-meta">
+            <span>${escapeHtml(item.accion)}</span>
+            ${item.comanda_id ? `<span>Comanda ${escapeHtml(String(item.comanda_id).slice(0, 8))}</span>` : ""}
+          </div>
+        </article>`;
+      }).join("");
+    }
+
+    async function loadOperacion() {
+      if (!currentUser) return;
+      opsMessage.textContent = "Actualizando operación…";
+      const { data, error } = await supabaseClient.rpc("panel_operacion_vivo", {
+        p_es_prueba: testMode
+      });
+      if (error) {
+        console.error("No se pudo cargar el panel de operación.", error);
+        opsMessage.textContent = "No se pudo cargar la operación en vivo. ¿Aplicaste la migración 0012?";
+        return;
+      }
+      renderOperacion(data || {});
+      opsMessage.textContent = `Operación actualizada ${formatDate(new Date().toISOString())}.`;
+    }
+
+    async function loadAudit() {
+      if (!currentUser) return;
+      auditMessage.textContent = "Consultando bitácora…";
+      const { data, error } = await supabaseClient.rpc("listar_auditoria_admin", {
+        p_fecha: null,
+        p_limite: 150
+      });
+      if (error) {
+        console.error("No se pudo cargar la bitácora.", error);
+        auditMessage.textContent = "No se pudo consultar la bitácora. ¿Aplicaste la migración 0012?";
+        return;
+      }
+      latestAudit = data?.acciones || [];
+      renderAudit(latestAudit);
+      auditMessage.textContent = `Bitácora del ${formatDay(data?.fecha_operativa || new Date())} · ${latestAudit.length} acciones.`;
+    }
+
     async function loadRequests() {
       if (!currentUser) return;
       dashboardMessage.textContent = "Consultando solicitudes…";
@@ -225,6 +490,100 @@
       }).join("") : `<article class="muted">Aún no hay solicitudes de acceso.</article>`;
       dashboardMessage.textContent = `Solicitudes actualizadas ${formatDate(new Date().toISOString())}. Verifica el nombre y el área antes de autorizar cada dispositivo.`;
     }
+
+    async function refreshActive() {
+      if (!currentUser) return;
+      if (activeTab === "operacion") await loadOperacion();
+      else if (activeTab === "accesos") await loadRequests();
+      else await loadAudit();
+    }
+
+    function subscribeRealtime() {
+      if (realtimeChannel) {
+        void supabaseClient.removeChannel(realtimeChannel);
+        realtimeChannel = null;
+      }
+      realtimeChannel = supabaseClient.channel("admin-operacion")
+        .on("postgres_changes", { event: "*", schema: "public", table: "mesas" }, () => { void loadOperacion(); })
+        .on("postgres_changes", { event: "*", schema: "public", table: "cuentas" }, () => { void loadOperacion(); })
+        .on("postgres_changes", { event: "*", schema: "public", table: "comandas" }, () => { void loadOperacion(); })
+        .on("postgres_changes", { event: "*", schema: "public", table: "audit_acciones" }, () => {
+          void loadOperacion();
+          if (activeTab === "bitacora") void loadAudit();
+        })
+        .subscribe();
+    }
+
+    function showLogin(message = "") {
+      window.clearInterval(refreshTimer);
+      if (realtimeChannel) {
+        void supabaseClient.removeChannel(realtimeChannel);
+        realtimeChannel = null;
+      }
+      dashboard.hidden = true;
+      loginSection.hidden = false;
+      loginMessage.textContent = message;
+      document.getElementById("codes-panel").hidden = true;
+      document.getElementById("codes-list").replaceChildren();
+      document.getElementById("codes-message").textContent = "";
+      const codesButton = document.getElementById("toggle-codes");
+      codesButton.setAttribute("aria-expanded", "false");
+      codesButton.textContent = "Consultar códigos de puesto";
+      setActiveTab("operacion");
+    }
+
+    async function requireAdmin(user) {
+      const { data, error } = await supabaseClient.from("staff_roles")
+        .select("role").eq("user_id", user.id).maybeSingle();
+      if (error) throw error;
+      if (data?.role !== "admin") {
+        const { error: signOutError } = await supabaseClient.auth.signOut();
+        if (signOutError) console.error("No se pudo cerrar la sesión sin rol administrador.", signOutError);
+        throw new Error("Esta cuenta no tiene permisos de administración.");
+      }
+      currentUser = user;
+      loginSection.hidden = true;
+      dashboard.hidden = false;
+      document.getElementById("codes-panel").hidden = true;
+      document.getElementById("toggle-codes").setAttribute("aria-expanded", "false");
+      document.getElementById("toggle-codes").textContent = "Consultar códigos de puesto";
+      document.getElementById("admin-label").textContent = `Sesión iniciada: ${user.email}`;
+      document.getElementById("test-mode").checked = testMode;
+      setActiveTab("operacion");
+      await loadOperacion();
+      await loadRequests();
+      await loadAudit();
+      subscribeRealtime();
+      window.clearInterval(refreshTimer);
+      refreshTimer = window.setInterval(() => { void refreshActive(); }, 12000);
+    }
+
+    document.querySelectorAll(".tab").forEach((button) => {
+      button.addEventListener("click", () => {
+        setActiveTab(button.dataset.tab);
+        void refreshActive();
+      });
+    });
+
+    document.getElementById("test-mode").addEventListener("change", (event) => {
+      testMode = event.currentTarget.checked;
+      void loadOperacion();
+    });
+
+    document.getElementById("audit-role-filter").addEventListener("change", () => {
+      renderAudit(latestAudit);
+    });
+
+    document.getElementById("toggle-codes").addEventListener("click", async (event) => {
+      const button = event.currentTarget;
+      const panel = document.getElementById("codes-panel");
+      const show = panel.hidden;
+      panel.hidden = !show;
+      button.setAttribute("aria-expanded", String(show));
+      button.textContent = show ? "Ocultar códigos de puesto" : "Consultar códigos de puesto";
+      if (show && currentUser) await loadStationCodes();
+    });
+
     document.getElementById("login-form").addEventListener("submit", async (event) => {
       event.preventDefault();
       const form = event.currentTarget;
@@ -247,6 +606,7 @@
         button.disabled = false;
       }
     });
+
     document.getElementById("requests").addEventListener("click", async (event) => {
       const button = event.target.closest("button[data-approve], button[data-reject], button[data-revoke], button[data-reactivate]");
       if (!button) return;
@@ -282,7 +642,8 @@
         button.disabled = false;
       }
     });
-    document.getElementById("refresh").addEventListener("click", () => { void loadRequests(); });
+
+    document.getElementById("refresh").addEventListener("click", () => { void refreshActive(); });
     document.getElementById("sign-out").addEventListener("click", async () => {
       const { error } = await supabaseClient.auth.signOut();
       if (error) {
@@ -301,7 +662,7 @@
         if (data.session) await requireAdmin(data.session.user);
         else showLogin();
       } catch (error) {
-        console.error("No se pudo iniciar el panel de aprobación.", error);
+        console.error("No se pudo iniciar el panel de administración.", error);
         showLogin(error.message === "Esta cuenta no tiene permisos de administración."
           ? error.message
           : "No se pudo verificar el acceso. Revisa tu conexión e inténtalo de nuevo.");
