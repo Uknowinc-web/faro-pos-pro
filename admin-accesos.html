@@ -992,6 +992,7 @@
         } else {
           controls = `<div class="actions"><button class="primary" type="button" data-reactivate="${escapeHtml(request.user_id)}">Autorizar nuevamente</button></div>`;
         }
+        controls = controls.replace(/<\/div>$/, `<button class="danger" type="button" data-delete="${escapeHtml(request.user_id)}">Eliminar dispositivo</button></div>`);
         return `<article>
           <div class="request-head">
             <h3>${escapeHtml(request.device_label)}</h3>
@@ -1174,12 +1175,16 @@
     });
 
     document.getElementById("requests").addEventListener("click", async (event) => {
-      const button = event.target.closest("button[data-approve], button[data-reject], button[data-revoke], button[data-reactivate]");
+      const button = event.target.closest("button[data-approve], button[data-reject],       button[data-revoke], button[data-reactivate], button[data-delete]");
       if (!button) return;
       button.disabled = true;
       dashboardMessage.textContent = "Guardando cambios…";
       try {
-        if (button.dataset.approve || button.dataset.reject || button.dataset.reactivate) {
+              if (button.dataset.delete) {
+                if (!window.confirm("¿Eliminar este dispositivo? Se quitará de la lista y tendrá que solicitar acceso de nuevo. El historial de la bitácora se conserva.")) return;
+                const { error } = await supabaseClient.rpc("admin_eliminar_dispositivo", { p_user_id: button.dataset.delete });
+                if (error) throw error;
+              } else if (button.dataset.approve || button.dataset.reject || button.dataset.reactivate) {
           const approve = Boolean(button.dataset.approve || button.dataset.reactivate);
           const userId = button.dataset.approve || button.dataset.reject || button.dataset.reactivate;
           const confirmation = button.dataset.reactivate
