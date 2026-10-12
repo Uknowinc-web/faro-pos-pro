@@ -586,12 +586,9 @@
         <h2>Vincular dispositivo</h2>
         <p class="muted">${boundMessage}</p>
         <form id="station-form">
-          <label class="field">Nombre del dispositivo
-            <input name="device-label" maxlength="80" value="${escapeHtml(state.deviceLabel)}"
-              placeholder="Ej. Tablet de cocina" autocomplete="off" required>
-          </label>
           <label class="field">Tu nombre
-            <input name="employee-name" maxlength="80" placeholder="Solo tu nombre" autocomplete="off" required>
+            <input name="employee-name" maxlength="80" value="${escapeHtml(state.deviceLabel)}"
+              placeholder="Solo tu nombre" autocomplete="given-name" required>
           </label>
           <label class="field">Código del puesto
             <input class="station-code" name="station-code" type="password" inputmode="text"
@@ -1798,18 +1795,13 @@
           render();
           return;
         }
-        const deviceLabel = form.elements["device-label"].value.trim();
-        if (!deviceLabel || deviceLabel.length > 80) {
-          state.authMessage = "Escribe un nombre para identificar este dispositivo (máximo 80 caracteres).";
-          render();
-          return;
-        }
         const employeeName = form.elements["employee-name"].value.trim();
         if (!employeeName || employeeName.length > 80) {
           state.authMessage = "Escribe tu nombre (máximo 80 caracteres).";
           render();
           return;
         }
+        const deviceLabel = employeeName;
         state.pendingEmployee = { name: employeeName };
         if (!state.user) {
           try {
