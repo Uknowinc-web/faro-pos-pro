@@ -194,7 +194,7 @@
               <label>Nombre<input name="name" maxlength="100" required></label>
               <label>Categoría<select name="category" required>
                 <option>Tacos</option><option>Quesadillas</option><option>Especiales</option>
-                <option>Papas y Frijoles</option><option>Tortas</option><option>Postres y Bebidas</option>
+                <option>Papas y Frijoles</option><option>Tortas</option><option>Postres</option><option>Bebidas</option>
               </select></label>
               <label>Precio (MXN)<input name="price" type="number" min="0" max="100000" step="0.01" required></label>
               <label class="check-label"><input name="active" type="checkbox" checked> Disponible</label>
@@ -316,6 +316,11 @@
     let realtimeChannel = null;
     let latestAudit = [];
     let latestProducts = [];
+    const OPCIONES_PRODUCTO = {
+      "agua-sabor": [["Sabor", ["Jamaica", "Limón", "Pepino limón", "Tamarindo", "Piña", "Mango", "Sandía"]]],
+      "horchata": [["Bebida", ["Horchata", "Cebada"]], ["Tamaño", ["1 L", "1/2 L"]]],
+      "toni-col": [["Bebida", ["ToniCol", "Titan"]]]
+    };
     let latestTables = [];
     let latestEmployees = [];
     let latestAccounts = [];
@@ -589,13 +594,38 @@
               <select aria-label="Carne principal" data-add-main-meat="${escapeHtml(account.id)}"><option>Asada</option><option>Pastor</option><option>Tripa</option></select>
               <select aria-label="Carne extra" data-add-extra-meat="${escapeHtml(account.id)}"><option value="">Sin extra</option><option>+ Asada</option><option>+ Pastor</option><option>+ Tripa</option></select>
               <label class="check-label"><input type="checkbox" data-add-cheese="${escapeHtml(account.id)}"> Queso</label>
+              <select aria-label="Opción del producto" data-add-option="${escapeHtml(account.id)}" hidden></select>
+              <select aria-label="Tamaño" data-add-option-2="${escapeHtml(account.id)}" hidden></select>
               <button class="primary" type="button" data-item-add="${escapeHtml(account.id)}">Agregar artículo</button>
             </div>
           </div>
         </article>`;
       }).join("") || `<article class="muted">No hay cuentas abiertas en este modo.</article>`;
       document.getElementById("management-test-mode").checked = testMode;
+      document.querySelectorAll("[data-add-product]").forEach(syncAddOptions);
     }
+
+    function syncAddOptions(select) {
+      const id = CSS.escape(select.dataset.addProduct);
+      const product = latestProducts.find((item) => item.id === select.value);
+      const groups = OPCIONES_PRODUCTO[select.value] ?? [];
+      [["", 0], ["-2", 1]].forEach(([suffix, index]) => {
+        const target = document.querySelector(`[data-add-option${suffix}="${id}"]`);
+        if (!target) return;
+        target.hidden = !groups[index];
+        target.setAttribute("aria-label", groups[index]?.[0] ?? "Opción");
+        target.innerHTML = groups[index]
+          ? groups[index][1].map((choice) => `<option>${escapeHtml(choice)}</option>`).join("")
+          : "";
+      });
+      const isMix = Boolean(product?.permite_mezcla);
+      document.querySelector(`[data-add-main-meat="${id}"]`).hidden = !isMix;
+      document.querySelector(`[data-add-extra-meat="${id}"]`).hidden = !isMix;
+      document.querySelector(`[data-add-cheese="${id}"]`).closest("label").hidden = !(isMix && product.permite_queso);
+    }
+    document.addEventListener("change", (event) => {
+      if (event.target.matches?.("[data-add-product]")) syncAddOptions(event.target);
+    });
 
     async function loadManagement() {
       if (!currentUser) return;
@@ -1009,6 +1039,11 @@
           return;
         }
         const modifiers = [];
+        const optionGroups = OPCIONES_PRODUCTO[productId] ?? [];
+        optionGroups.forEach((group, index) => {
+          const selected = document.querySelector(`[data-add-option${index ? "-2" : ""}="${CSS.escape(accountId)}"]`)?.value;
+          if (selected) modifiers.push(selected);
+        });
         if (product?.permite_mezcla) {
           const principal = document.querySelector(`[data-add-main-meat="${CSS.escape(accountId)}"]`)?.value || "Asada";
           const extra = document.querySelector(`[data-add-extra-meat="${CSS.escape(accountId)}"]`)?.value;

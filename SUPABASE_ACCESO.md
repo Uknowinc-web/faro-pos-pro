@@ -38,6 +38,7 @@ En el SQL Editor del proyecto Supabase, ejecutar una vez y en orden:
 12. `drizzle/migrations/0011_codigos_puesto_solo_administracion.sql`.
 13. `drizzle/migrations/0012_panel_admin_operacion.sql`.
 14. `drizzle/migrations/0013_admin_jornada_y_empleados.sql`.
+15. `drizzle/migrations/0014_bebidas_postres_y_opciones.sql`.
 
 La migración 0011 ya se aplicó en el proyecto Supabase de producción. Se
 generaron tres códigos aleatorios y se verificó que los RPC existan y que ni
@@ -66,6 +67,14 @@ Ejecuta 0013 después de 0012 y antes de desplegar la nueva versión de
 [`faro-pos-pro.html`](./faro-pos-pro.html) y [`admin-accesos.html`](./admin-accesos.html).
 No despliegues el HTML nuevo antes de aplicar la migración: el inicio de turno
 por PIN y las operaciones ya requieren sus funciones y tablas.
+
+La migración **0014** separa la categoría "Postres y Bebidas" en **Postres** y
+**Bebidas**, renombra los productos compartidos a "Horchata y cebada" y "ToniCol
+y Titan", y hace que el servidor exija el sabor del agua de sabor, la bebida y
+el tamaño (1 L o 1/2 L a mitad de precio) de horchata/cebada, y ToniCol o Titan.
+Ejecútala después de 0013 y antes de desplegar la versión del POS que usa esas
+opciones: el POS nuevo envía los nuevos nombres y modificadores, que el servidor
+anterior rechazaría.
 
 En el proyecto Faro conectado, 0009 y 0010 ya se aplicaron en ese orden desde el
 SQL Editor. Se verificó que existan las tablas y RPC, que RLS esté habilitado en

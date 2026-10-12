@@ -263,8 +263,17 @@
     const DEVICE_LABEL_STORAGE_KEY = "faro-pos-device-label-v1";
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
     const CARNES = ["Asada", "Pastor", "Tripa"];
-    const CATEGORIAS = ["Tacos", "Quesadillas", "Especiales", "Papas y Frijoles", "Tortas", "Postres y Bebidas"];
+    const CATEGORIAS = ["Tacos", "Quesadillas", "Especiales", "Papas y Frijoles", "Tortas", "Postres", "Bebidas"];
     const NOTAS = ["Con todo", "Natural", "Sin salsa de tomate", "Sin lechuga", "Sin frijoles", "Bien cocida"];
+    const OPCIONES_PRODUCTO = {
+      "agua-sabor": [{ label: "Sabor", choices: ["Jamaica", "Limón", "Pepino limón", "Tamarindo", "Piña", "Mango", "Sandía"] }],
+      "horchata": [
+        { label: "Bebida", choices: ["Horchata", "Cebada"] },
+        { label: "Tamaño", choices: ["1 L", "1/2 L"] }
+      ],
+      "toni-col": [{ label: "Bebida", choices: ["ToniCol", "Titan"] }]
+    };
+    const PRODUCTOS_SIN_NOTAS = ["charros-especiales", "charros-sencillos"];
     let PRODUCTOS = [
       { id: "taco-maiz", nombre: "Taco maíz", categoria: "Tacos", precio: 40, mezcla: true, tripa: 5, queso: 5 },
       { id: "taco-harina", nombre: "Taco harina", categoria: "Tacos", precio: 42, mezcla: true, tripa: 5, queso: 5 },
@@ -281,12 +290,12 @@
       { id: "charros-sencillos", nombre: "Charros sencillos", categoria: "Papas y Frijoles", precio: 55 },
       { id: "torta", nombre: "Torta", categoria: "Tortas", precio: 130, mezcla: true, tripa: 10 },
       { id: "hamburguesa", nombre: "Hamburguesa", categoria: "Tortas", precio: 125 },
-      { id: "quesagloria", nombre: "Quesagloria", categoria: "Postres y Bebidas", precio: 100 },
-      { id: "agua-natural", nombre: "Agua natural", categoria: "Postres y Bebidas", precio: 15 },
-      { id: "agua-sabor", nombre: "Agua de sabor 1L", categoria: "Postres y Bebidas", precio: 45 },
-      { id: "horchata", nombre: "Horchata y cebada 1L", categoria: "Postres y Bebidas", precio: 50 },
-      { id: "topo-chico", nombre: "Topo Chico", categoria: "Postres y Bebidas", precio: 35 },
-      { id: "toni-col", nombre: "ToniCol", categoria: "Postres y Bebidas", precio: 55 }
+      { id: "quesagloria", nombre: "Quesagloria", categoria: "Postres", precio: 100 },
+      { id: "agua-natural", nombre: "Agua natural", categoria: "Bebidas", precio: 15 },
+      { id: "agua-sabor", nombre: "Agua de sabor 1L", categoria: "Bebidas", precio: 45 },
+      { id: "horchata", nombre: "Horchata y cebada", categoria: "Bebidas", precio: 50 },
+      { id: "topo-chico", nombre: "Topo Chico", categoria: "Bebidas", precio: 35 },
+      { id: "toni-col", nombre: "ToniCol y Titan", categoria: "Bebidas", precio: 55 }
     ];
     const MESAS = [...Array.from({ length: 12 }, (_, i) => `Mesa ${i + 1}`), "Para Llevar"];
 
@@ -430,6 +439,18 @@
     }
     function productPrice(product, modifiers) {
       return product.precio + modifiers.reduce((sum, modifier) => sum + modifier.extra, 0);
+    }
+    function productOptionGroups(product) {
+      return OPCIONES_PRODUCTO[product.id] ?? [];
+    }
+    function productAllowsNotes(product) {
+      return !["Postres", "Bebidas"].includes(product.categoria) && !PRODUCTOS_SIN_NOTAS.includes(product.id);
+    }
+    function productNeedsDialog(product) {
+      return Boolean(product.mezcla) || productAllowsNotes(product) || productOptionGroups(product).length > 0;
+    }
+    function optionModifiers(product, selections) {
+      return selections.map((name) => ({ name, extra: name === "1/2 L" ? -product.precio / 2 : 0 }));
     }
     function mixModifiers(product, principal, extras, cheese) {
       if (!product.mezcla) return [];
@@ -1293,6 +1314,15 @@
       const quickNotes = NOTAS.map((note) =>
         `<label class="choice"><input type="checkbox" name="quick-note" value="${escapeHtml(note)}">${escapeHtml(note)}</label>`
       ).join("");
+      const optionGroups = productOptionGroups(product).map((group, groupIndex) =>
+        `<fieldset class="field"><legend>${escapeHtml(group.label)}</legend><div class="choice-grid">${group.choices.map((choice) =>
+          `<label class="choice"><input type="radio" name="option-${groupIndex}" value="${escapeHtml(choice)}">${escapeHtml(choice)}${choice === "1/2 L" ? ` (${money(product.precio / 2)})` : ""}</label>`
+        ).join("")}</div></fieldset>`
+      ).join("");
+      const notesFieldset = productAllowsNotes(product) ? `<fieldset class="field"><legend>Notas de preparación</legend>
+            <div class="choice-grid">${quickNotes}</div>
+            <label class="field">Otra indicación<textarea name="free-note" maxlength="180" placeholder="Escribe una nota para cocina"></textarea></label>
+          </fieldset>` : "";
       document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop" data-dismiss-modal>
         <section class="modal" role="dialog" aria-modal="true" aria-labelledby="product-title">
           <div class="modal-header"><div><h2 id="product-title">${escapeHtml(product.nombre)}</h2>
@@ -1303,10 +1333,8 @@
             <div class="field"><label>Carnes adicionales</label><div class="choice-grid">${extras}</div></div>
             ${product.queso ? `<label class="choice"><input type="checkbox" name="with-cheese">Con queso (+${money(product.queso)})</label>` : ""}
           </fieldset>` : ""}
-          <fieldset class="field"><legend>Notas de preparación</legend>
-            <div class="choice-grid">${quickNotes}</div>
-            <label class="field">Otra indicación<textarea name="free-note" maxlength="180" placeholder="Escribe una nota para cocina"></textarea></label>
-          </fieldset>
+          ${optionGroups}
+          ${notesFieldset}
           <label class="field">Cantidad<input name="quantity" type="number" min="1" max="99" value="1" required></label>
           <div class="modal-footer"><button class="button" type="button" data-close-modal>Cancelar</button>
             <button class="button primary" type="button" data-add-product>Agregar a comanda</button></div>
@@ -1382,22 +1410,38 @@
         const extras = [...modal.querySelectorAll("[name='extra-meat']:checked")].map((input) => input.value);
         modifiers = mixModifiers(product, principal, extras, Boolean(modal.querySelector("[name='with-cheese']:checked")));
       }
-      const notes = [
+      const groups = productOptionGroups(product);
+      if (groups.length) {
+        const selections = groups.map((_, index) => modal.querySelector(`[name='option-${index}']:checked`)?.value);
+        const missing = groups.findIndex((_, index) => !selections[index]);
+        if (missing !== -1) {
+          toast(`Selecciona ${groups[missing].label.toLowerCase()}.`, true);
+          return;
+        }
+        modifiers = optionModifiers(product, selections);
+      }
+      const notes = productAllowsNotes(product) ? [
         ...[...modal.querySelectorAll("[name='quick-note']:checked")].map((input) => input.value),
         modal.querySelector("[name='free-note']")?.value.trim() ?? ""
-      ].filter(Boolean).join(", ");
-      state.draft.push({
-        id: newId(), productId: product.id, name: product.nombre,
-        quantity, modifiers, notes, unitPrice: productPrice(product, modifiers),
-        status: "pendiente"
-      });
-      if (!persistDraft()) {
-        state.draft.pop();
-        return;
-      }
+      ].filter(Boolean).join(", ") : "";
+      if (!addProductToDraft(product, quantity, modifiers, notes)) return;
       closeModal();
+    }
+    function addProductToDraft(product, quantity, modifiers, notes) {
+      const plain = !modifiers.length && !notes;
+      const added = updateDraft((draft) => {
+        const existing = plain ? draft.find((item) => item.productId === product.id && !item.modifiers.length && !item.notes) : null;
+        if (existing) existing.quantity = Math.min(99, existing.quantity + quantity);
+        else draft.push({
+          id: newId(), productId: product.id, name: product.nombre,
+          quantity, modifiers, notes, unitPrice: productPrice(product, modifiers),
+          status: "pendiente"
+        });
+      });
+      if (!added) return false;
       render();
       toast(`${product.nombre} agregado.`);
+      return true;
     }
     async function sendOrder() {
       if (!await ensureFreshData()) return;
@@ -1752,7 +1796,8 @@
         render();
       } else if (target.dataset.product) {
         const product = productById(target.dataset.product);
-        if (product) openProductDialog(product);
+        if (product && productNeedsDialog(product)) openProductDialog(product);
+        else if (product) addProductToDraft(product, 1, [], "");
       } else if (target.dataset.closeModal !== undefined) {
         closeModal();
       } else if (target.dataset.addProduct !== undefined) {
