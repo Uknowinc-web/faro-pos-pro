@@ -41,6 +41,7 @@ En el SQL Editor del proyecto Supabase, ejecutar una vez y en orden:
 15. `drizzle/migrations/0014_bebidas_postres_y_opciones.sql`.
 16. `drizzle/migrations/0015_orden_automatico_de_mesas.sql`.
 17. `drizzle/migrations/0016_registro_empleado_con_pin.sql`.
+18. `drizzle/migrations/0017_pin_por_area_y_responsables.sql`.
 
 La migración 0011 ya se aplicó en el proyecto Supabase de producción. Se
 generaron tres códigos aleatorios y se verificó que los RPC existan y que ni
@@ -90,6 +91,8 @@ guarda en `pin_texto`, sin acceso directo (RLS cerrado) y solo lo devuelven las
 RPC de administración. Los empleados anteriores no tienen PIN visible hasta
 asignarles uno nuevo. También agrega `caja_editar_articulo_cuenta` para que Caja
 cambie cantidades o quite artículos de cuentas abiertas. Ejecútala después de 0015.
+
+La migración **0017** limita la unicidad de nombre y PIN a cada área (un mesero y un cocinero pueden compartirlos; dos del mismo puesto no), hace que el PIN se busque solo entre empleados del puesto del aparato y registra el correo de cada administrador como responsable en la bitácora. Ejecútala después de 0016.
 
 En el proyecto Faro conectado, 0009 y 0010 ya se aplicaron en ese orden desde el
 SQL Editor. Se verificó que existan las tablas y RPC, que RLS esté habilitado en

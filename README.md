@@ -24,6 +24,7 @@ Sistema POS y KDS para taquería El Faro (Monterrey, N.L.).
 - `drizzle/migrations/0014_bebidas_postres_y_opciones.sql`: Separa Postres y Bebidas, y valida en el servidor los sabores de agua, el tamaño de horchata/cebada y ToniCol/Titan.
 - `drizzle/migrations/0015_orden_automatico_de_mesas.sql`: El orden de las mesas se asigna solo (al final de su modo) y se conserva al editar.
 - `drizzle/migrations/0016_registro_empleado_con_pin.sql`: El empleado elige nombre y PIN al solicitar acceso; el administrador ve el PIN; Caja puede modificar cuentas abiertas.
+- `drizzle/migrations/0017_pin_por_area_y_responsables.sql`: Nombre y PIN únicos solo dentro de cada área; cada administrador queda identificado por correo en la bitácora.
 - `CHECKLIST_PILOTO_HOY.md`: Recorrido de pruebas por puesto, casos de aceptación y registro de incidencias.
 - `QR_PUESTOS.html` y `QR_MESERO.svg`, `QR_COCINA.svg`, `QR_CAJA.svg`: Hoja imprimible y QR por aparato; los tres abren el mismo enlace.
 - `admin-accesos.html`: Panel autenticado con operación en vivo, gestión de productos, precios, mesas, cuentas y empleados, asistencia, ventas por mesero, bitácora y aprobación de aparatos.

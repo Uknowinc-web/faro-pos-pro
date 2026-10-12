@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#17332b">
   <title>Administración — Tacos El Faro</title>
   <style>
@@ -63,7 +63,16 @@
     .toolbar label { margin: 0; display: flex; align-items: center; gap: .45rem; font-weight: 650; }
     .toolbar input[type="checkbox"] { width: auto; min-height: auto; }
     .toolbar select { width: auto; min-width: 140px; min-height: 44px; }
-    .audit-row { display: grid; gap: .25rem; }
+    .audit-row { display: grid; grid-template-columns: 5.5rem 1fr; gap: .75rem; align-items: start; border-left: 4px solid var(--line); }
+    .audit-row.audit-mesero { border-left-color: #4f9d69; }
+    .audit-row.audit-cocina { border-left-color: #d49a2a; }
+    .audit-row.audit-caja { border-left-color: #3f7cc4; }
+    .audit-row.audit-admin { border-left-color: #7b4fc4; }
+    .audit-time { font-weight: 800; font-variant-numeric: tabular-nums; color: var(--green); }
+    .audit-body p { margin: 0 0 .3rem; overflow-wrap: anywhere; }
+    .audit-who { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; font-size: .92rem; }
+    .audit-filters label { flex: 1 1 150px; }
+    .audit-filters select, .audit-filters input { width: 100%; }
     .audit-meta { display: flex; flex-wrap: wrap; gap: .5rem .9rem; color: var(--muted); font-size: .9rem; }
     .management-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 1rem; }
     .management-list { display: grid; gap: .6rem; margin-top: .8rem; }
@@ -93,6 +102,23 @@
     .account-editor[hidden] { display: none; }
     @media (max-width: 720px) {
       .grid-2 { grid-template-columns: 1fr; }
+      .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: .25rem; scrollbar-width: none; }
+      .tabs .tab { flex: 0 0 auto; }
+      .toolbar select { width: 100%; }
+      .management-row > button { width: 100%; }
+    }
+    @media (min-width: 721px) and (max-width: 1100px) {
+      main { padding: 1rem 1.25rem; }
+      .management-grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 480px) {
+      .audit-row { grid-template-columns: 1fr; gap: .25rem; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .dashboard-heading .actions { width: 100%; }
+      .dashboard-heading .actions button { flex: 1; }
+    }
+    @supports (padding: max(0px)) {
+      main { padding-left: max(1.25rem, env(safe-area-inset-left)); padding-right: max(1.25rem, env(safe-area-inset-right)); padding-bottom: max(1.25rem, env(safe-area-inset-bottom)); }
     }
     @media (max-width: 560px) {
       main { padding: .75rem; }
@@ -290,19 +316,32 @@
             <p class="eyebrow">Seguimiento</p>
             <h3>Acciones del día</h3>
           </div>
-          <div class="toolbar">
-            <label>Rol
+          <div class="toolbar audit-filters">
+            <label>Área
               <select id="audit-role-filter">
-                <option value="">Todos</option>
+                <option value="">Todas</option>
                 <option value="mesero">Servicio</option>
                 <option value="cocina">Cocina</option>
                 <option value="caja">Caja</option>
-                <option value="admin">Admin</option>
+                <option value="admin">Administración</option>
               </select>
+            </label>
+            <label>Tipo
+              <select id="audit-type-filter">
+                <option value="">Todas</option>
+                <option value="comandas">Comandas</option>
+                <option value="cobros">Cobros y anulaciones</option>
+                <option value="turnos">Entradas y salidas</option>
+                <option value="cambios">Cambios administrativos</option>
+              </select>
+            </label>
+            <label>Responsable
+              <input id="audit-search" type="search" placeholder="Nombre o correo" autocomplete="off">
             </label>
           </div>
         </div>
         <p id="audit-message" class="message" role="status"></p>
+        <div id="audit-summary" class="stats"></div>
         <div id="audit-list" class="audit-list"></div>
       </section>
     </section>
@@ -362,6 +401,12 @@
         por_cobrar: "Por cobrar"
       })[status] ?? status;
     }
+    const AUDIT_TYPES = {
+      comandas: ["enviar_comanda", "reclamar_mesa", "actualizar_comanda", "editar_comanda"],
+      cobros: ["cobrar_cuenta", "anular_cuenta"],
+      turnos: ["entrada_empleado", "salida_empleado"],
+      cambios: ["editar_producto", "editar_mesa", "editar_empleado"]
+    };
     function actionLabel(accion) {
       return ({
         enviar_comanda: "envió comanda",
@@ -504,7 +549,8 @@
       renderKitchenList(document.getElementById("kitchen-pending"), data.cocina?.pendiente || []);
       renderKitchenList(document.getElementById("kitchen-prep"), data.cocina?.preparacion || []);
 
-      const devices = data.dispositivos_activos || [];
+      const devices = (data.dispositivos_activos || []).filter((device) =>
+        device.ultima_accion && device.ultima_accion.accion !== "salida_empleado");
       const deviceRoot = document.getElementById("device-grid");
       deviceRoot.innerHTML = devices.length ? devices.map((device) => {
         const last = device.ultima_accion;
@@ -519,14 +565,24 @@
               }`
             : "Sin acciones registradas hoy"}</p>
         </article>`;
-      }).join("") : `<article class="card muted">No hay dispositivos de servicio aprobados.</article>`;
+      }).join("") : `<article class="card muted">No hay dispositivos con un turno activo.</article>`;
     }
 
     function renderAudit(acciones) {
       const roleFilter = document.getElementById("audit-role-filter").value;
-      const filtered = roleFilter
-        ? acciones.filter((item) => item.role === roleFilter)
-        : acciones;
+      const typeFilter = document.getElementById("audit-type-filter").value;
+      const search = document.getElementById("audit-search").value.trim().toLowerCase();
+      const responsible = (item) => (item.detalle || {}).empleado || item.device_label || "Sin identificar";
+      const filtered = acciones.filter((item) =>
+        (!roleFilter || item.role === roleFilter) &&
+        (!typeFilter || AUDIT_TYPES[typeFilter].includes(item.accion)) &&
+        (!search || responsible(item).toLowerCase().includes(search)));
+      document.getElementById("audit-summary").innerHTML = [
+        ["Acciones", filtered.length],
+        ["Responsables", new Set(filtered.map(responsible)).size],
+        ["Cobros", filtered.filter((item) => item.accion === "cobrar_cuenta").length],
+        ["Anulaciones", filtered.filter((item) => item.accion === "anular_cuenta").length]
+      ].map(([label, value]) => `<div class="stat"><span>${label}</span><strong>${value}</strong></div>`).join("");
       const root = document.getElementById("audit-list");
       if (!filtered.length) {
         root.innerHTML = `<article class="muted">No hay acciones registradas para este filtro.</article>`;
@@ -541,18 +597,16 @@
             : item.accion === "actualizar_comanda" && detalle.estado_nuevo
               ? ` · ${escapeHtml(detalle.estado_anterior)} → ${escapeHtml(detalle.estado_nuevo)}`
               : "";
-        return `<article class="audit-row">
-          <div class="request-head">
-            <h3>${escapeHtml(formatTime(item.created_at))} · ${escapeHtml(item.device_label)}</h3>
-            <span class="status approved">${escapeHtml(roleLabel(item.role))}</span>
-          </div>
-          <p><strong>${escapeHtml(actionLabel(item.accion))}</strong>${
-            item.mesa_nombre ? ` · ${escapeHtml(item.mesa_nombre)}` : ""
-          }${item.monto != null ? ` · ${escapeHtml(money(item.monto))}` : ""}${extra}</p>
-          <div class="audit-meta">
-            <span>${escapeHtml(item.accion)}</span>
-            ${detalle.empleado ? `<span>Empleado: ${escapeHtml(detalle.empleado)}</span>` : ""}
-            ${item.comanda_id ? `<span>Comanda ${escapeHtml(String(item.comanda_id).slice(0, 8))}</span>` : ""}
+        const device = item.role === "admin" ? "" : item.device_label;
+        return `<article class="audit-row audit-${escapeHtml(item.role)}">
+          <time class="audit-time">${escapeHtml(formatTime(item.created_at))}</time>
+          <div class="audit-body">
+            <p class="audit-action"><strong>${escapeHtml(actionLabel(item.accion))}</strong>${
+              item.mesa_nombre ? ` · ${escapeHtml(item.mesa_nombre)}` : ""
+            }${item.monto != null ? ` · ${escapeHtml(money(item.monto))}` : ""}${extra}</p>
+            <p class="audit-who"><span class="status approved">${escapeHtml(roleLabel(item.role))}</span>
+              <strong>${escapeHtml(responsible(item))}</strong>${device ? `<span class="muted"> · ${escapeHtml(device)}</span>` : ""}${
+              item.comanda_id ? `<span class="muted"> · Comanda ${escapeHtml(String(item.comanda_id).slice(0, 8))}</span>` : ""}</p>
           </div>
         </article>`;
       }).join("");
@@ -880,6 +934,8 @@
       void loadManagement();
     });
 
+    document.getElementById("audit-type-filter").addEventListener("change", () => renderAudit(latestAudit));
+    document.getElementById("audit-search").addEventListener("input", () => renderAudit(latestAudit));
     document.getElementById("audit-role-filter").addEventListener("change", () => {
       renderAudit(latestAudit);
     });
