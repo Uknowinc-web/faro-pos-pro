@@ -265,7 +265,7 @@
     const CARNES = ["Asada", "Pastor", "Tripa"];
     const CATEGORIAS = ["Tacos", "Quesadillas", "Especiales", "Papas y Frijoles", "Tortas", "Postres y Bebidas"];
     const NOTAS = ["Con todo", "Natural", "Sin salsa de tomate", "Sin lechuga", "Sin frijoles", "Bien cocida"];
-    const PRODUCTOS = [
+    let PRODUCTOS = [
       { id: "taco-maiz", nombre: "Taco maíz", categoria: "Tacos", precio: 40, mezcla: true, tripa: 5, queso: 5 },
       { id: "taco-harina", nombre: "Taco harina", categoria: "Tacos", precio: 42, mezcla: true, tripa: 5, queso: 5 },
       { id: "quesadilla-maiz", nombre: "Quesadilla maíz", categoria: "Quesadillas", precio: 65, mezcla: true, tripa: 10 },
@@ -305,6 +305,7 @@
       pendingStationRole: null,
       awaitingApproval: false,
       deviceLabel: "",
+      employee: null,
       authReady: false,
       authMessage: "",
       dataFresh: false,
@@ -412,6 +413,20 @@
     }
     function productById(id) {
       return PRODUCTOS.find((product) => product.id === id);
+    }
+    async function loadProductCatalog() {
+      const { data, error } = await supabaseClient.rpc("listar_catalogo_pos");
+      if (error) throw error;
+      if (!Array.isArray(data)) throw new Error("La respuesta del catálogo no es válida.");
+      PRODUCTOS = data.map((product) => ({
+        id: product.id,
+        nombre: product.nombre,
+        categoria: product.categoria,
+        precio: Number(product.precio),
+        mezcla: product.permite_mezcla,
+        tripa: Number(product.extra_tripa_principal),
+        queso: product.permite_queso ? Number(product.extra_queso) : 0
+      }));
     }
     function productPrice(product, modifiers) {
       return product.precio + modifiers.reduce((sum, modifier) => sum + modifier.extra, 0);
@@ -524,9 +539,24 @@
         <button class="button full" type="button" data-action="check-approval" ${state.authReady ? "" : "disabled"}>Actualizar estado</button>
       </section>`;
     }
+    function renderEmployeeLogin() {
+      return `<section class="panel access-card">
+        <p class="eyebrow">Inicio de jornada</p>
+        <h2>Identifícate con tu PIN</h2>
+        <p class="muted">Usa tu PIN personal para registrar tu entrada y asociar tus acciones a tu nombre.</p>
+        <form id="employee-pin-form">
+          <label class="field">PIN del empleado
+            <input name="employee-pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}"
+              minlength="4" maxlength="8" autocomplete="off" required>
+          </label>
+          <p class="form-status" role="status">${escapeHtml(state.authMessage)}</p>
+          <button class="button primary full" type="submit">Registrar entrada</button>
+        </form>
+      </section>`;
+    }
     let remoteRefreshPromise = null;
     async function refreshRemoteData(showError = true) {
-      if (!state.user || !state.role || state.stationRole !== state.role) return false;
+      if (!state.user || !state.role || !state.employee || state.stationRole !== state.role) return false;
       if (remoteRefreshPromise) return remoteRefreshPromise;
       state.syncing = true;
       state.dataFresh = false;
@@ -551,6 +581,7 @@
     }
     async function loadRemoteData(showError) {
       try {
+        await loadProductCatalog();
         const { data: assignedRole, error: roleError } = await supabaseClient.from("staff_roles")
           .select("role").eq("user_id", state.user.id).maybeSingle();
         if (roleError) throw roleError;
@@ -705,7 +736,7 @@
       state.realtimeConnected = connected;
       window.clearInterval(realtimeFallbackTimer);
       realtimeFallbackTimer = null;
-      if (!connected && state.user && state.role && state.stationRole === state.role) {
+      if (!connected && state.user && state.role && state.employee && state.stationRole === state.role) {
         realtimeFallbackTimer = window.setInterval(() => {
           if (!navigator.onLine || document.visibilityState === "hidden" || state.syncing) return;
           void refreshRemoteData(false);
@@ -715,9 +746,10 @@
     }
     function subscribeToChanges() {
       if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
+      if (!state.employee) return;
       setRealtimeConnection(false);
-      const tables = state.role !== "caja" ? ["mesas", "comandas", "comanda_items"] :
-        ["mesas", "cuentas", "comandas", "comanda_items"];
+      const tables = state.role !== "caja" ? ["mesas", "comandas", "comanda_items", "catalogo_productos"] :
+        ["mesas", "cuentas", "comandas", "comanda_items", "catalogo_productos"];
       if (state.role === "mesero") tables.push("mesa_responsables", "sugerencias_comanda");
       const channel = supabaseClient.channel(`faro-pos-${state.user.id}`);
       realtimeChannel = channel;
@@ -745,6 +777,7 @@
       state.user = user;
       state.role = null;
       state.stationRole = null;
+      state.employee = null;
       state.pendingStationRole = requestedRole;
       state.dataFresh = false;
       state.data = { tables: [], checks: [], nextTicket: 1, drafts: {}, owners: [], suggestions: [] };
@@ -808,6 +841,14 @@
         state.pendingStationRole = null;
         state.view = requestedRole;
         state.authReady = true;
+        const { data: shift, error: shiftError } = await supabaseClient.rpc("turno_empleado_actual");
+        if (shiftError) throw shiftError;
+        state.employee = shift;
+        if (!state.employee) {
+          state.authMessage = "";
+          render();
+          return;
+        }
         if (!await refreshRemoteData()) {
           state.stationRole = null;
           state.data = { tables: [], checks: [], nextTicket: 1, drafts: {}, owners: [], suggestions: [] };
@@ -822,6 +863,51 @@
         state.authMessage = error.message || "No se pudo validar la cuenta y el puesto.";
       }
       render();
+    }
+    async function startEmployeeShift(form) {
+      const pin = form.elements["employee-pin"].value.trim();
+      const button = form.querySelector("button[type=submit]");
+      button.disabled = true;
+      state.authMessage = "Validando PIN…";
+      render();
+      try {
+        const { data, error } = await supabaseClient.rpc("iniciar_turno_empleado", { p_pin: pin });
+        if (error) throw error;
+        if (data?.ok !== true) throw new Error(data?.error || "No se pudo validar el PIN.");
+        if (!data.id || data.puesto !== state.stationRole) {
+          throw new Error("No se recibió una identidad de empleado válida para este puesto.");
+        }
+        state.employee = data;
+        state.authMessage = "";
+        if (!await refreshRemoteData()) {
+          state.authMessage = "El turno inició, pero no se pudieron sincronizar los datos. Revisa la conexión.";
+        }
+        subscribeToChanges();
+      } catch (error) {
+        console.error("No se pudo iniciar el turno del empleado.", error);
+        state.authMessage = error.message || "No se pudo validar el PIN.";
+      } finally {
+        render();
+      }
+    }
+    async function endEmployeeShift() {
+      if (!state.employee) return;
+      try {
+        const { error } = await supabaseClient.rpc("cerrar_turno_empleado");
+        if (error) throw error;
+        if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
+        realtimeChannel = null;
+        window.clearInterval(realtimeFallbackTimer);
+        window.clearTimeout(refreshTimer);
+        state.employee = null;
+        state.dataFresh = false;
+        state.authMessage = "";
+        render();
+        toast("Salida registrada.");
+      } catch (error) {
+        console.error("No se pudo registrar la salida del empleado.", error);
+        toast(`No se pudo registrar la salida: ${error.message}`, true);
+      }
     }
     let approvalPollTimer = null;
     async function initializeAuth() {
@@ -839,6 +925,7 @@
             state.user = null;
             state.role = null;
             state.stationRole = null;
+            state.employee = null;
             state.pendingStationRole = null;
             state.awaitingApproval = false;
             window.clearTimeout(approvalPollTimer);
@@ -857,6 +944,7 @@
             state.user = session.user;
             state.role = null;
             state.stationRole = null;
+            state.employee = null;
             state.dataFresh = false;
             state.realtimeConnected = false;
             state.lastSyncedAt = null;
@@ -885,12 +973,13 @@
     }
     function render() {
       const authorized = Boolean(state.user && state.role && state.stationRole === state.role);
+      const operating = authorized && Boolean(state.employee);
       const nav = document.getElementById("module-nav");
-      nav.classList.toggle("hidden", !authorized);
+      nav.classList.toggle("hidden", !operating);
       document.getElementById("sign-out").classList.toggle("hidden", !state.user || state.user.is_anonymous);
       document.getElementById("user-label").textContent = state.user
-        ? `${state.user.is_anonymous ? "Dispositivo" : state.user.email ?? "Personal"}${authorized ? ` · ${stationRoleLabel(state.stationRole)}` : " · Acceso pendiente"}` : "";
-      if (authorized) {
+        ? `${state.user.is_anonymous ? "Dispositivo" : state.user.email ?? "Personal"}${operating ? ` · ${state.employee.nombre} · ${stationRoleLabel(state.stationRole)}` : authorized ? " · Identifica al empleado" : " · Acceso pendiente"}` : "";
+      if (operating) {
         const permitted = [state.stationRole];
         nav.querySelectorAll("[data-view]").forEach((button) => {
           button.classList.toggle("hidden", !permitted.includes(button.dataset.view));
@@ -899,14 +988,20 @@
         });
       }
       document.querySelectorAll("[data-view]").forEach((button) => {
-        if (authorized && button.dataset.view === state.stationRole) button.setAttribute("aria-current", "page");
+        if (operating && button.dataset.view === state.stationRole) button.setAttribute("aria-current", "page");
         else button.removeAttribute("aria-current");
       });
       const app = document.getElementById("app");
       document.getElementById("access-notice").classList.toggle("hidden", authorized);
       if (!authorized) {
         app.innerHTML = state.awaitingApproval ? renderStationApproval() : renderStationCode();
+      } else if (!operating) {
+        app.innerHTML = renderEmployeeLogin();
       } else {
+        const employeeBanner = `<div class="notice employee-banner">
+          <span>Turno de <strong>${escapeHtml(state.employee.nombre)}</strong> · Entrada ${timeMty(state.employee.entrada_at)}</span>
+          <button class="button" type="button" data-action="clock-out">Registrar salida</button>
+        </div>`;
         const testBanner = `<div class="notice test-banner">
           ${state.testMode
             ? "Modo de prueba: los pedidos y las cuentas se mantienen separados de las ventas reales."
@@ -937,7 +1032,7 @@
         }</div>`;
         const view = state.stationRole === "mesero" ? renderWaiter() :
           state.stationRole === "cocina" ? renderKitchen() : renderCashier();
-        app.innerHTML = testBanner + connectionBanner + syncStatus + view;
+        app.innerHTML = employeeBanner + testBanner + connectionBanner + syncStatus + view;
       }
     }
 
@@ -1472,6 +1567,11 @@
     }
 
     document.addEventListener("submit", async (event) => {
+      if (event.target.id === "employee-pin-form") {
+        event.preventDefault();
+        await startEmployeeShift(event.target);
+        return;
+      }
       if (event.target.id !== "station-form" && event.target.id !== "create-table-form") return;
       event.preventDefault();
       if (event.target.id === "create-table-form") {
@@ -1565,6 +1665,8 @@
           console.error("No se pudo cerrar la sesión.", error);
           toast(`No se pudo cerrar sesión: ${error.message}`, true);
         }
+      } else if (target.dataset.action === "clock-out") {
+        await endEmployeeShift();
       } else if (target.dataset.action === "check-approval") {
         window.clearTimeout(approvalPollTimer);
         if (state.user && state.pendingStationRole) {
