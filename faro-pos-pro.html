@@ -288,7 +288,6 @@
     const DRAFT_STORAGE_KEY = "faro-pos-pro-drafts-v1";
     const ORDER_REF_STORAGE_KEY = "faro-pos-order-token-v1";
     const STATION_STORAGE_KEY = "faro-pos-station-v1";
-    const DEVICE_LABEL_STORAGE_KEY = "faro-pos-device-label-v1";
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
     const CARNES = ["Asada", "Pastor", "Tripa"];
     const CATEGORIAS = ["Tacos", "Quesadillas", "Especiales", "Papas y Frijoles", "Tortas", "Postres", "Bebidas", "Promociones"];
@@ -1033,7 +1032,6 @@
         if (error) throw error;
         state.user = data.session?.user ?? null;
         state.stationBoundRole = localStorage.getItem(STATION_STORAGE_KEY);
-        state.deviceLabel = localStorage.getItem(DEVICE_LABEL_STORAGE_KEY) || "";
         state.testMode = localStorage.getItem("faro-pos-test-mode-v1") !== "false";
         state.authReady = true;
         render();
@@ -1867,7 +1865,6 @@
         }
         try {
           if (!state.stationBoundRole) localStorage.setItem(STATION_STORAGE_KEY, requestedRole);
-          localStorage.setItem(DEVICE_LABEL_STORAGE_KEY, deviceLabel);
         } catch (error) {
           console.error("No se pudo guardar la asignación del dispositivo.", error);
           state.authMessage = "No se pudo guardar la asignación de este dispositivo. Revisa la configuración de almacenamiento del navegador e inténtalo de nuevo.";
