@@ -39,6 +39,7 @@ En el SQL Editor del proyecto Supabase, ejecutar una vez y en orden:
 13. `drizzle/migrations/0012_panel_admin_operacion.sql`.
 14. `drizzle/migrations/0013_admin_jornada_y_empleados.sql`.
 15. `drizzle/migrations/0014_bebidas_postres_y_opciones.sql`.
+16. `drizzle/migrations/0015_orden_automatico_de_mesas.sql`.
 
 La migración 0011 ya se aplicó en el proyecto Supabase de producción. Se
 generaron tres códigos aleatorios y se verificó que los RPC existan y que ni
@@ -75,6 +76,10 @@ el tamaño (1 L o 1/2 L a mitad de precio) de horchata/cebada, y ToniCol o Titan
 Ejecútala después de 0013 y antes de desplegar la versión del POS que usa esas
 opciones: el POS nuevo envía los nuevos nombres y modificadores, que el servidor
 anterior rechazaría.
+
+La migración **0015** elimina el orden manual de las mesas: `admin_guardar_mesa`
+asigna a cada mesa nueva la posición siguiente dentro de su modo (prueba u
+operación) y conserva la posición al editarla. Ejecútala después de 0014.
 
 En el proyecto Faro conectado, 0009 y 0010 ya se aplicaron en ese orden desde el
 SQL Editor. Se verificó que existan las tablas y RPC, que RLS esté habilitado en
