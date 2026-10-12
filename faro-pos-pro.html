@@ -954,11 +954,11 @@
         if (shiftError) throw shiftError;
         state.employee = shift;
         if (!state.employee) {
+          await loadPinStatus().catch(() => { state.hasPin = true; });
           state.authMessage = "";
           render();
           return;
         }
-        if (!state.employee) await loadPinStatus().catch(() => { state.hasPin = true; });
         if (!await refreshRemoteData()) {
           state.stationRole = null;
           state.data = { tables: [], checks: [], nextTicket: 1, drafts: {}, owners: [], suggestions: [] };
