@@ -40,6 +40,7 @@ En el SQL Editor del proyecto Supabase, ejecutar una vez y en orden:
 14. `drizzle/migrations/0013_admin_jornada_y_empleados.sql`.
 15. `drizzle/migrations/0014_bebidas_postres_y_opciones.sql`.
 16. `drizzle/migrations/0015_orden_automatico_de_mesas.sql`.
+17. `drizzle/migrations/0016_registro_empleado_con_pin.sql`.
 
 La migración 0011 ya se aplicó en el proyecto Supabase de producción. Se
 generaron tres códigos aleatorios y se verificó que los RPC existan y que ni
@@ -80,6 +81,15 @@ anterior rechazaría.
 La migración **0015** elimina el orden manual de las mesas: `admin_guardar_mesa`
 asigna a cada mesa nueva la posición siguiente dentro de su modo (prueba u
 operación) y conserva la posición al editarla. Ejecútala después de 0014.
+
+La migración **0016** cambia el registro de empleados: al solicitar acceso, cada
+persona escribe su nombre y elige su PIN (4–8 dígitos, único entre empleados
+activos). Al autorizar, el administrador crea al empleado y lo vincula al
+aparato; puede ver el PIN, el aparato y el estado del turno. El PIN legible se
+guarda en `pin_texto`, sin acceso directo (RLS cerrado) y solo lo devuelven las
+RPC de administración. Los empleados anteriores no tienen PIN visible hasta
+asignarles uno nuevo. También agrega `caja_editar_articulo_cuenta` para que Caja
+cambie cantidades o quite artículos de cuentas abiertas. Ejecútala después de 0015.
 
 En el proyecto Faro conectado, 0009 y 0010 ya se aplicaron en ese orden desde el
 SQL Editor. Se verificó que existan las tablas y RPC, que RLS esté habilitado en

@@ -325,6 +325,9 @@
       orderToken: null,
       orderTokenTable: null,
       kitchenFilter: "todas",
+      kitchenTab: "activas",
+      kitchenHistory: [],
+      pendingEmployee: null,
       cashierTable: null,
       cashierSearch: "",
       cashierFilter: "todas",
@@ -540,6 +543,13 @@
             <input name="device-label" maxlength="80" value="${escapeHtml(state.deviceLabel)}"
               placeholder="Ej. Tablet de cocina" autocomplete="off" required>
           </label>
+          <label class="field">Tu nombre
+            <input name="employee-name" maxlength="80" placeholder="Nombre y apellido" autocomplete="off" required>
+          </label>
+          <label class="field">Elige tu PIN (4 a 8 dígitos)
+            <input name="employee-pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}"
+              minlength="4" maxlength="8" autocomplete="off" required>
+          </label>
           <label class="field">Código del puesto
             <input class="station-code" name="station-code" type="password" inputmode="text"
               autocapitalize="characters" pattern="[A-Fa-f0-9]{8}" minlength="8" maxlength="8"
@@ -727,6 +737,28 @@
               }))
             }]
           }));
+          const { data: done, error: historyError } = await supabaseClient.from("comandas")
+            .select("id,numero,estado,created_at,mesas!inner(id,nombre,es_prueba),comanda_items(id,nombre,cantidad,modificadores,notas)")
+            .eq("estado", "listo")
+            .eq("mesas.es_prueba", state.testMode)
+            .gte("created_at", new Date(Date.now() - 24 * 60 * 60_000).toISOString())
+            .order("created_at", { ascending: false })
+            .limit(100);
+          if (historyError) throw historyError;
+          state.kitchenHistory = (done ?? []).map((ticket) => ({
+            id: ticket.id,
+            number: ticket.numero,
+            tableName: ticket.mesas?.nombre ?? "Mesa",
+            createdAt: ticket.created_at,
+            items: (ticket.comanda_items ?? []).map((item) => ({
+              name: item.nombre,
+              quantity: item.cantidad,
+              modifiers: Array.isArray(item.modificadores)
+                ? item.modificadores.map((modifier) => typeof modifier === "string" ? { name: modifier } : modifier)
+                : [],
+              notes: item.notas ?? ""
+            }))
+          }));
         }
         state.data = {
           tables: (tables ?? []).map((table) => ({
@@ -813,8 +845,11 @@
         if (!data && user.is_anonymous) {
           const { data: requestStatus, error: requestError } = await supabaseClient.rpc("solicitar_acceso_puesto", {
             p_role: requestedRole,
-            p_device_label: state.deviceLabel
+            p_device_label: state.deviceLabel,
+            p_empleado_nombre: state.pendingEmployee?.name ?? null,
+            p_pin: state.pendingEmployee?.pin ?? null
           });
+          state.pendingEmployee = null;
           if (requestError) throw requestError;
           if (requestStatus !== "approved") {
             state.authReady = true;
@@ -1172,7 +1207,29 @@
       return ({ pendiente: "Pendiente", preparacion: "En preparación", listo: "Listo",
         abierta: "Abierta", por_cobrar: "Por cobrar", pagada: "Pagada", anulada: "Anulada" })[status] ?? status;
     }
+    function renderKitchenHistory() {
+      const rows = state.kitchenHistory;
+      return `<header class="page-heading"><div><p class="eyebrow">${escapeHtml(stationHeading("cocina"))}</p><h2>Historial de pedidos</h2>
+        <p>Comandas terminadas en las últimas 24 horas.</p></div></header>
+        ${kitchenTabs()}
+        ${rows.length ? `<div class="ticket-grid">${rows.map((ticket) => `<article class="ticket-card">
+          <div class="ticket-head"><strong>Comanda #${ticket.number}</strong><span class="badge listo">Listo</span></div>
+          <p class="kitchen-table">${escapeHtml(ticket.tableName)}</p>
+          <p class="muted">Recibida ${timeMty(ticket.createdAt)}</p>
+          <div class="ticket-items">${ticket.items.map((item) =>
+            `<div><p><strong>${item.quantity}× ${escapeHtml(item.name)}</strong></p>
+              ${item.modifiers.length ? `<p class="detail">${escapeHtml(item.modifiers.map((modifier) => modifier.name).join(" · "))}</p>` : ""}
+              ${item.notes ? `<p class="detail"><strong>Nota:</strong> ${escapeHtml(item.notes)}</p>` : ""}</div>`
+          ).join("")}</div></article>`).join("")}</div>`
+          : `<div class="panel empty"><strong>Aún no hay pedidos terminados</strong><br>Las comandas marcadas como listas aparecerán aquí.</div>`}`;
+    }
+    function kitchenTabs() {
+      return `<div class="toolbar kitchen-toolbar" aria-label="Vista de cocina">
+        <button class="button ${state.kitchenTab === "activas" ? "primary" : ""}" aria-pressed="${state.kitchenTab === "activas"}" data-kitchen-tab="activas">Pendientes</button>
+        <button class="button ${state.kitchenTab === "historial" ? "primary" : ""}" aria-pressed="${state.kitchenTab === "historial"}" data-kitchen-tab="historial">Historial</button></div>`;
+    }
     function renderKitchen() {
+      if (state.kitchenTab === "historial") return renderKitchenHistory();
       const allTickets = state.data.checks.flatMap((check) => check.tickets.map((ticket) => ({
         ...ticket, tableName: check.tableName
       }))).filter((ticket) => ["pendiente", "preparacion"].includes(ticket.status) &&
@@ -1181,6 +1238,7 @@
       const tickets = allTickets.filter((ticket) => state.kitchenFilter === "todas" || ticket.status === state.kitchenFilter);
       return `<header class="page-heading"><div><p class="eyebrow">${escapeHtml(stationHeading("cocina"))}</p><h2>Cocina</h2>
         <p>Las comandas nuevas aparecen aquí automáticamente.</p></div></header>
+        ${kitchenTabs()}
         <div class="summary-strip" aria-label="Resumen de cocina">
           <div class="summary-item"><span>Activas</span><strong>${allTickets.length}</strong></div>
           <div class="summary-item"><span>Nuevas</span><strong>${allTickets.filter((ticket) => ticket.status === "pendiente").length}</strong></div>
@@ -1289,7 +1347,10 @@
         <div class="receipt">${check.tickets.map((ticket) => `<div class="section-heading"><strong>#${ticket.number}</strong><span class="muted">${timeMty(ticket.createdAt)}</span></div>
           ${ticket.items.map((item) => `<div class="receipt-row"><span>${item.quantity}× ${escapeHtml(item.name)}
             ${item.modifiers.length ? `<small class="detail" style="display:block">${escapeHtml(item.modifiers.map((modifier) => modifier.name).join(" · "))}</small>` : ""}</span>
-            <strong>${money(item.quantity * item.unitPrice)}</strong></div>`).join("")}`).join("")}
+            <strong>${money(item.quantity * item.unitPrice)}</strong></div>
+            <div class="actions no-print"><button class="small-button" aria-label="Quitar uno" data-item-qty="${item.id}" data-check="${check.id}" data-qty="${item.quantity - 1}">−</button>
+              <button class="small-button" aria-label="Agregar uno" data-item-qty="${item.id}" data-check="${check.id}" data-qty="${Math.min(99, item.quantity + 1)}">+</button>
+              <button class="small-button" data-item-qty="${item.id}" data-check="${check.id}" data-qty="0">Quitar</button></div>`).join("")}`).join("")}
           <div class="receipt-total"><span>Total</span><span>${money(total)}</span></div></div>
         <p class="payment-note">${state.testMode
           ? "Modo de prueba: los botones simulan el pago y no registran una venta real."
@@ -1535,6 +1596,20 @@
       }
       await refreshRemoteData();
     }
+    async function editCheckItem(checkId, itemId, quantity) {
+      if (!await ensureFreshData()) return;
+      if (quantity === 0 && !window.confirm("¿Quitar este artículo de la cuenta?")) return;
+      const { error } = await supabaseClient.rpc("caja_editar_articulo_cuenta", {
+        p_cuenta: checkId, p_item: itemId, p_cantidad: quantity
+      });
+      if (error) {
+        console.error("No se pudo modificar la cuenta.", error);
+        toast(`No se pudo modificar la cuenta: ${error.message}`, true);
+        return;
+      }
+      toast("Cuenta actualizada.");
+      await refreshRemoteData();
+    }
     async function markDue(checkId) {
       if (!await ensureFreshData()) return;
       const { error } = await supabaseClient.rpc("solicitar_cuenta", {
@@ -1637,6 +1712,14 @@
           render();
           return;
         }
+        const employeeName = form.elements["employee-name"].value.trim();
+        const employeePin = form.elements["employee-pin"].value.trim();
+        if (!employeeName || employeeName.length > 80 || !/^[0-9]{4,8}$/.test(employeePin)) {
+          state.authMessage = "Escribe tu nombre y elige un PIN de 4 a 8 dígitos.";
+          render();
+          return;
+        }
+        state.pendingEmployee = { name: employeeName, pin: employeePin };
         if (!state.user) {
           try {
             const { data, error } = await supabaseClient.auth.signInAnonymously();
@@ -1819,6 +1902,9 @@
         respondToSuggestion(target.dataset.suggestionResponse, target.dataset.acceptSuggestion === "true");
       } else if (target.dataset.ticketStatus) {
         changeTicketStatus(target.dataset.ticketStatus, target.dataset.nextStatus);
+      } else if (target.dataset.kitchenTab) {
+        state.kitchenTab = target.dataset.kitchenTab;
+        render();
       } else if (target.dataset.kitchenFilter) {
         state.kitchenFilter = target.dataset.kitchenFilter;
         render();
@@ -1828,6 +1914,8 @@
       } else if (target.dataset.cashierFilter) {
         state.cashierFilter = target.dataset.cashierFilter;
         render();
+      } else if (target.dataset.itemQty) {
+        editCheckItem(target.dataset.check, target.dataset.itemQty, Number(target.dataset.qty));
       } else if (target.dataset.markDue) {
         markDue(target.dataset.markDue);
       } else if (target.dataset.pay) {

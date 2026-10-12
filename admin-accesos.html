@@ -80,6 +80,17 @@
     .account-item .actions { margin: 0; }
     .account-item button { min-height: 36px; padding: .35rem .6rem; }
     .management-message { min-height: 1.5rem; }
+    .management-bar { display: flex; justify-content: space-between; align-items: center; gap: .75rem; flex-wrap: wrap; margin-bottom: .75rem; }
+    .management-bar .message { margin: 0; }
+    .mode-toggle { display: flex; align-items: center; gap: .45rem; margin: 0; }
+    .mode-toggle input { width: auto; min-height: auto; }
+    .management-row { flex-wrap: wrap; }
+    .row-main { flex: 1 1 220px; min-width: 0; }
+    .row-main strong { overflow-wrap: anywhere; }
+    .pin-chip { display: inline-block; margin-top: .25rem; font-size: .85rem; }
+    .pin-chip summary { cursor: pointer; color: var(--green); font-weight: 650; }
+    .pin-chip strong { letter-spacing: .12em; }
+    .account-editor[hidden] { display: none; }
     @media (max-width: 720px) {
       .grid-2 { grid-template-columns: 1fr; }
     }
@@ -128,7 +139,8 @@
 
       <nav class="tabs" role="tablist" aria-label="Secciones de administración">
         <button class="tab" type="button" role="tab" id="tab-operacion" data-tab="operacion" aria-selected="true" aria-controls="panel-operacion">Operación</button>
-        <button class="tab" type="button" role="tab" id="tab-gestion" data-tab="gestion" aria-selected="false" aria-controls="panel-gestion">Gestión</button>
+        <button class="tab" type="button" role="tab" id="tab-cuentas" data-tab="cuentas" aria-selected="false" aria-controls="panel-cuentas">Cuentas</button>
+        <button class="tab" type="button" role="tab" id="tab-catalogo" data-tab="catalogo" aria-selected="false" aria-controls="panel-catalogo">Catálogo</button>
         <button class="tab" type="button" role="tab" id="tab-accesos" data-tab="accesos" aria-selected="false" aria-controls="panel-accesos">Accesos</button>
         <button class="tab" type="button" role="tab" id="tab-bitacora" data-tab="bitacora" aria-selected="false" aria-controls="panel-bitacora">Bitácora</button>
       </nav>
@@ -180,12 +192,12 @@
         </div>
       </section>
 
-      <section id="panel-gestion" role="tabpanel" aria-labelledby="tab-gestion" hidden>
+      <div id="management-bar" class="management-bar" hidden>
         <p id="management-message" class="message management-message" role="status"></p>
-        <div class="toolbar section-block">
-          <label><input id="management-test-mode" type="checkbox"> Modo prueba</label>
-          <span class="muted">Los cambios de piso y cuentas se limitan al modo elegido.</span>
-        </div>
+        <label id="management-mode" class="mode-toggle"><input id="management-test-mode" type="checkbox"> Modo prueba</label>
+      </div>
+
+      <section id="panel-catalogo" role="tabpanel" aria-labelledby="tab-catalogo" hidden>
         <div class="management-grid">
           <section class="card">
             <h3>Productos y precios</h3>
@@ -205,6 +217,7 @@
 
           <section class="card">
             <h3>Mesas</h3>
+            <p class="muted">El orden en la lista es automático: las mesas nuevas quedan al final.</p>
             <form id="table-form" class="management-form">
               <input name="id" type="hidden">
               <label>Nombre<input name="name" maxlength="80" required></label>
@@ -213,42 +226,21 @@
             </form>
             <div id="tables-list" class="management-list"></div>
           </section>
-
-          <section class="card">
-            <h3>Empleados y PIN</h3>
-            <p class="muted">El PIN se guarda como hash y solo se valida en el servidor.</p>
-            <form id="employee-form" class="management-form">
-              <input name="id" type="hidden">
-              <label>Nombre<input name="name" maxlength="80" required></label>
-              <label>Puesto<select name="role" required>
-                <option value="mesero">Mesero</option><option value="caja">Caja</option><option value="cocina">Cocina</option>
-              </select></label>
-              <label>PIN (4–8 dígitos)<input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" autocomplete="new-password" required></label>
-              <label class="check-label"><input name="active" type="checkbox" checked> Activo</label>
-              <div class="actions"><button class="primary" type="submit">Guardar empleado</button><button type="button" data-clear-form>Limpiar</button></div>
-            </form>
-            <div id="employees-list" class="management-list"></div>
-          </section>
         </div>
+      </section>
 
+      <section id="panel-cuentas" role="tabpanel" aria-labelledby="tab-cuentas" hidden>
         <section class="card section-block">
           <div class="section-head">
-            <h3>Cuentas y comandas abiertas</h3>
-            <button id="refresh-accounts" type="button">Actualizar cuentas</button>
+            <div><h3>Cuentas abiertas</h3><p class="muted">Los cambios en cuentas se realizan principalmente desde Caja. Usa Modificar solo si es necesario.</p></div>
+            <button id="refresh-accounts" type="button">Actualizar</button>
           </div>
           <div id="accounts-list" class="management-list"></div>
         </section>
-
-        <div class="management-grid section-block">
-          <section class="card">
-            <div class="section-head"><h3>Asistencia</h3><label>Fecha<input id="attendance-date" type="date"></label></div>
-            <div id="attendance-list" class="management-list"></div>
-          </section>
-          <section class="card">
-            <div class="section-head"><h3>Ventas por mesero</h3><label>Fecha<input id="sales-date" type="date"></label></div>
-            <div id="sales-list" class="management-list"></div>
-          </section>
-        </div>
+        <section class="card section-block">
+          <div class="section-head"><h3>Ventas por mesero</h3><label>Fecha<input id="sales-date" type="date"></label></div>
+          <div id="sales-list" class="management-list"></div>
+        </section>
       </section>
 
       <section id="panel-accesos" role="tabpanel" aria-labelledby="tab-accesos" hidden>
@@ -263,8 +255,33 @@
             <div id="codes-list" class="codes-grid"></div>
           </article>
         </section>
-        <p id="dashboard-message" class="message" role="status">Revisa el nombre y el área antes de autorizar cada dispositivo.</p>
-        <div id="requests" class="requests"></div>
+
+        <section class="section-block">
+          <div class="section-head"><h3>Solicitudes de acceso</h3></div>
+          <p id="dashboard-message" class="message" role="status">Revisa el nombre y el área antes de autorizar cada dispositivo.</p>
+          <div id="requests" class="requests"></div>
+        </section>
+
+        <section class="card section-block">
+          <h3>Empleados y PIN</h3>
+          <p class="muted">Cada empleado elige su PIN al solicitar acceso. Aquí puedes consultarlo, cambiarlo o dar de alta personal manualmente. El PIN debe ser único entre empleados activos.</p>
+          <form id="employee-form" class="management-form">
+            <input name="id" type="hidden">
+            <label>Nombre<input name="name" maxlength="80" required></label>
+            <label>Puesto<select name="role" required>
+              <option value="mesero">Mesero</option><option value="caja">Caja</option><option value="cocina">Cocina</option>
+            </select></label>
+            <label>PIN (4–8 dígitos)<input name="pin" type="text" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" autocomplete="off" required></label>
+            <label class="check-label"><input name="active" type="checkbox" checked> Activo</label>
+            <div class="actions"><button class="primary" type="submit">Guardar empleado</button><button type="button" data-clear-form>Limpiar</button></div>
+          </form>
+          <div id="employees-list" class="management-list"></div>
+        </section>
+
+        <section class="card section-block">
+          <div class="section-head"><h3>Asistencia</h3><label>Fecha<input id="attendance-date" type="date"></label></div>
+          <div id="attendance-list" class="management-list"></div>
+        </section>
       </section>
 
       <section id="panel-bitacora" role="tabpanel" aria-labelledby="tab-bitacora" hidden>
@@ -305,12 +322,15 @@
     const requestsRoot = document.getElementById("requests");
     const titles = {
       operacion: "Operación en vivo",
-      gestion: "Gestión de la jornada",
+      cuentas: "Cuentas abiertas",
+      catalogo: "Productos, precios y mesas",
       accesos: "Accesos del equipo",
       bitacora: "Bitácora de acciones"
     };
     let currentUser = null;
     let activeTab = "operacion";
+    const managementTabs = ["cuentas", "catalogo", "accesos"];
+    const openAccounts = new Set();
     let refreshTimer = null;
     let realtimeChannel = null;
     let latestAudit = [];
@@ -323,6 +343,8 @@
     let latestTables = [];
     let latestEmployees = [];
     let latestAccounts = [];
+    let latestAttendance = [];
+    let latestSales = [];
     let testMode = false;
 
     function escapeHtml(value) {
@@ -393,9 +415,12 @@
         button.setAttribute("aria-selected", String(selected));
       });
       document.getElementById("panel-operacion").hidden = tab !== "operacion";
-      document.getElementById("panel-gestion").hidden = tab !== "gestion";
+      document.getElementById("panel-cuentas").hidden = tab !== "cuentas";
+      document.getElementById("panel-catalogo").hidden = tab !== "catalogo";
       document.getElementById("panel-accesos").hidden = tab !== "accesos";
       document.getElementById("panel-bitacora").hidden = tab !== "bitacora";
+      document.getElementById("management-bar").hidden = !managementTabs.includes(tab);
+      document.getElementById("management-mode").hidden = tab === "accesos";
     }
 
     async function loadStationCodes() {
@@ -538,6 +563,8 @@
       latestTables = data.tables || [];
       latestEmployees = data.employees || [];
       latestAccounts = data.accounts || [];
+      latestAttendance = data.attendance || [];
+      latestSales = data.sales || [];
       document.getElementById("products-list").innerHTML = latestProducts.map((product) =>
         `<article class="management-row">
           <div><strong>${escapeHtml(product.nombre)}</strong><p class="muted">${escapeHtml(product.categoria)} · ${escapeHtml(money(product.precio))} · ${product.activo ? "Disponible" : "Pausado"}${product.permite_mezcla ? " · Personalizable" : ""}</p></div>
@@ -552,12 +579,16 @@
         </article>`
       ).join("") || `<p class="muted">No hay mesas en este modo.</p>`;
 
-      document.getElementById("employees-list").innerHTML = latestEmployees.map((employee) =>
-        `<article class="management-row">
-          <div><strong>${escapeHtml(employee.nombre)}</strong><p class="muted">${escapeHtml(roleLabel(employee.puesto))} · ${employee.activo ? "Activo" : "Inactivo"}${employee.entrada_at ? ` · En turno desde ${escapeHtml(formatDate(employee.entrada_at))}` : ""}</p></div>
+      document.getElementById("employees-list").innerHTML = latestEmployees.map((employee) => {
+        const lastEntry = employee.entrada_at ?? employee.ultima_entrada_at;
+        return `<article class="management-row">
+          <div class="row-main"><strong>${escapeHtml(employee.nombre)}</strong>
+            <p class="muted">${escapeHtml(roleLabel(employee.puesto))}${employee.aparato ? ` · ${escapeHtml(employee.aparato)}` : ""}</p>
+            <p class="muted">${employee.entrada_at ? `<span class="status approved">En turno</span> desde ${escapeHtml(formatDate(employee.entrada_at))}` : `<span class="status">${employee.activo ? "Fuera de turno" : "Inactivo"}</span>${lastEntry ? ` · Última entrada ${escapeHtml(formatDate(lastEntry))}` : ""}`}</p>
+            ${employee.pin ? `<details class="pin-chip"><summary>Ver PIN</summary><strong>${escapeHtml(employee.pin)}</strong></details>` : `<p class="muted pin-chip">PIN sin registrar: asigna uno nuevo.</p>`}</div>
           <button type="button" data-employee-edit="${escapeHtml(employee.id)}">Editar</button>
-        </article>`
-      ).join("") || `<p class="muted">Registra al personal y asígnale un PIN.</p>`;
+        </article>`;
+      }).join("") || `<p class="muted">Aún no hay empleados registrados.</p>`;
 
       const attendanceDate = document.getElementById("attendance-date").value;
       document.getElementById("attendance-list").innerHTML = (data.attendance || []).map((shift) =>
@@ -583,10 +614,19 @@
         const productOptions = activeProducts.map((product) =>
           `<option value="${escapeHtml(product.id)}">${escapeHtml(product.nombre)} · ${escapeHtml(money(product.precio))}</option>`
         ).join("");
-        return `<article>
-          <div class="request-head"><h3>${escapeHtml(account.mesa)}</h3><span class="status ${escapeHtml(account.estado)}">${escapeHtml(account.estado)}</span></div>
-          ${account.comandas.map((ticket) => `<p class="muted">Comanda #${escapeHtml(ticket.numero)}${ticket.mesero ? ` · ${escapeHtml(ticket.mesero)}` : ""}</p>`).join("")}
-          <div class="account-editor">${lines || `<p class="muted">Sin artículos.</p>`}
+        const isOpen = openAccounts.has(account.id);
+        const accountItems = account.comandas.flatMap((ticket) => ticket.items);
+        const accountTotal = accountItems.reduce((sum, item) => sum + item.cantidad * Number(item.precio), 0);
+        const waiters = [...new Set(account.comandas.map((ticket) => ticket.mesero).filter(Boolean))].join(", ");
+        const statusText = account.estado === "por_cobrar" ? "Por cobrar" : "Abierta";
+        return `<article class="management-row" style="display:block">
+          <div class="request-head">
+            <div class="row-main"><strong>${escapeHtml(account.mesa)}</strong>
+              <p class="muted">${accountItems.length} artículos · ${escapeHtml(money(accountTotal))}${waiters ? ` · ${escapeHtml(waiters)}` : ""}</p></div>
+            <span class="status ${escapeHtml(account.estado)}">${statusText}</span>
+            <button type="button" data-account-toggle="${escapeHtml(account.id)}" aria-expanded="${isOpen}">${isOpen ? "Cerrar" : "Modificar"}</button>
+          </div>
+          <div class="account-editor" ${isOpen ? "" : "hidden"}>${lines || `<p class="muted">Sin artículos.</p>`}
             <div class="toolbar" style="margin-top:.65rem">
               <select aria-label="Producto para agregar" data-add-product="${escapeHtml(account.id)}">${productOptions}</select>
               <input aria-label="Cantidad" type="number" min="1" max="99" value="1" data-add-quantity="${escapeHtml(account.id)}" style="width:90px">
@@ -656,7 +696,7 @@
         message.textContent = `Gestión actualizada ${formatDate(new Date().toISOString())}.`;
       } catch (error) {
         console.error("No se pudo cargar la gestión administrativa.", error);
-        message.textContent = "No se pudo cargar la gestión. Confirma que la migración 0013 esté aplicada y vuelve a intentar.";
+        message.textContent = "No se pudo cargar la información. Confirma que las migraciones hasta la 0016 estén aplicadas y vuelve a intentar.";
       }
     }
 
@@ -722,6 +762,9 @@
             <span class="status ${escapeHtml(request.status)}">${escapeHtml(statusLabel)}</span>
           </div>
           <p><strong>Área solicitada:</strong> ${escapeHtml(roleLabel(request.requested_role))}</p>
+          ${request.empleado_nombre ? `<p><strong>Empleado:</strong> ${escapeHtml(request.empleado_nombre)}</p>` : ""}
+          ${request.pin ? `<details class="pin-chip"><summary>Ver PIN elegido</summary><strong>${escapeHtml(request.pin)}</strong></details>` : ""}
+          ${request.status === "approved" && request.empleado_id ? `<p class="muted">${request.en_turno ? `En turno desde ${escapeHtml(formatDate(request.entrada_at))}` : "Fuera de turno"}</p>` : ""}
           <p><strong>Fecha de solicitud:</strong> ${escapeHtml(formatDate(request.requested_at))}</p>
           <p class="muted"><strong>Identificador del dispositivo:</strong> ${escapeHtml(request.user_id)}</p>
           ${controls}
@@ -733,9 +776,10 @@
     async function refreshActive() {
       if (!currentUser) return;
       if (activeTab === "operacion") await loadOperacion();
-      else if (activeTab === "gestion") await loadManagement();
-      else if (activeTab === "accesos") await loadRequests();
-      else await loadAudit();
+      else if (managementTabs.includes(activeTab)) {
+        await loadManagement();
+        if (activeTab === "accesos") await loadRequests();
+      } else await loadAudit();
     }
 
     function subscribeRealtime() {
@@ -746,23 +790,23 @@
       realtimeChannel = supabaseClient.channel("admin-operacion")
         .on("postgres_changes", { event: "*", schema: "public", table: "mesas" }, () => {
           void loadOperacion();
-          if (activeTab === "gestion") void loadManagement();
+          if (managementTabs.includes(activeTab)) void loadManagement();
         })
         .on("postgres_changes", { event: "*", schema: "public", table: "cuentas" }, () => {
           void loadOperacion();
-          if (activeTab === "gestion") void loadManagement();
+          if (managementTabs.includes(activeTab)) void loadManagement();
         })
         .on("postgres_changes", { event: "*", schema: "public", table: "comandas" }, () => {
           void loadOperacion();
-          if (activeTab === "gestion") void loadManagement();
+          if (managementTabs.includes(activeTab)) void loadManagement();
         })
         .on("postgres_changes", { event: "*", schema: "public", table: "catalogo_productos" }, () => {
-          if (activeTab === "gestion") void loadManagement();
+          if (managementTabs.includes(activeTab)) void loadManagement();
         })
         .on("postgres_changes", { event: "*", schema: "public", table: "audit_acciones" }, () => {
           void loadOperacion();
           if (activeTab === "bitacora") void loadAudit();
-          if (activeTab === "gestion") void loadManagement();
+          if (managementTabs.includes(activeTab)) void loadManagement();
         })
         .subscribe();
     }
@@ -827,7 +871,7 @@
       testMode = event.currentTarget.checked;
       document.getElementById("management-test-mode").checked = testMode;
       void loadOperacion();
-      if (activeTab === "gestion") void loadManagement();
+      if (managementTabs.includes(activeTab)) void loadManagement();
     });
     document.getElementById("management-test-mode").addEventListener("change", (event) => {
       testMode = event.currentTarget.checked;
@@ -977,10 +1021,15 @@
       }, "Empleado guardado.");
     });
 
-    document.getElementById("panel-gestion").addEventListener("click", async (event) => {
+    document.getElementById("dashboard").addEventListener("click", async (event) => {
       const button = event.target.closest("button");
       if (!button) return;
-      if (button.dataset.clearForm !== undefined) {
+      if (button.dataset.accountToggle) {
+        const id = button.dataset.accountToggle;
+        if (openAccounts.has(id)) openAccounts.delete(id); else openAccounts.add(id);
+        renderManagement({ products: latestProducts, tables: latestTables, employees: latestEmployees,
+          attendance: latestAttendance, sales: latestSales, accounts: latestAccounts });
+      } else if (button.dataset.clearForm !== undefined) {
         clearManagementForm(button.form);
       } else if (button.dataset.productEdit) {
         const product = latestProducts.find((item) => item.id === button.dataset.productEdit);
@@ -1005,8 +1054,8 @@
         form.elements.id.value = employee.id;
         form.elements.name.value = employee.nombre;
         form.elements.role.value = employee.puesto;
-        form.elements.pin.value = "";
-        form.elements.pin.required = false;
+        form.elements.pin.value = employee.pin ?? "";
+        form.elements.pin.required = !employee.pin;
         form.elements.active.checked = employee.activo;
       } else if (button.dataset.itemAdjust || button.dataset.itemDelete) {
         const accountId = button.dataset.itemAdjust || button.dataset.itemDelete;
