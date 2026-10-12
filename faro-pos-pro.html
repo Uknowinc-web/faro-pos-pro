@@ -286,7 +286,7 @@
     const SUPABASE_URL = "https://mkirhamxvvdhmnrkozwg.supabase.co";
     const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_zszFg_20dthjs3Ai1p8H4w_RSy2FluG";
     const DRAFT_STORAGE_KEY = "faro-pos-pro-drafts-v1";
-    const ORDER_TOKEN_STORAGE_KEY = "faro-pos-order-token-v1";
+    const ORDER_REF_STORAGE_KEY = "faro-pos-order-token-v1";
     const STATION_STORAGE_KEY = "faro-pos-station-v1";
     const DEVICE_LABEL_STORAGE_KEY = "faro-pos-device-label-v1";
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
@@ -390,17 +390,17 @@
       }
     }
     function orderTokenKey(tableId) {
-      return `${ORDER_TOKEN_STORAGE_KEY}-${state.user?.id}-${state.testMode ? "test" : "live"}-${tableId}`;
+      return `${ORDER_REF_STORAGE_KEY}-${state.user?.id}-${state.testMode ? "test" : "live"}-${tableId}`;
     }
     function prepareOrderToken(tableId) {
       try {
         const key = orderTokenKey(tableId);
-        let token = localStorage.getItem(key);
-        if (!token) {
-          token = newId();
-          localStorage.setItem(key, token);
+        let submissionId = localStorage.getItem(key);
+        if (!submissionId) {
+          submissionId = newId();
+          localStorage.setItem(key, submissionId);
         }
-        state.orderToken = token;
+        state.orderToken = submissionId;
         state.orderTokenTable = tableId;
         return true;
       } catch (error) {
@@ -413,9 +413,9 @@
     }
     function rotateOrderToken(tableId) {
       try {
-        const token = newId();
-        localStorage.setItem(orderTokenKey(tableId), token);
-        state.orderToken = token;
+        const submissionId = newId();
+        localStorage.setItem(orderTokenKey(tableId), submissionId);
+        state.orderToken = submissionId;
         state.orderTokenTable = tableId;
         return true;
       } catch (error) {
