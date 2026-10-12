@@ -130,6 +130,42 @@
       article, .card { padding: .9rem; }
     }
     [hidden] { display: none !important; }
+    /* Sistema de diseño moderno (neutros, superficies blancas, rejilla de 8 px) */
+    :root { --ink: #111827; --muted: #6b7280; --line: #e5e7eb; --card: #fff; --bg: #f4f5f7; --accent: #0f5132; --accent-soft: #e7f3ec; --radius: 12px; --shadow: 0 1px 2px #1118270d; color: var(--ink); background: var(--bg); }
+    body { background: var(--bg); -webkit-font-smoothing: antialiased; }
+    header { background: #fff; color: var(--ink); border-bottom: 1px solid var(--line); box-shadow: none; padding-top: max(.75rem, env(safe-area-inset-top)); }
+    header p { color: var(--muted); }
+    .panel, article, .card { border-radius: var(--radius); box-shadow: var(--shadow); }
+    input, select { min-height: 40px; border-radius: 8px; transition: border-color .15s, box-shadow .15s; }
+    input:focus-visible, select:focus-visible, button:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px #0f513226; }
+    button { min-height: 40px; border-radius: 8px; transition: background .15s, transform .05s; }
+    button:hover:not(:disabled) { background: #f3f4f6; }
+    button:active:not(:disabled) { transform: scale(.98); }
+    button.primary { background: var(--accent); border-color: var(--accent); }
+    button.primary:hover:not(:disabled) { background: #0b3d26; }
+    .tabs { gap: .25rem; padding: .25rem; border-radius: 10px; background: #e9ebef; width: max-content; max-width: 100%; }
+    button.tab { border-radius: 8px; background: transparent; color: var(--muted); min-height: 36px; }
+    button.tab[aria-selected="true"] { background: #fff; color: var(--ink); border-color: transparent; box-shadow: var(--shadow); }
+    .stat { border-radius: var(--radius); }
+    .stat strong { letter-spacing: -.02em; }
+    .status { font-weight: 600; }
+    .name-dialog { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 1rem; background: #11182780; backdrop-filter: blur(4px); }
+    .name-dialog[hidden] { display: none; }
+    .name-card { width: min(420px, 100%); padding: 1.5rem; border-radius: 16px; background: #fff; box-shadow: 0 20px 50px #11182733; }
+    @media (min-width: 1024px) {
+      main { width: min(1320px, 100%); }
+      #dashboard:not([hidden]) { display: grid; grid-template-columns: 220px minmax(0, 1fr); column-gap: 2rem; align-items: start; }
+      #dashboard > .dashboard-heading { grid-column: 1 / -1; }
+      #dashboard > .tabs { grid-column: 1; grid-row: 2 / span 20; position: sticky; top: 5rem; flex-direction: column; width: 100%; background: transparent; padding: 0; margin: 0; }
+      #dashboard > .tabs .tab { text-align: left; justify-content: flex-start; padding: .6rem .9rem; }
+      #dashboard > .tabs .tab[aria-selected="true"] { background: var(--accent-soft); color: var(--accent); box-shadow: none; }
+      #dashboard > section:not(.dashboard-heading) { grid-column: 2; }
+    }
+    @media (max-width: 640px) {
+      main { padding: .75rem; }
+      .dashboard-heading { flex-direction: column; align-items: stretch; }
+      .tabs { width: 100%; overflow-x: auto; }
+    }
   </style>
 </head>
 <body>
@@ -150,6 +186,16 @@
         <button class="primary full" type="submit">Iniciar sesión</button>
       </form>
     </section>
+    <div id="admin-name-dialog" class="name-dialog" hidden>
+      <form id="admin-name-form" class="name-card">
+        <p class="eyebrow">Administración</p>
+        <h2>¿Cómo te identificamos?</h2>
+        <p class="muted">Este nombre aparecerá en la bitácora junto a tus acciones, en lugar de tu correo. Debe ser distinto al de otros administradores.</p>
+        <label>Nombre<input name="nombre" maxlength="60" autocomplete="off" required></label>
+        <p id="admin-name-status" class="message" role="status"></p>
+        <button class="primary full" type="submit">Guardar nombre</button>
+      </form>
+    </div>
     <section id="dashboard" hidden>
       <div class="dashboard-heading">
         <div>
@@ -158,6 +204,7 @@
           <p id="admin-label" class="muted"></p>
         </div>
         <div class="actions">
+          <button id="rename-admin" type="button">Mi nombre</button>
           <button id="refresh" type="button">Actualizar</button>
           <button id="sign-out" type="button">Cerrar sesión</button>
         </div>
@@ -290,7 +337,7 @@
 
         <section class="card section-block">
           <h3>Empleados y PIN</h3>
-          <p class="muted">Cada empleado elige su PIN al solicitar acceso. Aquí puedes consultarlo, cambiarlo o dar de alta personal manualmente. El PIN debe ser único entre empleados activos.</p>
+          <p class="muted">Al aprobar una solicitud el empleado queda sin PIN; asígnalo aquí con Editar. Hasta entonces el POS no le pedirá PIN. El PIN es único dentro de cada área.</p>
           <form id="employee-form" class="management-form">
             <input name="id" type="hidden">
             <label>Nombre<input name="name" maxlength="80" required></label>
@@ -314,9 +361,20 @@
         <div class="section-head">
           <div>
             <p class="eyebrow">Seguimiento</p>
-            <h3>Acciones del día</h3>
+            <h3>Registro de acciones</h3>
           </div>
           <div class="toolbar audit-filters">
+            <label>Periodo
+              <select id="audit-period">
+                <option value="dia" selected>Día</option>
+                <option value="mes">Mes</option>
+                <option value="anio">Año</option>
+                <option value="todo">Todo el historial</option>
+              </select>
+            </label>
+            <label id="audit-day-field">Día<input id="audit-day" type="date"></label>
+            <label id="audit-month-field" hidden>Mes<input id="audit-month" type="month"></label>
+            <label id="audit-year-field" hidden>Año<input id="audit-year" type="number" min="2020" max="2100" step="1" placeholder="2025"></label>
             <label>Área
               <select id="audit-role-filter">
                 <option value="">Todas</option>
@@ -336,7 +394,7 @@
               </select>
             </label>
             <label>Responsable
-              <input id="audit-search" type="search" placeholder="Nombre o correo" autocomplete="off">
+              <input id="audit-search" type="search" placeholder="Nombre" autocomplete="off">
             </label>
           </div>
         </div>
@@ -373,6 +431,7 @@
     let refreshTimer = null;
     let realtimeChannel = null;
     let latestAudit = [];
+    let adminName = "";
     let latestProducts = [];
     const OPCIONES_PRODUCTO = {
       "agua-sabor": [["Sabor", ["Jamaica", "Limón", "Pepino limón", "Tamarindo", "Piña", "Mango", "Sandía"]]],
@@ -517,7 +576,7 @@
       }).join("");
     }
 
-    function renderOperacion(data) {
+    function renderOperacion(data, employees) {
       const corte = data.corte || {};
       document.getElementById("ops-date-label").textContent =
         `Corte en vivo · ${formatDay(data.fecha_operativa)}${data.es_prueba ? " (prueba)" : ""}`;
@@ -549,30 +608,24 @@
       renderKitchenList(document.getElementById("kitchen-pending"), data.cocina?.pendiente || []);
       renderKitchenList(document.getElementById("kitchen-prep"), data.cocina?.preparacion || []);
 
-      const devices = (data.dispositivos_activos || []).filter((device) =>
-        device.ultima_accion && device.ultima_accion.accion !== "salida_empleado");
+      const devices = (employees || []).filter((employee) => employee.asistencia_id && employee.entrada_at);
       const deviceRoot = document.getElementById("device-grid");
-      deviceRoot.innerHTML = devices.length ? devices.map((device) => {
-        const last = device.ultima_accion;
-        return `<article class="card">
+      deviceRoot.innerHTML = devices.length ? devices.map((device) =>
+        `<article class="card">
           <div class="request-head">
-            <h3>${escapeHtml(device.device_label)}</h3>
-            <span class="status approved">${escapeHtml(roleLabel(device.role))}</span>
+            <h3>${escapeHtml(device.nombre)}</h3>
+            <span class="status approved">${escapeHtml(roleLabel(device.puesto))}</span>
           </div>
-          <p class="muted">${last
-            ? `${escapeHtml(actionLabel(last.accion))} · ${escapeHtml(formatTime(last.created_at))}${
-                last.monto != null ? ` · ${escapeHtml(money(last.monto))}` : ""
-              }`
-            : "Sin acciones registradas hoy"}</p>
-        </article>`;
-      }).join("") : `<article class="card muted">No hay dispositivos con un turno activo.</article>`;
+          <p class="muted">${escapeHtml(device.aparato || "Aparato sin nombre")} · Entrada ${escapeHtml(formatTime(device.entrada_at))}</p>
+        </article>`
+      ).join("") : `<article class="card muted">No hay empleados con asistencia abierta.</article>`;
     }
 
     function renderAudit(acciones) {
       const roleFilter = document.getElementById("audit-role-filter").value;
       const typeFilter = document.getElementById("audit-type-filter").value;
       const search = document.getElementById("audit-search").value.trim().toLowerCase();
-      const responsible = (item) => (item.detalle || {}).empleado || item.device_label || "Sin identificar";
+      const responsible = (item) => item.responsable || (item.detalle || {}).empleado || item.device_label || "Sin identificar";
       const filtered = acciones.filter((item) =>
         (!roleFilter || item.role === roleFilter) &&
         (!typeFilter || AUDIT_TYPES[typeFilter].includes(item.accion)) &&
@@ -639,7 +692,7 @@
           <div class="row-main"><strong>${escapeHtml(employee.nombre)}</strong>
             <p class="muted">${escapeHtml(roleLabel(employee.puesto))}${employee.aparato ? ` · ${escapeHtml(employee.aparato)}` : ""}</p>
             <p class="muted">${employee.entrada_at ? `<span class="status approved">En turno</span> desde ${escapeHtml(formatDate(employee.entrada_at))}` : `<span class="status">${employee.activo ? "Fuera de turno" : "Inactivo"}</span>${lastEntry ? ` · Última entrada ${escapeHtml(formatDate(lastEntry))}` : ""}`}</p>
-            ${employee.pin ? `<details class="pin-chip"><summary>Ver PIN</summary><strong>${escapeHtml(employee.pin)}</strong></details>` : `<p class="muted pin-chip">PIN sin registrar: asigna uno nuevo.</p>`}</div>
+            ${employee.pin ? `<details class="pin-chip"><summary>Ver PIN</summary><strong>${escapeHtml(employee.pin)}</strong></details>` : `<p class="muted pin-chip"><strong>Sin PIN asignado</strong> · edítalo para asignar uno.</p>`}</div>
           <button type="button" data-employee-edit="${escapeHtml(employee.id)}">Editar</button>
         </article>`;
       }).join("") || `<p class="muted">Aún no hay empleados registrados.</p>`;
@@ -757,33 +810,78 @@
     async function loadOperacion() {
       if (!currentUser) return;
       opsMessage.textContent = "Actualizando operación…";
-      const { data, error } = await supabaseClient.rpc("panel_operacion_vivo", {
-        p_es_prueba: testMode
-      });
+      const [{ data, error }, staff] = await Promise.all([
+        supabaseClient.rpc("panel_operacion_vivo", { p_es_prueba: testMode }),
+        supabaseClient.rpc("admin_listar_empleados")
+      ]);
       if (error) {
         console.error("No se pudo cargar el panel de operación.", error);
         opsMessage.textContent = "No se pudo cargar la operación en vivo. ¿Aplicaste la migración 0012?";
         return;
       }
-      renderOperacion(data || {});
+      renderOperacion(data || {}, staff.data || []);
       opsMessage.textContent = `Operación actualizada ${formatDate(new Date().toISOString())}.`;
+    }
+
+    function auditRange() {
+      const mode = document.getElementById("audit-period").value;
+      const day = document.getElementById("audit-day").value || todayMtyInput();
+      if (mode === "mes") {
+        const month = document.getElementById("audit-month").value || day.slice(0, 7);
+        const [y, m] = month.split("-").map(Number);
+        const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+        return { desde: `${month}-01`, hasta: `${month}-${String(last).padStart(2, "0")}` };
+      }
+      if (mode === "anio") {
+        const year = document.getElementById("audit-year").value || day.slice(0, 4);
+        return { desde: `${year}-01-01`, hasta: `${year}-12-31` };
+      }
+      if (mode === "todo") return { desde: null, hasta: null };
+      return { desde: day, hasta: day };
+    }
+
+    function syncAuditPeriod() {
+      const mode = document.getElementById("audit-period").value;
+      document.getElementById("audit-day-field").hidden = mode !== "dia";
+      document.getElementById("audit-month-field").hidden = mode !== "mes";
+      document.getElementById("audit-year-field").hidden = mode !== "anio";
+    }
+
+    async function loadAdminProfile() {
+      const { data, error } = await supabaseClient.rpc("perfil_admin");
+      if (error) throw error;
+      adminName = data || "";
+      document.getElementById("admin-label").textContent = adminName
+        ? `Identificado en bitácora como ${adminName}` : "Sin nombre de bitácora";
+      document.getElementById("admin-name-dialog").hidden = !!adminName;
+      if (!adminName) document.querySelector("#admin-name-form input").focus();
     }
 
     async function loadAudit() {
       if (!currentUser) return;
       auditMessage.textContent = "Consultando bitácora…";
-      const { data, error } = await supabaseClient.rpc("listar_auditoria_admin", {
-        p_fecha: null,
-        p_limite: 150
+      const range = auditRange();
+      const { data, error } = await supabaseClient.rpc("auditoria_rango", {
+        p_desde: range.desde,
+        p_hasta: range.hasta,
+        p_limite: 1000
       });
       if (error) {
         console.error("No se pudo cargar la bitácora.", error);
-        auditMessage.textContent = "No se pudo consultar la bitácora. ¿Aplicaste la migración 0012?";
+        auditMessage.textContent = "No se pudo consultar la bitácora. ¿Aplicaste la migración 0018?";
         return;
       }
       latestAudit = data?.acciones || [];
+      const first = data?.primera_fecha;
+      const note = first ? ` Registro desde ${formatDay(first)}.` : "";
+      if (first) {
+        document.getElementById("audit-day").min = first;
+        document.getElementById("audit-month").min = first.slice(0, 7);
+        document.getElementById("audit-year").min = first.slice(0, 4);
+      }
       renderAudit(latestAudit);
-      auditMessage.textContent = `Bitácora del ${formatDay(data?.fecha_operativa || new Date())} · ${latestAudit.length} acciones.`;
+      const more = data.total > latestAudit.length ? ` (mostrando las ${latestAudit.length} más recientes de ${data.total}; acota el periodo)` : "";
+      auditMessage.textContent = `${latestAudit.length} acciones en el periodo${more}.${note}`;
     }
 
     async function loadRequests() {
@@ -817,7 +915,7 @@
           </div>
           <p><strong>Área solicitada:</strong> ${escapeHtml(roleLabel(request.requested_role))}</p>
           ${request.empleado_nombre ? `<p><strong>Empleado:</strong> ${escapeHtml(request.empleado_nombre)}</p>` : ""}
-          ${request.pin ? `<details class="pin-chip"><summary>Ver PIN elegido</summary><strong>${escapeHtml(request.pin)}</strong></details>` : ""}
+          
           ${request.status === "approved" && request.empleado_id ? `<p class="muted">${request.en_turno ? `En turno desde ${escapeHtml(formatDate(request.entrada_at))}` : "Fuera de turno"}</p>` : ""}
           <p><strong>Fecha de solicitud:</strong> ${escapeHtml(formatDate(request.requested_at))}</p>
           <p class="muted"><strong>Identificador del dispositivo:</strong> ${escapeHtml(request.user_id)}</p>
@@ -898,12 +996,13 @@
       document.getElementById("codes-panel").hidden = true;
       document.getElementById("toggle-codes").setAttribute("aria-expanded", "false");
       document.getElementById("toggle-codes").textContent = "Consultar códigos de puesto";
-      document.getElementById("admin-label").textContent = `Sesión iniciada: ${user.email}`;
+      await loadAdminProfile();
       document.getElementById("test-mode").checked = testMode;
       document.getElementById("management-test-mode").checked = testMode;
       const today = todayMtyInput();
       document.getElementById("attendance-date").value = today;
       document.getElementById("sales-date").value = today;
+      document.getElementById("audit-day").value = today;
       setActiveTab("operacion");
       await loadOperacion();
       await loadManagement();
@@ -934,6 +1033,23 @@
       void loadManagement();
     });
 
+    document.getElementById("admin-name-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const input = event.currentTarget.elements.nombre;
+      const status = document.getElementById("admin-name-status");
+      status.textContent = "Guardando…";
+      const { error } = await supabaseClient.rpc("guardar_perfil_admin", { p_nombre: input.value });
+      if (error) { status.textContent = error.message; return; }
+      status.textContent = "";
+      await loadAdminProfile();
+    });
+    document.getElementById("rename-admin").addEventListener("click", () => {
+      document.querySelector("#admin-name-form input").value = adminName;
+      document.getElementById("admin-name-dialog").hidden = false;
+    });
+    document.getElementById("audit-period").addEventListener("change", () => { syncAuditPeriod(); void loadAudit(); });
+    ["audit-day", "audit-month", "audit-year"].forEach((id) =>
+      document.getElementById(id).addEventListener("change", () => void loadAudit()));
     document.getElementById("audit-type-filter").addEventListener("change", () => renderAudit(latestAudit));
     document.getElementById("audit-search").addEventListener("input", () => renderAudit(latestAudit));
     document.getElementById("audit-role-filter").addEventListener("change", () => {

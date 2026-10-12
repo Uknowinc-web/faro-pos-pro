@@ -231,6 +231,22 @@
     }
     .topbar, .container { padding-left: max(.75rem, env(safe-area-inset-left)); padding-right: max(.75rem, env(safe-area-inset-right)); }
     .modal { max-height: 92dvh; overflow-y: auto; }
+    /* Sistema de diseño moderno (neutros, superficies blancas, rejilla de 8 px) */
+    :root { --ink: #111827; --muted: #6b7280; --line: #e5e7eb; --card: #fff; --green: #0f5132; --green-light: #e7f3ec; --shadow: 0 1px 2px #1118270d; color: var(--ink); background: #f4f5f7; }
+    body { background: #f4f5f7; -webkit-font-smoothing: antialiased; }
+    .topbar { background: #fff !important; color: var(--ink) !important; border-bottom: 1px solid var(--line); box-shadow: none !important; }
+    .brand p, .clock { color: var(--muted); }
+    .panel, .table-card, .ticket-card, .stat, .summary-item { border-radius: 12px; box-shadow: var(--shadow); border-color: var(--line); }
+    .button, .nav button, .small-button, .field input, .field select, .field textarea { border-radius: 8px; transition: background .15s, box-shadow .15s, transform .05s; }
+    .button:active, .nav button:active { transform: scale(.98); }
+    .field input:focus-visible, .field select:focus-visible, .field textarea:focus-visible, button:focus-visible { outline: none; box-shadow: 0 0 0 3px #0f513226; }
+    .nav { padding: .25rem; border-radius: 10px; background: #e9ebef; }
+    .nav button { border-color: transparent; background: transparent; color: var(--muted); }
+    .nav button[aria-current="page"] { background: #fff; color: var(--ink); border-color: transparent; box-shadow: var(--shadow); }
+    .button.primary { background: var(--green); border-color: var(--green); color: #fff; }
+    .badge { font-weight: 600; }
+    .modal { border-radius: 16px; }
+    .modal-backdrop { backdrop-filter: blur(4px); }
     @media print {
       .topbar, .notice, .nav, .no-print { display: none !important; }
       body, .container { background: #fff; padding: 0; }
@@ -556,11 +572,7 @@
               placeholder="Ej. Tablet de cocina" autocomplete="off" required>
           </label>
           <label class="field">Tu nombre
-            <input name="employee-name" maxlength="80" placeholder="Nombre y apellido" autocomplete="off" required>
-          </label>
-          <label class="field">Elige tu PIN (4 a 8 dígitos)
-            <input name="employee-pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}"
-              minlength="4" maxlength="8" autocomplete="off" required>
+            <input name="employee-name" maxlength="80" placeholder="Solo tu nombre" autocomplete="off" required>
           </label>
           <label class="field">Código del puesto
             <input class="station-code" name="station-code" type="password" inputmode="text"
@@ -583,6 +595,16 @@
       </section>`;
     }
     function renderEmployeeLogin() {
+      if (state.hasPin === false) {
+        return `<section class="panel access-card approval-card">
+        <div class="approval-icon" aria-hidden="true">…</div>
+        <p class="eyebrow">Acceso autorizado</p>
+        <h2>Administración aún no te asigna un PIN</h2>
+        <p class="muted">Hola${state.pinOwner ? ", <strong>" + escapeHtml(state.pinOwner) + "</strong>" : ""}. Cuando administración te asigne un PIN, podrás registrar tu entrada.</p>
+        <p class="form-status" role="status">${escapeHtml(state.authMessage)}</p>
+        <button class="button primary full" type="button" data-action="check-pin">Actualizar</button>
+      </section>`;
+      }
       return `<section class="panel access-card">
         <p class="eyebrow">Inicio de jornada</p>
         <h2>Identifícate con tu PIN</h2>
@@ -858,8 +880,7 @@
           const { data: requestStatus, error: requestError } = await supabaseClient.rpc("solicitar_acceso_puesto", {
             p_role: requestedRole,
             p_device_label: state.deviceLabel,
-            p_empleado_nombre: state.pendingEmployee?.name ?? null,
-            p_pin: state.pendingEmployee?.pin ?? null
+            p_empleado_nombre: state.pendingEmployee?.name ?? null
           });
           state.pendingEmployee = null;
           if (requestError) throw requestError;
@@ -917,6 +938,7 @@
           render();
           return;
         }
+        if (!state.employee) await loadPinStatus().catch(() => { state.hasPin = true; });
         if (!await refreshRemoteData()) {
           state.stationRole = null;
           state.data = { tables: [], checks: [], nextTicket: 1, drafts: {}, owners: [], suggestions: [] };
@@ -931,6 +953,11 @@
         state.authMessage = error.message || "No se pudo validar la cuenta y el puesto.";
       }
       render();
+    }
+    async function loadPinStatus() {
+      const { data } = await supabaseClient.rpc("empleado_aparato");
+      state.hasPin = data ? data.tiene_pin : true;
+      state.pinOwner = data?.nombre || "";
     }
     async function startEmployeeShift(form) {
       const pin = form.elements["employee-pin"].value.trim();
@@ -1725,13 +1752,12 @@
           return;
         }
         const employeeName = form.elements["employee-name"].value.trim();
-        const employeePin = form.elements["employee-pin"].value.trim();
-        if (!employeeName || employeeName.length > 80 || !/^[0-9]{4,8}$/.test(employeePin)) {
-          state.authMessage = "Escribe tu nombre y elige un PIN de 4 a 8 dígitos.";
+        if (!employeeName || employeeName.length > 80) {
+          state.authMessage = "Escribe tu nombre (máximo 80 caracteres).";
           render();
           return;
         }
-        state.pendingEmployee = { name: employeeName, pin: employeePin };
+        state.pendingEmployee = { name: employeeName };
         if (!state.user) {
           try {
             const { data, error } = await supabaseClient.auth.signInAnonymously();
@@ -1806,6 +1832,8 @@
         }
       } else if (target.dataset.action === "clock-out") {
         await endEmployeeShift();
+      } else if (target.dataset.action === "check-pin") {
+        loadPinStatus().then(render).catch(() => render());
       } else if (target.dataset.action === "check-approval") {
         window.clearTimeout(approvalPollTimer);
         if (state.user && state.pendingStationRole) {
