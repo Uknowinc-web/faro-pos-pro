@@ -250,7 +250,7 @@ begin
       categoria = excluded.categoria,
       precio = excluded.precio,
       activo = excluded.activo,
-      actualizado_at = now();
+      updated_at = now();
   perform public.registrar_accion(
     'editar_producto', null, null, null, p_precio,
     jsonb_build_object('producto_id', p_id, 'nombre', v_nombre, 'activo', p_activo)
@@ -337,6 +337,10 @@ begin
   end if;
   if p_pin is not null and p_pin <> '' and p_pin !~ '^[0-9]{4,8}$' then
     raise exception 'El PIN debe tener entre 4 y 8 dígitos';
+  end if;
+  if p_id is not null and coalesce(p_activo, false) and coalesce(p_pin, '') = ''
+     and exists (select 1 from public.empleados e where e.id = p_id and not e.activo) then
+    raise exception 'Asigna un PIN nuevo para reactivar al empleado';
   end if;
   if coalesce(p_pin, '') <> '' and exists (
     select 1 from public.empleados e
@@ -542,7 +546,7 @@ begin
     raise exception 'Solo administración puede consultar ventas por mesero';
   end if;
   return query
-  select e.id, e.nombre, count(distinct c.id),
+  select e.id, e.nombre, count(distinct case when m.id is not null then c.id end),
          coalesce(sum(i.cantidad * i.precio_unitario), 0)::numeric
   from public.empleados e
   left join public.comandas co on co.mesero_id = e.id
@@ -637,13 +641,9 @@ begin
     v_precio := public.validar_item_comanda(
       v_producto.id, v_producto.nombre, v_producto.precio, coalesce(p_modificadores, '[]'::jsonb)
     );
-    select id into v_comanda from public.comandas
-    where cuenta_id = p_cuenta order by created_at desc limit 1;
-    if v_comanda is null then
-      insert into public.comandas(cuenta_id, mesa_id, client_token, mesero)
-      values (p_cuenta, v_mesa, gen_random_uuid()::text, 'Administración')
-      returning id into v_comanda;
-    end if;
+    insert into public.comandas(cuenta_id, mesa_id, client_token, mesero)
+    values (p_cuenta, v_mesa, gen_random_uuid()::text, 'Administración')
+    returning id into v_comanda;
     insert into public.comanda_items(
       comanda_id, producto_id, nombre, cantidad, precio_unitario, modificadores
     ) values (
