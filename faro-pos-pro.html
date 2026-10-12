@@ -301,7 +301,8 @@
       ],
       "toni-col": [{ label: "Bebida", choices: ["ToniCol", "Titan"] }]
     };
-    const PRODUCTOS_SIN_NOTAS = ["charros-especiales", "charros-sencillos"];
+    const PRODUCTOS_SIN_NOTAS = ["charros-especiales", "charros-sencillos", "papa-sencilla", "papa-especial", "gaonera"];
+    const EXTRAS_OPCIONALES = { gaonera: [{ name: "Costra de queso", extra: 15 }] };
     let PRODUCTOS = [
       { id: "taco-maiz", nombre: "Taco maíz", categoria: "Tacos", precio: 40, mezcla: true, tripa: 5, queso: 5 },
       { id: "taco-harina", nombre: "Taco harina", categoria: "Tacos", precio: 42, mezcla: true, tripa: 5, queso: 5 },
@@ -312,12 +313,12 @@
       { id: "costra", nombre: "Costra de queso", categoria: "Especiales", precio: 100 },
       { id: "gaonera", nombre: "Gaonera", categoria: "Especiales", precio: 75 },
       { id: "chilaca", nombre: "Taco de Chile chilaca", categoria: "Especiales", precio: 80 },
-      { id: "papa-especial", nombre: "Papa asada especial", categoria: "Papas y Frijoles", precio: 180, mezcla: true, tripa: 10 },
+      { id: "papa-especial", nombre: "Papa asada especial", categoria: "Papas y Frijoles", precio: 180 },
       { id: "papa-sencilla", nombre: "Papa sencilla", categoria: "Papas y Frijoles", precio: 130 },
       { id: "charros-especiales", nombre: "Charros especiales", categoria: "Papas y Frijoles", precio: 75 },
       { id: "charros-sencillos", nombre: "Charros sencillos", categoria: "Papas y Frijoles", precio: 55 },
-      { id: "torta", nombre: "Torta", categoria: "Tortas", precio: 130, mezcla: true, tripa: 10 },
-      { id: "hamburguesa", nombre: "Hamburguesa", categoria: "Tortas", precio: 125 },
+      { id: "torta", nombre: "Torta", categoria: "Especiales", precio: 130, mezcla: true, tripa: 10 },
+      { id: "hamburguesa", nombre: "Hamburguesa", categoria: "Especiales", precio: 125 },
       { id: "quesagloria", nombre: "Quesagloria", categoria: "Postres", precio: 100 },
       { id: "agua-natural", nombre: "Agua natural", categoria: "Bebidas", precio: 15 },
       { id: "agua-sabor", nombre: "Agua de sabor 1L", categoria: "Bebidas", precio: 45 },
@@ -480,7 +481,8 @@
       return !["Postres", "Bebidas"].includes(product.categoria) && !PRODUCTOS_SIN_NOTAS.includes(product.id);
     }
     function productNeedsDialog(product) {
-      return Boolean(product.mezcla) || productAllowsNotes(product) || productOptionGroups(product).length > 0;
+      return Boolean(product.mezcla) || productAllowsNotes(product) || productOptionGroups(product).length > 0
+        || Boolean(EXTRAS_OPCIONALES[product.id]);
     }
     function optionModifiers(product, selections) {
       return selections.map((name) => ({ name, extra: name === "1/2 L" ? -product.precio / 2 : 0 }));
@@ -1238,7 +1240,7 @@
         <button class="button" data-action="back-tables">← Volver a mesas</button></header>
         <div class="layout"><section class="panel">
           <p class="eyebrow">1 · Elige una categoría y un producto</p>
-          <div class="categories">${CATEGORIAS.map((category) =>
+          <div class="categories">${CATEGORIAS.filter((category) => category === state.category || PRODUCTOS.some((product) => product.categoria === category)).map((category) =>
             `<button class="category-button ${state.category === category ? "active" : ""}" aria-pressed="${state.category === category}" data-category="${escapeHtml(category)}">${escapeHtml(category)}</button>`
           ).join("")}</div>
           <div class="product-grid">${products.map((product) =>
@@ -1483,6 +1485,9 @@
           `<label class="choice"><input type="radio" name="option-${groupIndex}" value="${escapeHtml(choice)}">${escapeHtml(choice)}${choice === "1/2 L" ? ` (${money(product.precio / 2)})` : ""}</label>`
         ).join("")}</div></fieldset>`
       ).join("");
+      const optionalExtras = (EXTRAS_OPCIONALES[product.id] ?? []).map((extra) =>
+        `<label class="choice"><input type="checkbox" name="optional-extra" value="${escapeHtml(extra.name)}">${escapeHtml(extra.name)} (+${money(extra.extra)})</label>`
+      ).join("");
       const notesFieldset = productAllowsNotes(product) ? `<fieldset class="field"><legend>Notas de preparación</legend>
             <div class="choice-grid">${quickNotes}</div>
             <label class="field">Otra indicación<textarea name="free-note" maxlength="180" placeholder="Escribe una nota para cocina"></textarea></label>
@@ -1498,6 +1503,7 @@
             ${product.queso ? `<label class="choice"><input type="checkbox" name="with-cheese">Con queso (+${money(product.queso)})</label>` : ""}
           </fieldset>` : ""}
           ${optionGroups}
+          ${optionalExtras ? `<fieldset class="field"><legend>Extras</legend><div class="choice-grid">${optionalExtras}</div></fieldset>` : ""}
           ${notesFieldset}
           <label class="field">Cantidad<input name="quantity" type="number" min="1" max="99" value="1" required></label>
           <div class="modal-footer"><button class="button" type="button" data-close-modal>Cancelar</button>
@@ -1507,6 +1513,25 @@
         if (event.target.matches("[data-dismiss-modal]")) closeModal();
       });
       document.querySelector("[name='main-meat']")?.focus();
+      const syncChoices = () => {
+        const modal = document.querySelector(".modal");
+        const principal = modal.querySelector("[name='main-meat']:checked")?.value;
+        modal.querySelectorAll("[name='extra-meat']").forEach((input) => {
+          const same = input.value === principal;
+          if (same) input.checked = false;
+          input.disabled = same;
+        });
+        const notes = [...modal.querySelectorAll("[name='quick-note']")];
+        const checked = (value) => notes.some((input) => input.value === value && input.checked);
+        const allDone = checked("Con todo");
+        notes.forEach((input) => {
+          if (allDone && input.value !== "Con todo" && input.value !== "Bien cocida") input.checked = false;
+          input.disabled = (allDone && input.value !== "Con todo" && input.value !== "Bien cocida")
+            || (input.value === "Con todo" && checked("Sin lechuga"));
+        });
+      };
+      document.querySelector(".modal").addEventListener("change", syncChoices);
+      syncChoices();
     }
     function openCreateTableDialog() {
       document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop" data-dismiss-modal>
@@ -1584,6 +1609,8 @@
         }
         modifiers = optionModifiers(product, selections);
       }
+      const extraNames = [...modal.querySelectorAll("[name='optional-extra']:checked")].map((input) => input.value);
+      modifiers.push(...(EXTRAS_OPCIONALES[product.id] ?? []).filter((extra) => extraNames.includes(extra.name)));
       const notes = productAllowsNotes(product) ? [
         ...[...modal.querySelectorAll("[name='quick-note']:checked")].map((input) => input.value),
         modal.querySelector("[name='free-note']")?.value.trim() ?? ""

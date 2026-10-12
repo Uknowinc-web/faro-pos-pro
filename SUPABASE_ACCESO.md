@@ -45,6 +45,7 @@ En el SQL Editor del proyecto Supabase, ejecutar una vez y en orden:
 19. `drizzle/migrations/0018_pin_por_admin_y_bitacora.sql`.
 20. `drizzle/migrations/0019_descuentos_promociones_y_ventas.sql`.
 21. `drizzle/migrations/0020_eliminar_dispositivo.sql` (eliminar dispositivos desde Accesos).
+22. `drizzle/migrations/0021_menu_especiales_y_gaonera.sql` (torta y hamburguesa en Especiales, papa especial sin personalizar, costra de queso en Gaonera).
 
 La migración 0011 ya se aplicó en el proyecto Supabase de producción. Se
 generaron tres códigos aleatorios y se verificó que los RPC existan y que ni
