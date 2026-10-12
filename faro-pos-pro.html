@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#17332b">
   <title>Tacos El Faro — Servicio y Cocina</title>
   <style>
@@ -219,6 +219,34 @@
       .section-heading { align-items: start; }
       .toolbar { gap: .4rem; }
     }
+    @media (min-width: 761px) and (max-width: 1100px) {
+      .layout { grid-template-columns: minmax(0, 1fr) minmax(280px, 330px); gap: .75rem; }
+      .container { padding: 1rem; }
+      .table-grid, .product-grid, .ticket-grid { grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); }
+    }
+    @media (hover: none) {
+      html { -webkit-text-size-adjust: 100%; }
+      button, .button, .small-button { touch-action: manipulation; min-height: 44px; }
+      .small-button { min-width: 44px; }
+    }
+    .topbar, .container { padding-left: max(.75rem, env(safe-area-inset-left)); padding-right: max(.75rem, env(safe-area-inset-right)); }
+    .modal { max-height: 92dvh; overflow-y: auto; }
+    /* Sistema de diseño moderno (neutros, superficies blancas, rejilla de 8 px) */
+    :root { --ink: #111827; --muted: #6b7280; --line: #e5e7eb; --card: #fff; --green: #0f5132; --green-light: #e7f3ec; --shadow: 0 1px 2px #1118270d; color: var(--ink); background: #f4f5f7; }
+    body { background: #f4f5f7; -webkit-font-smoothing: antialiased; }
+    .topbar { background: #fff !important; color: var(--ink) !important; border-bottom: 1px solid var(--line); box-shadow: none !important; }
+    .brand p, .clock { color: var(--muted); }
+    .panel, .table-card, .ticket-card, .stat, .summary-item { border-radius: 12px; box-shadow: var(--shadow); border-color: var(--line); }
+    .button, .nav button, .small-button, .field input, .field select, .field textarea { border-radius: 8px; transition: background .15s, box-shadow .15s, transform .05s; }
+    .button:active, .nav button:active { transform: scale(.98); }
+    .field input:focus-visible, .field select:focus-visible, .field textarea:focus-visible, button:focus-visible { outline: none; box-shadow: 0 0 0 3px #0f513226; }
+    .nav { padding: .25rem; border-radius: 10px; background: #e9ebef; }
+    .nav button { border-color: transparent; background: transparent; color: var(--muted); }
+    .nav button[aria-current="page"] { background: #fff; color: var(--ink); border-color: transparent; box-shadow: var(--shadow); }
+    .button.primary { background: var(--green); border-color: var(--green); color: #fff; }
+    .badge { font-weight: 600; }
+    .modal { border-radius: 16px; }
+    .modal-backdrop { backdrop-filter: blur(4px); }
     @media print {
       .topbar, .notice, .nav, .no-print { display: none !important; }
       body, .container { background: #fff; padding: 0; }
@@ -258,13 +286,22 @@
     const SUPABASE_URL = "https://mkirhamxvvdhmnrkozwg.supabase.co";
     const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_zszFg_20dthjs3Ai1p8H4w_RSy2FluG";
     const DRAFT_STORAGE_KEY = "faro-pos-pro-drafts-v1";
-    const ORDER_TOKEN_STORAGE_KEY = "faro-pos-order-token-v1";
+    const ORDER_REF_STORAGE_KEY = "faro-pos-order-token-v1";
     const STATION_STORAGE_KEY = "faro-pos-station-v1";
-    const DEVICE_LABEL_STORAGE_KEY = "faro-pos-device-label-v1";
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
     const CARNES = ["Asada", "Pastor", "Tripa"];
-    const CATEGORIAS = ["Tacos", "Quesadillas", "Especiales", "Papas y Frijoles", "Tortas", "Postres y Bebidas"];
+    const CATEGORIAS = ["Tacos", "Quesadillas", "Especiales", "Papas y Frijoles", "Tortas", "Postres", "Bebidas", "Promociones"];
     const NOTAS = ["Con todo", "Natural", "Sin salsa de tomate", "Sin lechuga", "Sin frijoles", "Bien cocida"];
+    const OPCIONES_PRODUCTO = {
+      "agua-sabor": [{ label: "Sabor", choices: ["Jamaica", "Limón", "Pepino limón", "Tamarindo", "Piña", "Mango", "Sandía"] }],
+      "horchata": [
+        { label: "Bebida", choices: ["Horchata", "Cebada"] },
+        { label: "Tamaño", choices: ["1 L", "1/2 L"] }
+      ],
+      "toni-col": [{ label: "Bebida", choices: ["ToniCol", "Titan"] }]
+    };
+    const PRODUCTOS_SIN_NOTAS = ["charros-especiales", "charros-sencillos", "papa-sencilla", "papa-especial", "gaonera"];
+    const EXTRAS_OPCIONALES = { gaonera: [{ name: "Costra de queso", extra: 15 }] };
     let PRODUCTOS = [
       { id: "taco-maiz", nombre: "Taco maíz", categoria: "Tacos", precio: 40, mezcla: true, tripa: 5, queso: 5 },
       { id: "taco-harina", nombre: "Taco harina", categoria: "Tacos", precio: 42, mezcla: true, tripa: 5, queso: 5 },
@@ -275,18 +312,18 @@
       { id: "costra", nombre: "Costra de queso", categoria: "Especiales", precio: 100 },
       { id: "gaonera", nombre: "Gaonera", categoria: "Especiales", precio: 75 },
       { id: "chilaca", nombre: "Taco de Chile chilaca", categoria: "Especiales", precio: 80 },
-      { id: "papa-especial", nombre: "Papa asada especial", categoria: "Papas y Frijoles", precio: 180, mezcla: true, tripa: 10 },
+      { id: "papa-especial", nombre: "Papa asada especial", categoria: "Papas y Frijoles", precio: 180 },
       { id: "papa-sencilla", nombre: "Papa sencilla", categoria: "Papas y Frijoles", precio: 130 },
       { id: "charros-especiales", nombre: "Charros especiales", categoria: "Papas y Frijoles", precio: 75 },
       { id: "charros-sencillos", nombre: "Charros sencillos", categoria: "Papas y Frijoles", precio: 55 },
-      { id: "torta", nombre: "Torta", categoria: "Tortas", precio: 130, mezcla: true, tripa: 10 },
-      { id: "hamburguesa", nombre: "Hamburguesa", categoria: "Tortas", precio: 125 },
-      { id: "quesagloria", nombre: "Quesagloria", categoria: "Postres y Bebidas", precio: 100 },
-      { id: "agua-natural", nombre: "Agua natural", categoria: "Postres y Bebidas", precio: 15 },
-      { id: "agua-sabor", nombre: "Agua de sabor 1L", categoria: "Postres y Bebidas", precio: 45 },
-      { id: "horchata", nombre: "Horchata y cebada 1L", categoria: "Postres y Bebidas", precio: 50 },
-      { id: "topo-chico", nombre: "Topo Chico", categoria: "Postres y Bebidas", precio: 35 },
-      { id: "toni-col", nombre: "ToniCol", categoria: "Postres y Bebidas", precio: 55 }
+      { id: "torta", nombre: "Torta", categoria: "Especiales", precio: 130, mezcla: true, tripa: 10 },
+      { id: "hamburguesa", nombre: "Hamburguesa", categoria: "Especiales", precio: 125 },
+      { id: "quesagloria", nombre: "Quesagloria", categoria: "Postres", precio: 100 },
+      { id: "agua-natural", nombre: "Agua natural", categoria: "Bebidas", precio: 15 },
+      { id: "agua-sabor", nombre: "Agua de sabor 1L", categoria: "Bebidas", precio: 45 },
+      { id: "horchata", nombre: "Horchata y cebada", categoria: "Bebidas", precio: 50 },
+      { id: "topo-chico", nombre: "Topo Chico", categoria: "Bebidas", precio: 35 },
+      { id: "toni-col", nombre: "ToniCol y Titan", categoria: "Bebidas", precio: 55 }
     ];
     const MESAS = [...Array.from({ length: 12 }, (_, i) => `Mesa ${i + 1}`), "Para Llevar"];
 
@@ -316,10 +353,14 @@
       orderToken: null,
       orderTokenTable: null,
       kitchenFilter: "todas",
+      kitchenTab: "activas",
+      kitchenHistory: [],
+      pendingEmployee: null,
       cashierTable: null,
       cashierSearch: "",
       cashierFilter: "todas",
       closeDate: todayMty(),
+      cutOpen: false,
       data: { tables: [], checks: [], nextTicket: 1, drafts: {}, owners: [], suggestions: [] }
     };
 
@@ -348,17 +389,17 @@
       }
     }
     function orderTokenKey(tableId) {
-      return `${ORDER_TOKEN_STORAGE_KEY}-${state.user?.id}-${state.testMode ? "test" : "live"}-${tableId}`;
+      return `${ORDER_REF_STORAGE_KEY}-${state.user?.id}-${state.testMode ? "test" : "live"}-${tableId}`;
     }
     function prepareOrderToken(tableId) {
       try {
         const key = orderTokenKey(tableId);
-        let token = localStorage.getItem(key);
-        if (!token) {
-          token = newId();
-          localStorage.setItem(key, token);
+        let submissionId = localStorage.getItem(key);
+        if (!submissionId) {
+          submissionId = newId();
+          localStorage.setItem(key, submissionId);
         }
-        state.orderToken = token;
+        state.orderToken = submissionId;
         state.orderTokenTable = tableId;
         return true;
       } catch (error) {
@@ -371,9 +412,9 @@
     }
     function rotateOrderToken(tableId) {
       try {
-        const token = newId();
-        localStorage.setItem(orderTokenKey(tableId), token);
-        state.orderToken = token;
+        const submissionId = newId();
+        localStorage.setItem(orderTokenKey(tableId), submissionId);
+        state.orderToken = submissionId;
         state.orderTokenTable = tableId;
         return true;
       } catch (error) {
@@ -423,6 +464,7 @@
         nombre: product.nombre,
         categoria: product.categoria,
         precio: Number(product.precio),
+        descripcion: product.descripcion ?? "",
         mezcla: product.permite_mezcla,
         tripa: Number(product.extra_tripa_principal),
         queso: product.permite_queso ? Number(product.extra_queso) : 0
@@ -430,6 +472,19 @@
     }
     function productPrice(product, modifiers) {
       return product.precio + modifiers.reduce((sum, modifier) => sum + modifier.extra, 0);
+    }
+    function productOptionGroups(product) {
+      return OPCIONES_PRODUCTO[product.id] ?? [];
+    }
+    function productAllowsNotes(product) {
+      return !["Postres", "Bebidas"].includes(product.categoria) && !PRODUCTOS_SIN_NOTAS.includes(product.id);
+    }
+    function productNeedsDialog(product) {
+      return Boolean(product.mezcla) || productAllowsNotes(product) || productOptionGroups(product).length > 0
+        || Boolean(EXTRAS_OPCIONALES[product.id]);
+    }
+    function optionModifiers(product, selections) {
+      return selections.map((name) => ({ name, extra: name === "1/2 L" ? -product.precio / 2 : 0 }));
     }
     function mixModifiers(product, principal, extras, cheese) {
       if (!product.mezcla) return [];
@@ -442,6 +497,23 @@
     }
     function ticketTotal(ticket) {
       return ticket.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+    }
+    function discountAmount(base, type, value) {
+      if (!type || !value) return 0;
+      return type === "porcentaje"
+        ? Math.round(Math.max(base, 0) * Math.min(value, 100)) / 100
+        : Math.min(value, Math.max(base, 0));
+    }
+    function itemNet(item) {
+      const line = item.quantity * item.unitPrice;
+      return Math.max(0, line - discountAmount(line, item.discountType, item.discountValue));
+    }
+    function checkNet(check) {
+      return check.tickets.flatMap((ticket) => ticket.items).reduce((sum, item) => sum + itemNet(item), 0);
+    }
+    function checkTotal(check) {
+      const net = checkNet(check);
+      return net - discountAmount(net, check.discountType, check.discountValue);
     }
     function elapsedMinutes(iso) {
       return Math.max(0, Math.floor((Date.now() - Date.parse(iso)) / 60_000));
@@ -513,11 +585,11 @@
       return `<section class="panel access-card">
         <p class="eyebrow">Configuración inicial</p>
         <h2>Vincular dispositivo</h2>
-        <p class="muted">${boundMessage} El acceso se activa después de la autorización.</p>
+        <p class="muted">${boundMessage}</p>
         <form id="station-form">
-          <label class="field">Nombre del dispositivo
-            <input name="device-label" maxlength="80" value="${escapeHtml(state.deviceLabel)}"
-              placeholder="Ej. Tablet de cocina" autocomplete="off" required>
+          <label class="field">Tu nombre
+            <input name="employee-name" maxlength="80" value="${escapeHtml(state.deviceLabel)}"
+              placeholder="Solo tu nombre" autocomplete="given-name" required>
           </label>
           <label class="field">Código del puesto
             <input class="station-code" name="station-code" type="password" inputmode="text"
@@ -535,15 +607,24 @@
         <p class="eyebrow">Solicitud enviada</p>
         <h2>Esperando autorización</h2>
         <p class="muted">Solicitud de <strong>${escapeHtml(state.deviceLabel)}</strong> para el área de <strong>${escapeHtml(stationRoleLabel(state.pendingStationRole))}</strong>.</p>
-        <p class="form-status" role="status">${escapeHtml(state.authMessage || "Administración debe autorizar este dispositivo. Esta pantalla se actualizará automáticamente.")}</p>
+        <p class="form-status" role="status">${escapeHtml(state.authMessage || "Esperando autorización de administración.")}</p>
         <button class="button full" type="button" data-action="check-approval" ${state.authReady ? "" : "disabled"}>Actualizar estado</button>
       </section>`;
     }
     function renderEmployeeLogin() {
+      if (state.hasPin === false) {
+        return `<section class="panel access-card approval-card">
+        <div class="approval-icon" aria-hidden="true">…</div>
+        <p class="eyebrow">Acceso autorizado</p>
+        <h2>Administración aún no te asigna un PIN</h2>
+        <p class="muted">${state.pinOwner ? `<strong>${escapeHtml(state.pinOwner)}</strong>, pide` : "Pide"} tu PIN a administración.</p>
+        <p class="form-status" role="status">${escapeHtml(state.authMessage)}</p>
+        <button class="button primary full" type="button" data-action="check-pin">Actualizar</button>
+      </section>`;
+      }
       return `<section class="panel access-card">
         <p class="eyebrow">Inicio de jornada</p>
-        <h2>Identifícate con tu PIN</h2>
-        <p class="muted">Usa tu PIN personal para registrar tu entrada y asociar tus acciones a tu nombre.</p>
+        <h2>Ingresa tu PIN</h2>
         <form id="employee-pin-form">
           <label class="field">PIN del empleado
             <input name="employee-pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}"
@@ -599,7 +680,7 @@
         const [tablesResult, accountsResult, ownersResult, suggestionsResult] = await Promise.all([
           tablesQuery,
           state.role !== "caja" ? Promise.resolve({ data: null, error: null }) :
-            supabaseClient.from("cuentas").select("id,mesa_id,estado,metodo_pago,total,motivo_anulacion,fecha_operativa,mesas!inner(nombre,es_prueba),comandas(id,numero,estado,created_at,comanda_items(id,producto_id,nombre,cantidad,precio_unitario,modificadores,notas))")
+            supabaseClient.from("cuentas").select("id,mesa_id,estado,metodo_pago,total,descuento_tipo,descuento_valor,descuento_total,motivo_anulacion,fecha_operativa,mesas!inner(nombre,es_prueba),comandas(id,numero,estado,created_at,comanda_items(id,producto_id,nombre,cantidad,precio_unitario,descuento_tipo,descuento_valor,modificadores,notas))")
               .eq("mesas.es_prueba", state.testMode).order("abierta_at", { ascending: false }),
           state.role !== "mesero" ? Promise.resolve({ data: [], error: null }) :
             supabaseClient.rpc("listar_responsables_mesa", { p_es_prueba: state.testMode }),
@@ -621,6 +702,9 @@
           status: account.estado,
           paymentMethod: account.metodo_pago,
           total: account.total == null ? 0 : Number(account.total),
+          discountType: account.descuento_tipo,
+          discountValue: Number(account.descuento_valor ?? 0),
+          discountTotal: Number(account.descuento_total ?? 0),
           operatingDate: account.fecha_operativa,
           voidReason: account.motivo_anulacion,
           tickets: (account.comandas ?? []).map((ticket) => ({
@@ -634,6 +718,8 @@
               name: item.nombre,
               quantity: item.cantidad,
               unitPrice: Number(item.precio_unitario),
+              discountType: item.descuento_tipo,
+              discountValue: Number(item.descuento_valor ?? 0),
               modifiers: Array.isArray(item.modificadores)
                 ? item.modificadores.map((modifier) => typeof modifier === "string" ? { name: modifier, extra: 0 } : modifier)
                 : [],
@@ -705,6 +791,28 @@
                 status: ticket.estado
               }))
             }]
+          }));
+          const { data: done, error: historyError } = await supabaseClient.from("comandas")
+            .select("id,numero,estado,created_at,mesas!inner(id,nombre,es_prueba),comanda_items(id,nombre,cantidad,modificadores,notas)")
+            .eq("estado", "listo")
+            .eq("mesas.es_prueba", state.testMode)
+            .gte("created_at", new Date(Date.now() - 24 * 60 * 60_000).toISOString())
+            .order("created_at", { ascending: false })
+            .limit(100);
+          if (historyError) throw historyError;
+          state.kitchenHistory = (done ?? []).map((ticket) => ({
+            id: ticket.id,
+            number: ticket.numero,
+            tableName: ticket.mesas?.nombre ?? "Mesa",
+            createdAt: ticket.created_at,
+            items: (ticket.comanda_items ?? []).map((item) => ({
+              name: item.nombre,
+              quantity: item.cantidad,
+              modifiers: Array.isArray(item.modificadores)
+                ? item.modificadores.map((modifier) => typeof modifier === "string" ? { name: modifier } : modifier)
+                : [],
+              notes: item.notas ?? ""
+            }))
           }));
         }
         state.data = {
@@ -792,14 +900,16 @@
         if (!data && user.is_anonymous) {
           const { data: requestStatus, error: requestError } = await supabaseClient.rpc("solicitar_acceso_puesto", {
             p_role: requestedRole,
-            p_device_label: state.deviceLabel
+            p_device_label: state.deviceLabel,
+            p_empleado_nombre: state.pendingEmployee?.name ?? null
           });
+          state.pendingEmployee = null;
           if (requestError) throw requestError;
           if (requestStatus !== "approved") {
             state.authReady = true;
             state.awaitingApproval = requestStatus === "pending";
             state.authMessage = requestStatus === "pending"
-              ? "Solicitud enviada. Esta pantalla se actualizará cuando administración autorice el acceso."
+              ? "Solicitud enviada."
               : requestStatus === "rejected"
                 ? "La solicitud fue rechazada. Contacta a administración si debe revisarse."
                 : requestStatus === "revoked"
@@ -845,6 +955,7 @@
         if (shiftError) throw shiftError;
         state.employee = shift;
         if (!state.employee) {
+          await loadPinStatus().catch(() => { state.hasPin = true; });
           state.authMessage = "";
           render();
           return;
@@ -863,6 +974,11 @@
         state.authMessage = error.message || "No se pudo validar la cuenta y el puesto.";
       }
       render();
+    }
+    async function loadPinStatus() {
+      const { data } = await supabaseClient.rpc("empleado_aparato");
+      state.hasPin = data ? data.tiene_pin : true;
+      state.pinOwner = data?.nombre || "";
     }
     async function startEmployeeShift(form) {
       const pin = form.elements["employee-pin"].value.trim();
@@ -916,7 +1032,6 @@
         if (error) throw error;
         state.user = data.session?.user ?? null;
         state.stationBoundRole = localStorage.getItem(STATION_STORAGE_KEY);
-        state.deviceLabel = localStorage.getItem(DEVICE_LABEL_STORAGE_KEY) || "";
         state.testMode = localStorage.getItem("faro-pos-test-mode-v1") !== "false";
         state.authReady = true;
         render();
@@ -978,7 +1093,8 @@
       nav.classList.toggle("hidden", !operating);
       document.getElementById("sign-out").classList.toggle("hidden", !state.user || state.user.is_anonymous);
       document.getElementById("user-label").textContent = state.user
-        ? `${state.user.is_anonymous ? "Dispositivo" : state.user.email ?? "Personal"}${operating ? ` · ${state.employee.nombre} · ${stationRoleLabel(state.stationRole)}` : authorized ? " · Identifica al empleado" : " · Acceso pendiente"}` : "";
+        ? (operating ? `${state.employee.nombre} · ${stationRoleLabel(state.stationRole)}`
+          : authorized ? "" : state.user.is_anonymous ? "Acceso pendiente" : state.user.email ?? "Personal") : "";
       if (operating) {
         const permitted = [state.stationRole];
         nav.querySelectorAll("[data-view]").forEach((button) => {
@@ -1122,12 +1238,12 @@
         <button class="button" data-action="back-tables">← Volver a mesas</button></header>
         <div class="layout"><section class="panel">
           <p class="eyebrow">1 · Elige una categoría y un producto</p>
-          <div class="categories">${CATEGORIAS.map((category) =>
+          <div class="categories">${CATEGORIAS.filter((category) => category === state.category || PRODUCTOS.some((product) => product.categoria === category)).map((category) =>
             `<button class="category-button ${state.category === category ? "active" : ""}" aria-pressed="${state.category === category}" data-category="${escapeHtml(category)}">${escapeHtml(category)}</button>`
           ).join("")}</div>
           <div class="product-grid">${products.map((product) =>
             `<button class="product-card" data-product="${product.id}" aria-label="Agregar ${escapeHtml(product.nombre)}, ${money(product.precio)}"><strong>${escapeHtml(product.nombre)}</strong>
-            <span>${money(product.precio)}${product.mezcla ? " · Personalizable" : ""}</span></button>`
+            <span>${money(product.precio)}${product.mezcla ? " · Personalizable" : ""}</span>${product.descripcion ? `<small class="detail">${escapeHtml(product.descripcion)}</small>` : ""}</button>`
           ).join("")}</div>
         </section>
         <aside class="panel sticky ${state.draft.length ? "has-draft" : ""}"><p class="eyebrow">2 · Revisa y envía</p><h3>Comanda · ${totalPieces} ${totalPieces === 1 ? "artículo" : "artículos"}</h3>
@@ -1151,7 +1267,29 @@
       return ({ pendiente: "Pendiente", preparacion: "En preparación", listo: "Listo",
         abierta: "Abierta", por_cobrar: "Por cobrar", pagada: "Pagada", anulada: "Anulada" })[status] ?? status;
     }
+    function renderKitchenHistory() {
+      const rows = state.kitchenHistory;
+      return `<header class="page-heading"><div><p class="eyebrow">${escapeHtml(stationHeading("cocina"))}</p><h2>Historial de pedidos</h2>
+        <p>Comandas terminadas en las últimas 24 horas.</p></div></header>
+        ${kitchenTabs()}
+        ${rows.length ? `<div class="ticket-grid">${rows.map((ticket) => `<article class="ticket-card">
+          <div class="ticket-head"><strong>Comanda #${ticket.number}</strong><span class="badge listo">Listo</span></div>
+          <p class="kitchen-table">${escapeHtml(ticket.tableName)}</p>
+          <p class="muted">Recibida ${timeMty(ticket.createdAt)}</p>
+          <div class="ticket-items">${ticket.items.map((item) =>
+            `<div><p><strong>${item.quantity}× ${escapeHtml(item.name)}</strong></p>
+              ${item.modifiers.length ? `<p class="detail">${escapeHtml(item.modifiers.map((modifier) => modifier.name).join(" · "))}</p>` : ""}
+              ${item.notes ? `<p class="detail"><strong>Nota:</strong> ${escapeHtml(item.notes)}</p>` : ""}</div>`
+          ).join("")}</div></article>`).join("")}</div>`
+          : `<div class="panel empty"><strong>Aún no hay pedidos terminados</strong><br>Las comandas marcadas como listas aparecerán aquí.</div>`}`;
+    }
+    function kitchenTabs() {
+      return `<div class="toolbar kitchen-toolbar" aria-label="Vista de cocina">
+        <button class="button ${state.kitchenTab === "activas" ? "primary" : ""}" aria-pressed="${state.kitchenTab === "activas"}" data-kitchen-tab="activas">Pendientes</button>
+        <button class="button ${state.kitchenTab === "historial" ? "primary" : ""}" aria-pressed="${state.kitchenTab === "historial"}" data-kitchen-tab="historial">Historial</button></div>`;
+    }
     function renderKitchen() {
+      if (state.kitchenTab === "historial") return renderKitchenHistory();
       const allTickets = state.data.checks.flatMap((check) => check.tickets.map((ticket) => ({
         ...ticket, tableName: check.tableName
       }))).filter((ticket) => ["pendiente", "preparacion"].includes(ticket.status) &&
@@ -1160,6 +1298,7 @@
       const tickets = allTickets.filter((ticket) => state.kitchenFilter === "todas" || ticket.status === state.kitchenFilter);
       return `<header class="page-heading"><div><p class="eyebrow">${escapeHtml(stationHeading("cocina"))}</p><h2>Cocina</h2>
         <p>Las comandas nuevas aparecen aquí automáticamente.</p></div></header>
+        ${kitchenTabs()}
         <div class="summary-strip" aria-label="Resumen de cocina">
           <div class="summary-item"><span>Activas</span><strong>${allTickets.length}</strong></div>
           <div class="summary-item"><span>Nuevas</span><strong>${allTickets.filter((ticket) => ticket.status === "pendiente").length}</strong></div>
@@ -1204,39 +1343,23 @@
         });
       const selected = active.find(({ table }) => table.id === state.cashierTable);
       const date = state.closeDate;
-      const settled = state.data.checks.filter((check) => check.operatingDate === date && ["pagada", "anulada"].includes(check.status));
-      const paid = settled.filter((check) => check.status === "pagada");
-      const voided = settled.filter((check) => check.status === "anulada");
-      const dueCount = state.data.tables.filter((table) => activeCheck(table.id)?.status === "por_cobrar").length;
+      const cut = cutData(date);
+      const { paid, voided, sales, cash, clip, top } = cut;
       const openCount = state.data.tables.filter((table) => activeCheck(table.id)?.status === "abierta").length;
-      const sales = paid.reduce((sum, check) => sum + check.total, 0);
-      const cash = paid.filter((check) => check.paymentMethod === "efectivo").reduce((sum, check) => sum + check.total, 0);
-      const clip = paid.filter((check) => check.paymentMethod === "clip").reduce((sum, check) => sum + check.total, 0);
-      const ranking = new Map();
-      paid.flatMap((check) => check.tickets.flatMap((ticket) => ticket.items)).forEach((item) => {
-        const entry = ranking.get(item.name) ?? { quantity: 0, amount: 0 };
-        entry.quantity += item.quantity;
-        entry.amount += item.quantity * item.unitPrice;
-        ranking.set(item.name, entry);
-      });
-      const top = [...ranking.entries()].sort((a, b) => b[1].quantity - a[1].quantity).slice(0, 10);
       return `      <header class="page-heading"><div><p class="eyebrow">${escapeHtml(stationHeading("caja"))}</p><h2>Caja</h2>
         <p>${state.testMode ? "Modo de prueba · los cobros no afectan las ventas reales." : "Revisa la cuenta antes de registrar el pago."}</p></div></header>
         <div class="summary-strip cashier-summary" aria-label="Resumen de caja">
           <div class="summary-item"><span>Cuentas abiertas</span><strong>${openCount}</strong></div>
-          <div class="summary-item emphasis"><span>Por cobrar</span><strong>${dueCount}</strong></div>
-          <div class="summary-item"><span>Ventas cobradas</span><strong>${money(sales)}</strong></div>
         </div>
         <div class="section-heading"><div><h3>Mesas y cuentas</h3><p class="section-description">${active.filter((entry) => entry.check).length} cuentas activas</p></div></div>
         <div class="toolbar no-print">
           <input type="search" id="cashier-search" placeholder="Buscar mesa o comanda" aria-label="Buscar mesa o número de comanda" value="${escapeHtml(state.cashierSearch)}">
           <button class="button ${state.cashierFilter === "todas" ? "primary" : ""}" aria-pressed="${state.cashierFilter === "todas"}" data-cashier-filter="todas">Todas</button>
           <button class="button ${state.cashierFilter === "con_cuenta" ? "primary" : ""}" aria-pressed="${state.cashierFilter === "con_cuenta"}" data-cashier-filter="con_cuenta">Con cuenta</button>
-          <button class="button ${state.cashierFilter === "por_cobrar" ? "primary" : ""}" aria-pressed="${state.cashierFilter === "por_cobrar"}" data-cashier-filter="por_cobrar">Por cobrar</button>
         </div>
         <div class="layout cashier-layout"><div><div class="table-grid">${active.map(({ table, check }) => {
           const status = check?.status ?? "disponible";
-          const total = check ? check.tickets.reduce((sum, ticket) => sum + ticketTotal(ticket), 0) : null;
+          const total = check ? checkTotal(check) : null;
           return `<button class="table-card ${status === "abierta" ? "occupied" : status === "por_cobrar" ? "due" : ""} ${state.cashierTable === table.id ? "selected" : ""}"
             data-cashier-table="${escapeHtml(table.id)}"><strong>${escapeHtml(table.name)}</strong>
             <span class="table-status ${status === "por_cobrar" ? "due" : status === "abierta" ? "occupied" : ""}">${status === "disponible" ? "Disponible" : status === "por_cobrar" ? "Por cobrar" : "Cuenta abierta"}</span>
@@ -1244,13 +1367,17 @@
         }).join("")}</div></div>
         <aside class="panel cashier-receipt">${selected?.check ? renderReceipt(selected.table, selected.check) :
           `<p class="empty">${selected ? `${escapeHtml(selected.table.name)} no tiene cuenta activa.` : "Selecciona una mesa con cuenta activa."}</p>`}</aside></div>
-        <div class="section-heading"><h3>Corte de caja</h3><div class="toolbar">
+        ${state.cutOpen ? `<div class="section-heading"><h3>Corte de caja</h3><div class="toolbar no-print">
           <label for="close-date" class="muted">Fecha (Monterrey)</label>
-          <input id="close-date" type="date" value="${escapeHtml(date)}"></div></div>
+          <input id="close-date" type="date" value="${escapeHtml(date)}">
+          <button class="button primary" data-save-cut>Guardar en el dispositivo</button>
+          <button class="button" data-print>Imprimir</button>
+          <button class="button" data-close-cut>Cerrar</button></div></div>
         <div class="stats">
           <div class="stat"><span>Total vendido</span><strong>${money(sales)}</strong></div>
           <div class="stat"><span>Efectivo</span><strong>${money(cash)}</strong></div>
           <div class="stat"><span>Clip registrado</span><strong>${money(clip)}</strong></div>
+          <div class="stat"><span>Descuentos</span><strong>${money(cut.discounts)}</strong></div>
           <div class="stat"><span>Ticket promedio</span><strong>${money(paid.length ? sales / paid.length : 0)}</strong></div>
           <div class="stat"><span>Cuentas cobradas</span><strong>${paid.length}</strong></div>
           <div class="stat"><span>Anuladas</span><strong>${voided.length}</strong></div>
@@ -1258,23 +1385,81 @@
         <section class="panel"><h3>Productos más vendidos</h3>
           ${top.length ? `<div>${top.map(([name, item]) => `<div class="receipt-row"><span>${escapeHtml(name)} · ${item.quantity} pzas.</span><strong>${money(item.amount)}</strong></div>`).join("")}</div>` :
             `<p class="muted">Sin ventas registradas en esta fecha.</p>`}
-        </section>`;
+        </section>` : `<div class="section-heading no-print"><h3>Corte de caja</h3>
+          <button class="button primary" data-open-cut>Terminar jornada y hacer corte</button></div>`}`;
+    }
+    function cutData(date) {
+      const settled = state.data.checks.filter((check) => check.operatingDate === date && ["pagada", "anulada"].includes(check.status));
+      const paid = settled.filter((check) => check.status === "pagada");
+      const voided = settled.filter((check) => check.status === "anulada");
+      const byMethod = (method) => paid.filter((check) => check.paymentMethod === method).reduce((sum, check) => sum + check.total, 0);
+      const ranking = new Map();
+      paid.flatMap((check) => check.tickets.flatMap((ticket) => ticket.items)).forEach((item) => {
+        const entry = ranking.get(item.name) ?? { quantity: 0, amount: 0 };
+        entry.quantity += item.quantity;
+        entry.amount += itemNet(item);
+        ranking.set(item.name, entry);
+      });
+      return {
+        paid, voided,
+        sales: paid.reduce((sum, check) => sum + check.total, 0),
+        cash: byMethod("efectivo"), clip: byMethod("clip"),
+        discounts: paid.reduce((sum, check) => sum + check.discountTotal, 0),
+        top: [...ranking.entries()].sort((a, b) => b[1].quantity - a[1].quantity).slice(0, 10)
+      };
+    }
+    function saveCutToDevice() {
+      const date = state.closeDate;
+      const cut = cutData(date);
+      const lines = [
+        `Tacos El Faro · Corte de caja ${date}${state.testMode ? " (PRUEBA)" : ""}`,
+        `Generado: ${new Date().toLocaleString("es-MX", { timeZone: "America/Monterrey" })}`,
+        state.employee ? `Cajero: ${state.employee.nombre}` : "",
+        "",
+        `Total vendido: ${money(cut.sales)}`,
+        `Efectivo: ${money(cut.cash)}`,
+        `Clip: ${money(cut.clip)}`,
+        `Descuentos: ${money(cut.discounts)}`,
+        `Cuentas cobradas: ${cut.paid.length}`,
+        `Cuentas anuladas: ${cut.voided.length}`,
+        `Ticket promedio: ${money(cut.paid.length ? cut.sales / cut.paid.length : 0)}`,
+        "",
+        "Productos más vendidos",
+        ...cut.top.map(([name, item]) => `${item.quantity} × ${name} — ${money(item.amount)}`),
+        "",
+        "Cuentas cobradas",
+        ...cut.paid.map((check) => `${check.tableName} — ${check.paymentMethod} — ${money(check.total)}${check.discountTotal ? ` (desc. ${money(check.discountTotal)})` : ""}`)
+      ].filter((line, index, all) => line !== "" || all[index - 1] !== "");
+      const url = URL.createObjectURL(new Blob([lines.join("\r\n")], { type: "text/plain;charset=utf-8" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `corte-${date}${state.testMode ? "-prueba" : ""}.txt`;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      toast("Corte guardado en el dispositivo.");
     }
     function renderReceipt(table, check) {
       const items = check.tickets.flatMap((ticket) => ticket.items);
-      const total = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+      const total = checkTotal(check);
+      const gross = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
       return `<div class="ticket-head"><div><h3>${escapeHtml(table.name)}</h3><span class="badge ${check.status}">${statusLabel(check.status)}</span></div>
         <span class="muted">${check.tickets.length} comandas</span></div>
         <div class="receipt">${check.tickets.map((ticket) => `<div class="section-heading"><strong>#${ticket.number}</strong><span class="muted">${timeMty(ticket.createdAt)}</span></div>
           ${ticket.items.map((item) => `<div class="receipt-row"><span>${item.quantity}× ${escapeHtml(item.name)}
             ${item.modifiers.length ? `<small class="detail" style="display:block">${escapeHtml(item.modifiers.map((modifier) => modifier.name).join(" · "))}</small>` : ""}</span>
-            <strong>${money(item.quantity * item.unitPrice)}</strong></div>`).join("")}`).join("")}
+            <strong>${money(itemNet(item))}</strong></div>
+            ${item.discountType ? `<div class="receipt-row"><small class="detail">Descuento ${item.discountType === "porcentaje" ? `${item.discountValue}%` : money(item.discountValue)}</small><small class="detail">−${money(item.quantity * item.unitPrice - itemNet(item))}</small></div>` : ""}
+            <div class="actions no-print"><button class="small-button" aria-label="Quitar uno" data-item-qty="${item.id}" data-check="${check.id}" data-qty="${item.quantity - 1}">−</button>
+              <button class="small-button" aria-label="Agregar uno" data-item-qty="${item.id}" data-check="${check.id}" data-qty="${Math.min(99, item.quantity + 1)}">+</button>
+              <button class="small-button" data-item-qty="${item.id}" data-check="${check.id}" data-qty="0">Quitar</button></div>`).join("")}`).join("")}
+          ${check.discountType ? `<div class="receipt-row"><span>Descuento de la cuenta ${check.discountType === "porcentaje" ? `${check.discountValue}%` : money(check.discountValue)}</span><strong>−${money(checkNet(check) - total)}</strong></div>` : ""}
           <div class="receipt-total"><span>Total</span><span>${money(total)}</span></div></div>
         <p class="payment-note">${state.testMode
           ? "Modo de prueba: los botones simulan el pago y no registran una venta real."
           : "Antes de cobrar, confirma el total con el cliente. Para Clip, realiza primero el cobro en la terminal y regístralo aquí después."}</p>
         <div class="actions no-print">
-          ${check.status !== "por_cobrar" ? `<button class="button warning" data-mark-due="${check.id}">${state.testMode ? "Prueba por cobrar" : "Marcar por cobrar"}</button>` : ""}
           <button class="button primary" data-pay="${check.id}" data-method="efectivo">${state.testMode ? "Simular efectivo" : "Cobrar efectivo"}</button>
           <button class="button primary" data-pay="${check.id}" data-method="clip">${state.testMode ? "Simular Clip" : "Registrar Clip"}</button>
           <button class="button danger" data-void="${check.id}">Anular cuenta</button>
@@ -1293,6 +1478,18 @@
       const quickNotes = NOTAS.map((note) =>
         `<label class="choice"><input type="checkbox" name="quick-note" value="${escapeHtml(note)}">${escapeHtml(note)}</label>`
       ).join("");
+      const optionGroups = productOptionGroups(product).map((group, groupIndex) =>
+        `<fieldset class="field"><legend>${escapeHtml(group.label)}</legend><div class="choice-grid">${group.choices.map((choice) =>
+          `<label class="choice"><input type="radio" name="option-${groupIndex}" value="${escapeHtml(choice)}">${escapeHtml(choice)}${choice === "1/2 L" ? ` (${money(product.precio / 2)})` : ""}</label>`
+        ).join("")}</div></fieldset>`
+      ).join("");
+      const optionalExtras = (EXTRAS_OPCIONALES[product.id] ?? []).map((extra) =>
+        `<label class="choice"><input type="checkbox" name="optional-extra" value="${escapeHtml(extra.name)}">${escapeHtml(extra.name)} (+${money(extra.extra)})</label>`
+      ).join("");
+      const notesFieldset = productAllowsNotes(product) ? `<fieldset class="field"><legend>Notas de preparación</legend>
+            <div class="choice-grid">${quickNotes}</div>
+            <label class="field">Otra indicación<textarea name="free-note" maxlength="180" placeholder="Escribe una nota para cocina"></textarea></label>
+          </fieldset>` : "";
       document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop" data-dismiss-modal>
         <section class="modal" role="dialog" aria-modal="true" aria-labelledby="product-title">
           <div class="modal-header"><div><h2 id="product-title">${escapeHtml(product.nombre)}</h2>
@@ -1303,10 +1500,9 @@
             <div class="field"><label>Carnes adicionales</label><div class="choice-grid">${extras}</div></div>
             ${product.queso ? `<label class="choice"><input type="checkbox" name="with-cheese">Con queso (+${money(product.queso)})</label>` : ""}
           </fieldset>` : ""}
-          <fieldset class="field"><legend>Notas de preparación</legend>
-            <div class="choice-grid">${quickNotes}</div>
-            <label class="field">Otra indicación<textarea name="free-note" maxlength="180" placeholder="Escribe una nota para cocina"></textarea></label>
-          </fieldset>
+          ${optionGroups}
+          ${optionalExtras ? `<fieldset class="field"><legend>Extras</legend><div class="choice-grid">${optionalExtras}</div></fieldset>` : ""}
+          ${notesFieldset}
           <label class="field">Cantidad<input name="quantity" type="number" min="1" max="99" value="1" required></label>
           <div class="modal-footer"><button class="button" type="button" data-close-modal>Cancelar</button>
             <button class="button primary" type="button" data-add-product>Agregar a comanda</button></div>
@@ -1315,6 +1511,25 @@
         if (event.target.matches("[data-dismiss-modal]")) closeModal();
       });
       document.querySelector("[name='main-meat']")?.focus();
+      const syncChoices = () => {
+        const modal = document.querySelector(".modal");
+        const principal = modal.querySelector("[name='main-meat']:checked")?.value;
+        modal.querySelectorAll("[name='extra-meat']").forEach((input) => {
+          const same = input.value === principal;
+          if (same) input.checked = false;
+          input.disabled = same;
+        });
+        const notes = [...modal.querySelectorAll("[name='quick-note']")];
+        const checked = (value) => notes.some((input) => input.value === value && input.checked);
+        const allDone = checked("Con todo");
+        notes.forEach((input) => {
+          if (allDone && input.value !== "Con todo" && input.value !== "Bien cocida") input.checked = false;
+          input.disabled = (allDone && input.value !== "Con todo" && input.value !== "Bien cocida")
+            || (input.value === "Con todo" && checked("Sin lechuga"));
+        });
+      };
+      document.querySelector(".modal").addEventListener("change", syncChoices);
+      syncChoices();
     }
     function openCreateTableDialog() {
       document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop" data-dismiss-modal>
@@ -1382,22 +1597,40 @@
         const extras = [...modal.querySelectorAll("[name='extra-meat']:checked")].map((input) => input.value);
         modifiers = mixModifiers(product, principal, extras, Boolean(modal.querySelector("[name='with-cheese']:checked")));
       }
-      const notes = [
+      const groups = productOptionGroups(product);
+      if (groups.length) {
+        const selections = groups.map((_, index) => modal.querySelector(`[name='option-${index}']:checked`)?.value);
+        const missing = groups.findIndex((_, index) => !selections[index]);
+        if (missing !== -1) {
+          toast(`Selecciona ${groups[missing].label.toLowerCase()}.`, true);
+          return;
+        }
+        modifiers = optionModifiers(product, selections);
+      }
+      const extraNames = [...modal.querySelectorAll("[name='optional-extra']:checked")].map((input) => input.value);
+      modifiers.push(...(EXTRAS_OPCIONALES[product.id] ?? []).filter((extra) => extraNames.includes(extra.name)));
+      const notes = productAllowsNotes(product) ? [
         ...[...modal.querySelectorAll("[name='quick-note']:checked")].map((input) => input.value),
         modal.querySelector("[name='free-note']")?.value.trim() ?? ""
-      ].filter(Boolean).join(", ");
-      state.draft.push({
-        id: newId(), productId: product.id, name: product.nombre,
-        quantity, modifiers, notes, unitPrice: productPrice(product, modifiers),
-        status: "pendiente"
-      });
-      if (!persistDraft()) {
-        state.draft.pop();
-        return;
-      }
+      ].filter(Boolean).join(", ") : "";
+      if (!addProductToDraft(product, quantity, modifiers, notes)) return;
       closeModal();
+    }
+    function addProductToDraft(product, quantity, modifiers, notes) {
+      const plain = !modifiers.length && !notes;
+      const added = updateDraft((draft) => {
+        const existing = plain ? draft.find((item) => item.productId === product.id && !item.modifiers.length && !item.notes) : null;
+        if (existing) existing.quantity = Math.min(99, existing.quantity + quantity);
+        else draft.push({
+          id: newId(), productId: product.id, name: product.nombre,
+          quantity, modifiers, notes, unitPrice: productPrice(product, modifiers),
+          status: "pendiente"
+        });
+      });
+      if (!added) return false;
       render();
       toast(`${product.nombre} agregado.`);
+      return true;
     }
     async function sendOrder() {
       if (!await ensureFreshData()) return;
@@ -1491,18 +1724,18 @@
       }
       await refreshRemoteData();
     }
-    async function markDue(checkId) {
+    async function editCheckItem(checkId, itemId, quantity) {
       if (!await ensureFreshData()) return;
-      const { error } = await supabaseClient.rpc("solicitar_cuenta", {
-        p_cuenta: checkId,
-        p_es_prueba: state.testMode
+      if (quantity === 0 && !window.confirm("¿Quitar este artículo de la cuenta?")) return;
+      const { error } = await supabaseClient.rpc("caja_editar_articulo_cuenta", {
+        p_cuenta: checkId, p_item: itemId, p_cantidad: quantity
       });
       if (error) {
-        console.error("No se pudo marcar la cuenta por cobrar.", error);
-        toast(`No se pudo marcar por cobrar: ${error.message}`, true);
+        console.error("No se pudo modificar la cuenta.", error);
+        toast(`No se pudo modificar la cuenta: ${error.message}`, true);
         return;
       }
-      toast("Cuenta marcada por cobrar.");
+      toast("Cuenta actualizada.");
       await refreshRemoteData();
     }
     async function payCheck(checkId, method) {
@@ -1587,12 +1820,14 @@
           render();
           return;
         }
-        const deviceLabel = form.elements["device-label"].value.trim();
-        if (!deviceLabel || deviceLabel.length > 80) {
-          state.authMessage = "Escribe un nombre para identificar este dispositivo (máximo 80 caracteres).";
+        const employeeName = form.elements["employee-name"].value.trim();
+        if (!employeeName || employeeName.length > 80) {
+          state.authMessage = "Escribe tu nombre (máximo 80 caracteres).";
           render();
           return;
         }
+        const deviceLabel = employeeName;
+        state.pendingEmployee = { name: employeeName };
         if (!state.user) {
           try {
             const { data, error } = await supabaseClient.auth.signInAnonymously();
@@ -1630,7 +1865,6 @@
         }
         try {
           if (!state.stationBoundRole) localStorage.setItem(STATION_STORAGE_KEY, requestedRole);
-          localStorage.setItem(DEVICE_LABEL_STORAGE_KEY, deviceLabel);
         } catch (error) {
           console.error("No se pudo guardar la asignación del dispositivo.", error);
           state.authMessage = "No se pudo guardar la asignación de este dispositivo. Revisa la configuración de almacenamiento del navegador e inténtalo de nuevo.";
@@ -1667,6 +1901,8 @@
         }
       } else if (target.dataset.action === "clock-out") {
         await endEmployeeShift();
+      } else if (target.dataset.action === "check-pin") {
+        loadPinStatus().then(render).catch(() => render());
       } else if (target.dataset.action === "check-approval") {
         window.clearTimeout(approvalPollTimer);
         if (state.user && state.pendingStationRole) {
@@ -1752,7 +1988,8 @@
         render();
       } else if (target.dataset.product) {
         const product = productById(target.dataset.product);
-        if (product) openProductDialog(product);
+        if (product && productNeedsDialog(product)) openProductDialog(product);
+        else if (product) addProductToDraft(product, 1, [], "");
       } else if (target.dataset.closeModal !== undefined) {
         closeModal();
       } else if (target.dataset.addProduct !== undefined) {
@@ -1774,6 +2011,9 @@
         respondToSuggestion(target.dataset.suggestionResponse, target.dataset.acceptSuggestion === "true");
       } else if (target.dataset.ticketStatus) {
         changeTicketStatus(target.dataset.ticketStatus, target.dataset.nextStatus);
+      } else if (target.dataset.kitchenTab) {
+        state.kitchenTab = target.dataset.kitchenTab;
+        render();
       } else if (target.dataset.kitchenFilter) {
         state.kitchenFilter = target.dataset.kitchenFilter;
         render();
@@ -1783,12 +2023,23 @@
       } else if (target.dataset.cashierFilter) {
         state.cashierFilter = target.dataset.cashierFilter;
         render();
-      } else if (target.dataset.markDue) {
-        markDue(target.dataset.markDue);
+      } else if (target.dataset.itemQty) {
+        editCheckItem(target.dataset.check, target.dataset.itemQty, Number(target.dataset.qty));
+      } else if (target.dataset.openCut !== undefined) {
+        if (window.confirm("¿Terminar la jornada y generar el corte de caja?")) {
+          state.cutOpen = true;
+          state.closeDate = todayMty();
+          render();
+        }
+      } else if (target.dataset.closeCut !== undefined) {
+        state.cutOpen = false;
+        render();
+      } else if (target.dataset.saveCut !== undefined) {
+        saveCutToDevice();
       } else if (target.dataset.pay) {
         const check = state.data.checks.find((item) => item.id === target.dataset.pay &&
           ["abierta", "por_cobrar"].includes(item.status));
-        const total = check?.tickets.reduce((sum, ticket) => sum + ticketTotal(ticket), 0) ?? 0;
+        const total = check ? checkTotal(check) : 0;
         const method = target.dataset.method;
         if (!check) {
           toast("La cuenta no está disponible para cobro.", true);

@@ -16,7 +16,7 @@ Tienes dos maneras directas de obtener el código completo del proyecto:
 ## 2. Esquema y seguridad de base de datos
 
 Las migraciones SQL vigentes están en `drizzle/migrations`. En una base nueva,
-ejecutar 0000–0013 en orden; en una base ya migrada, ejecutar únicamente las
+ejecutar 0000–0019 en orden; en una base ya migrada, ejecutar únicamente las
 pendientes. La 0003 cierra permisos directos al rol PostgreSQL `anon`, define
 roles y restringe las consultas y operaciones RPC. La 0004 verifica catálogo,
 modificadores y precio en PostgreSQL. La 0005 limita las cuentas al rol de caja

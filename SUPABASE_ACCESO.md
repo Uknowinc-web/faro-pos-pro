@@ -38,6 +38,14 @@ En el SQL Editor del proyecto Supabase, ejecutar una vez y en orden:
 12. `drizzle/migrations/0011_codigos_puesto_solo_administracion.sql`.
 13. `drizzle/migrations/0012_panel_admin_operacion.sql`.
 14. `drizzle/migrations/0013_admin_jornada_y_empleados.sql`.
+15. `drizzle/migrations/0014_bebidas_postres_y_opciones.sql`.
+16. `drizzle/migrations/0015_orden_automatico_de_mesas.sql`.
+17. `drizzle/migrations/0016_registro_empleado_con_pin.sql`.
+18. `drizzle/migrations/0017_pin_por_area_y_responsables.sql`.
+19. `drizzle/migrations/0018_pin_por_admin_y_bitacora.sql`.
+20. `drizzle/migrations/0019_descuentos_promociones_y_ventas.sql`.
+21. `drizzle/migrations/0020_eliminar_dispositivo.sql` (eliminar dispositivos desde Accesos).
+22. `drizzle/migrations/0021_menu_especiales_y_gaonera.sql` (torta y hamburguesa en Especiales, papa especial sin personalizar, costra de queso en Gaonera).
 
 La migración 0011 ya se aplicó en el proyecto Supabase de producción. Se
 generaron tres códigos aleatorios y se verificó que los RPC existan y que ni
@@ -66,6 +74,33 @@ Ejecuta 0013 después de 0012 y antes de desplegar la nueva versión de
 [`faro-pos-pro.html`](./faro-pos-pro.html) y [`admin-accesos.html`](./admin-accesos.html).
 No despliegues el HTML nuevo antes de aplicar la migración: el inicio de turno
 por PIN y las operaciones ya requieren sus funciones y tablas.
+
+La migración **0014** separa la categoría "Postres y Bebidas" en **Postres** y
+**Bebidas**, renombra los productos compartidos a "Horchata y cebada" y "ToniCol
+y Titan", y hace que el servidor exija el sabor del agua de sabor, la bebida y
+el tamaño (1 L o 1/2 L a mitad de precio) de horchata/cebada, y ToniCol o Titan.
+Ejecútala después de 0013 y antes de desplegar la versión del POS que usa esas
+opciones: el POS nuevo envía los nuevos nombres y modificadores, que el servidor
+anterior rechazaría.
+
+La migración **0015** elimina el orden manual de las mesas: `admin_guardar_mesa`
+asigna a cada mesa nueva la posición siguiente dentro de su modo (prueba u
+operación) y conserva la posición al editarla. Ejecútala después de 0014.
+
+La migración **0016** cambia el registro de empleados: al solicitar acceso, cada
+persona escribe su nombre y elige su PIN (4–8 dígitos, único entre empleados
+activos). Al autorizar, el administrador crea al empleado y lo vincula al
+aparato; puede ver el PIN, el aparato y el estado del turno. El PIN legible se
+guarda en `pin_texto`, sin acceso directo (RLS cerrado) y solo lo devuelven las
+RPC de administración. Los empleados anteriores no tienen PIN visible hasta
+asignarles uno nuevo. También agrega `caja_editar_articulo_cuenta` para que Caja
+cambie cantidades o quite artículos de cuentas abiertas. Ejecútala después de 0015.
+
+La migración **0017** limita la unicidad de nombre y PIN a cada área (un mesero y un cocinero pueden compartirlos; dos del mismo puesto no), hace que el PIN se busque solo entre empleados del puesto del aparato y registra el correo de cada administrador como responsable en la bitácora. Ejecútala después de 0016.
+
+La migración **0018** hace que el PIN lo asigne solo administración (la solicitud ya no lo recibe; sin PIN el POS muestra "Administración aún no te asigna un PIN"), impide nombres repetidos dentro de la misma área, crea `admin_perfiles` (nombre de bitácora por administrador), guarda `responsable` en `audit_acciones` y agrega `auditoria_rango` para filtrar por día, mes o año. Ejecútala después de 0017.
+
+La migración **0019** agrega descuentos (`admin_aplicar_descuento`, por artículo o cuenta, en monto o porcentaje, solo administración y con registro en bitácora), la categoría «Promociones» para ofertas y combos (`admin_guardar_promocion`), `admin_productos_vendidos` y hace que `cobrar_cuenta` guarde el total con descuento. Ejecútala después de 0018.
 
 En el proyecto Faro conectado, 0009 y 0010 ya se aplicaron en ese orden desde el
 SQL Editor. Se verificó que existan las tablas y RPC, que RLS esté habilitado en
