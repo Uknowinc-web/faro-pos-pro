@@ -291,7 +291,7 @@
     const DEVICE_LABEL_STORAGE_KEY = "faro-pos-device-label-v1";
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
     const CARNES = ["Asada", "Pastor", "Tripa"];
-    const CATEGORIAS = ["Tacos", "Quesadillas", "Especiales", "Papas y Frijoles", "Tortas", "Postres", "Bebidas"];
+    const CATEGORIAS = ["Tacos", "Quesadillas", "Especiales", "Papas y Frijoles", "Tortas", "Postres", "Bebidas", "Promociones"];
     const NOTAS = ["Con todo", "Natural", "Sin salsa de tomate", "Sin lechuga", "Sin frijoles", "Bien cocida"];
     const OPCIONES_PRODUCTO = {
       "agua-sabor": [{ label: "Sabor", choices: ["Jamaica", "Limón", "Pepino limón", "Tamarindo", "Piña", "Mango", "Sandía"] }],
@@ -360,6 +360,7 @@
       cashierSearch: "",
       cashierFilter: "todas",
       closeDate: todayMty(),
+      cutOpen: false,
       data: { tables: [], checks: [], nextTicket: 1, drafts: {}, owners: [], suggestions: [] }
     };
 
@@ -463,6 +464,7 @@
         nombre: product.nombre,
         categoria: product.categoria,
         precio: Number(product.precio),
+        descripcion: product.descripcion ?? "",
         mezcla: product.permite_mezcla,
         tripa: Number(product.extra_tripa_principal),
         queso: product.permite_queso ? Number(product.extra_queso) : 0
@@ -494,6 +496,23 @@
     }
     function ticketTotal(ticket) {
       return ticket.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+    }
+    function discountAmount(base, type, value) {
+      if (!type || !value) return 0;
+      return type === "porcentaje"
+        ? Math.round(Math.max(base, 0) * Math.min(value, 100)) / 100
+        : Math.min(value, Math.max(base, 0));
+    }
+    function itemNet(item) {
+      const line = item.quantity * item.unitPrice;
+      return Math.max(0, line - discountAmount(line, item.discountType, item.discountValue));
+    }
+    function checkNet(check) {
+      return check.tickets.flatMap((ticket) => ticket.items).reduce((sum, item) => sum + itemNet(item), 0);
+    }
+    function checkTotal(check) {
+      const net = checkNet(check);
+      return net - discountAmount(net, check.discountType, check.discountValue);
     }
     function elapsedMinutes(iso) {
       return Math.max(0, Math.floor((Date.now() - Date.parse(iso)) / 60_000));
@@ -565,7 +584,7 @@
       return `<section class="panel access-card">
         <p class="eyebrow">Configuración inicial</p>
         <h2>Vincular dispositivo</h2>
-        <p class="muted">${boundMessage} El acceso se activa después de la autorización.</p>
+        <p class="muted">${boundMessage}</p>
         <form id="station-form">
           <label class="field">Nombre del dispositivo
             <input name="device-label" maxlength="80" value="${escapeHtml(state.deviceLabel)}"
@@ -590,7 +609,7 @@
         <p class="eyebrow">Solicitud enviada</p>
         <h2>Esperando autorización</h2>
         <p class="muted">Solicitud de <strong>${escapeHtml(state.deviceLabel)}</strong> para el área de <strong>${escapeHtml(stationRoleLabel(state.pendingStationRole))}</strong>.</p>
-        <p class="form-status" role="status">${escapeHtml(state.authMessage || "Administración debe autorizar este dispositivo. Esta pantalla se actualizará automáticamente.")}</p>
+        <p class="form-status" role="status">${escapeHtml(state.authMessage || "Esperando autorización de administración.")}</p>
         <button class="button full" type="button" data-action="check-approval" ${state.authReady ? "" : "disabled"}>Actualizar estado</button>
       </section>`;
     }
@@ -600,15 +619,14 @@
         <div class="approval-icon" aria-hidden="true">…</div>
         <p class="eyebrow">Acceso autorizado</p>
         <h2>Administración aún no te asigna un PIN</h2>
-        <p class="muted">Hola${state.pinOwner ? ", <strong>" + escapeHtml(state.pinOwner) + "</strong>" : ""}. Cuando administración te asigne un PIN, podrás registrar tu entrada.</p>
+        <p class="muted">${state.pinOwner ? `<strong>${escapeHtml(state.pinOwner)}</strong>, pide` : "Pide"} tu PIN a administración.</p>
         <p class="form-status" role="status">${escapeHtml(state.authMessage)}</p>
         <button class="button primary full" type="button" data-action="check-pin">Actualizar</button>
       </section>`;
       }
       return `<section class="panel access-card">
         <p class="eyebrow">Inicio de jornada</p>
-        <h2>Identifícate con tu PIN</h2>
-        <p class="muted">Usa tu PIN personal para registrar tu entrada y asociar tus acciones a tu nombre.</p>
+        <h2>Ingresa tu PIN</h2>
         <form id="employee-pin-form">
           <label class="field">PIN del empleado
             <input name="employee-pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}"
@@ -664,7 +682,7 @@
         const [tablesResult, accountsResult, ownersResult, suggestionsResult] = await Promise.all([
           tablesQuery,
           state.role !== "caja" ? Promise.resolve({ data: null, error: null }) :
-            supabaseClient.from("cuentas").select("id,mesa_id,estado,metodo_pago,total,motivo_anulacion,fecha_operativa,mesas!inner(nombre,es_prueba),comandas(id,numero,estado,created_at,comanda_items(id,producto_id,nombre,cantidad,precio_unitario,modificadores,notas))")
+            supabaseClient.from("cuentas").select("id,mesa_id,estado,metodo_pago,total,descuento_tipo,descuento_valor,descuento_total,motivo_anulacion,fecha_operativa,mesas!inner(nombre,es_prueba),comandas(id,numero,estado,created_at,comanda_items(id,producto_id,nombre,cantidad,precio_unitario,descuento_tipo,descuento_valor,modificadores,notas))")
               .eq("mesas.es_prueba", state.testMode).order("abierta_at", { ascending: false }),
           state.role !== "mesero" ? Promise.resolve({ data: [], error: null }) :
             supabaseClient.rpc("listar_responsables_mesa", { p_es_prueba: state.testMode }),
@@ -686,6 +704,9 @@
           status: account.estado,
           paymentMethod: account.metodo_pago,
           total: account.total == null ? 0 : Number(account.total),
+          discountType: account.descuento_tipo,
+          discountValue: Number(account.descuento_valor ?? 0),
+          discountTotal: Number(account.descuento_total ?? 0),
           operatingDate: account.fecha_operativa,
           voidReason: account.motivo_anulacion,
           tickets: (account.comandas ?? []).map((ticket) => ({
@@ -699,6 +720,8 @@
               name: item.nombre,
               quantity: item.cantidad,
               unitPrice: Number(item.precio_unitario),
+              discountType: item.descuento_tipo,
+              discountValue: Number(item.descuento_valor ?? 0),
               modifiers: Array.isArray(item.modificadores)
                 ? item.modificadores.map((modifier) => typeof modifier === "string" ? { name: modifier, extra: 0 } : modifier)
                 : [],
@@ -888,7 +911,7 @@
             state.authReady = true;
             state.awaitingApproval = requestStatus === "pending";
             state.authMessage = requestStatus === "pending"
-              ? "Solicitud enviada. Esta pantalla se actualizará cuando administración autorice el acceso."
+              ? "Solicitud enviada."
               : requestStatus === "rejected"
                 ? "La solicitud fue rechazada. Contacta a administración si debe revisarse."
                 : requestStatus === "revoked"
@@ -1073,7 +1096,8 @@
       nav.classList.toggle("hidden", !operating);
       document.getElementById("sign-out").classList.toggle("hidden", !state.user || state.user.is_anonymous);
       document.getElementById("user-label").textContent = state.user
-        ? `${state.user.is_anonymous ? "Dispositivo" : state.user.email ?? "Personal"}${operating ? ` · ${state.employee.nombre} · ${stationRoleLabel(state.stationRole)}` : authorized ? " · Identifica al empleado" : " · Acceso pendiente"}` : "";
+        ? (operating ? `${state.employee.nombre} · ${stationRoleLabel(state.stationRole)}`
+          : authorized ? "" : state.user.is_anonymous ? "Acceso pendiente" : state.user.email ?? "Personal") : "";
       if (operating) {
         const permitted = [state.stationRole];
         nav.querySelectorAll("[data-view]").forEach((button) => {
@@ -1222,7 +1246,7 @@
           ).join("")}</div>
           <div class="product-grid">${products.map((product) =>
             `<button class="product-card" data-product="${product.id}" aria-label="Agregar ${escapeHtml(product.nombre)}, ${money(product.precio)}"><strong>${escapeHtml(product.nombre)}</strong>
-            <span>${money(product.precio)}${product.mezcla ? " · Personalizable" : ""}</span></button>`
+            <span>${money(product.precio)}${product.mezcla ? " · Personalizable" : ""}</span>${product.descripcion ? `<small class="detail">${escapeHtml(product.descripcion)}</small>` : ""}</button>`
           ).join("")}</div>
         </section>
         <aside class="panel sticky ${state.draft.length ? "has-draft" : ""}"><p class="eyebrow">2 · Revisa y envía</p><h3>Comanda · ${totalPieces} ${totalPieces === 1 ? "artículo" : "artículos"}</h3>
@@ -1322,39 +1346,23 @@
         });
       const selected = active.find(({ table }) => table.id === state.cashierTable);
       const date = state.closeDate;
-      const settled = state.data.checks.filter((check) => check.operatingDate === date && ["pagada", "anulada"].includes(check.status));
-      const paid = settled.filter((check) => check.status === "pagada");
-      const voided = settled.filter((check) => check.status === "anulada");
-      const dueCount = state.data.tables.filter((table) => activeCheck(table.id)?.status === "por_cobrar").length;
+      const cut = cutData(date);
+      const { paid, voided, sales, cash, clip, top } = cut;
       const openCount = state.data.tables.filter((table) => activeCheck(table.id)?.status === "abierta").length;
-      const sales = paid.reduce((sum, check) => sum + check.total, 0);
-      const cash = paid.filter((check) => check.paymentMethod === "efectivo").reduce((sum, check) => sum + check.total, 0);
-      const clip = paid.filter((check) => check.paymentMethod === "clip").reduce((sum, check) => sum + check.total, 0);
-      const ranking = new Map();
-      paid.flatMap((check) => check.tickets.flatMap((ticket) => ticket.items)).forEach((item) => {
-        const entry = ranking.get(item.name) ?? { quantity: 0, amount: 0 };
-        entry.quantity += item.quantity;
-        entry.amount += item.quantity * item.unitPrice;
-        ranking.set(item.name, entry);
-      });
-      const top = [...ranking.entries()].sort((a, b) => b[1].quantity - a[1].quantity).slice(0, 10);
       return `      <header class="page-heading"><div><p class="eyebrow">${escapeHtml(stationHeading("caja"))}</p><h2>Caja</h2>
         <p>${state.testMode ? "Modo de prueba · los cobros no afectan las ventas reales." : "Revisa la cuenta antes de registrar el pago."}</p></div></header>
         <div class="summary-strip cashier-summary" aria-label="Resumen de caja">
           <div class="summary-item"><span>Cuentas abiertas</span><strong>${openCount}</strong></div>
-          <div class="summary-item emphasis"><span>Por cobrar</span><strong>${dueCount}</strong></div>
-          <div class="summary-item"><span>Ventas cobradas</span><strong>${money(sales)}</strong></div>
         </div>
         <div class="section-heading"><div><h3>Mesas y cuentas</h3><p class="section-description">${active.filter((entry) => entry.check).length} cuentas activas</p></div></div>
         <div class="toolbar no-print">
           <input type="search" id="cashier-search" placeholder="Buscar mesa o comanda" aria-label="Buscar mesa o número de comanda" value="${escapeHtml(state.cashierSearch)}">
           <button class="button ${state.cashierFilter === "todas" ? "primary" : ""}" aria-pressed="${state.cashierFilter === "todas"}" data-cashier-filter="todas">Todas</button>
           <button class="button ${state.cashierFilter === "con_cuenta" ? "primary" : ""}" aria-pressed="${state.cashierFilter === "con_cuenta"}" data-cashier-filter="con_cuenta">Con cuenta</button>
-          <button class="button ${state.cashierFilter === "por_cobrar" ? "primary" : ""}" aria-pressed="${state.cashierFilter === "por_cobrar"}" data-cashier-filter="por_cobrar">Por cobrar</button>
         </div>
         <div class="layout cashier-layout"><div><div class="table-grid">${active.map(({ table, check }) => {
           const status = check?.status ?? "disponible";
-          const total = check ? check.tickets.reduce((sum, ticket) => sum + ticketTotal(ticket), 0) : null;
+          const total = check ? checkTotal(check) : null;
           return `<button class="table-card ${status === "abierta" ? "occupied" : status === "por_cobrar" ? "due" : ""} ${state.cashierTable === table.id ? "selected" : ""}"
             data-cashier-table="${escapeHtml(table.id)}"><strong>${escapeHtml(table.name)}</strong>
             <span class="table-status ${status === "por_cobrar" ? "due" : status === "abierta" ? "occupied" : ""}">${status === "disponible" ? "Disponible" : status === "por_cobrar" ? "Por cobrar" : "Cuenta abierta"}</span>
@@ -1362,13 +1370,17 @@
         }).join("")}</div></div>
         <aside class="panel cashier-receipt">${selected?.check ? renderReceipt(selected.table, selected.check) :
           `<p class="empty">${selected ? `${escapeHtml(selected.table.name)} no tiene cuenta activa.` : "Selecciona una mesa con cuenta activa."}</p>`}</aside></div>
-        <div class="section-heading"><h3>Corte de caja</h3><div class="toolbar">
+        ${state.cutOpen ? `<div class="section-heading"><h3>Corte de caja</h3><div class="toolbar no-print">
           <label for="close-date" class="muted">Fecha (Monterrey)</label>
-          <input id="close-date" type="date" value="${escapeHtml(date)}"></div></div>
+          <input id="close-date" type="date" value="${escapeHtml(date)}">
+          <button class="button primary" data-save-cut>Guardar en el dispositivo</button>
+          <button class="button" data-print>Imprimir</button>
+          <button class="button" data-close-cut>Cerrar</button></div></div>
         <div class="stats">
           <div class="stat"><span>Total vendido</span><strong>${money(sales)}</strong></div>
           <div class="stat"><span>Efectivo</span><strong>${money(cash)}</strong></div>
           <div class="stat"><span>Clip registrado</span><strong>${money(clip)}</strong></div>
+          <div class="stat"><span>Descuentos</span><strong>${money(cut.discounts)}</strong></div>
           <div class="stat"><span>Ticket promedio</span><strong>${money(paid.length ? sales / paid.length : 0)}</strong></div>
           <div class="stat"><span>Cuentas cobradas</span><strong>${paid.length}</strong></div>
           <div class="stat"><span>Anuladas</span><strong>${voided.length}</strong></div>
@@ -1376,26 +1388,81 @@
         <section class="panel"><h3>Productos más vendidos</h3>
           ${top.length ? `<div>${top.map(([name, item]) => `<div class="receipt-row"><span>${escapeHtml(name)} · ${item.quantity} pzas.</span><strong>${money(item.amount)}</strong></div>`).join("")}</div>` :
             `<p class="muted">Sin ventas registradas en esta fecha.</p>`}
-        </section>`;
+        </section>` : `<div class="section-heading no-print"><h3>Corte de caja</h3>
+          <button class="button primary" data-open-cut>Terminar jornada y hacer corte</button></div>`}`;
+    }
+    function cutData(date) {
+      const settled = state.data.checks.filter((check) => check.operatingDate === date && ["pagada", "anulada"].includes(check.status));
+      const paid = settled.filter((check) => check.status === "pagada");
+      const voided = settled.filter((check) => check.status === "anulada");
+      const byMethod = (method) => paid.filter((check) => check.paymentMethod === method).reduce((sum, check) => sum + check.total, 0);
+      const ranking = new Map();
+      paid.flatMap((check) => check.tickets.flatMap((ticket) => ticket.items)).forEach((item) => {
+        const entry = ranking.get(item.name) ?? { quantity: 0, amount: 0 };
+        entry.quantity += item.quantity;
+        entry.amount += itemNet(item);
+        ranking.set(item.name, entry);
+      });
+      return {
+        paid, voided,
+        sales: paid.reduce((sum, check) => sum + check.total, 0),
+        cash: byMethod("efectivo"), clip: byMethod("clip"),
+        discounts: paid.reduce((sum, check) => sum + check.discountTotal, 0),
+        top: [...ranking.entries()].sort((a, b) => b[1].quantity - a[1].quantity).slice(0, 10)
+      };
+    }
+    function saveCutToDevice() {
+      const date = state.closeDate;
+      const cut = cutData(date);
+      const lines = [
+        `Tacos El Faro · Corte de caja ${date}${state.testMode ? " (PRUEBA)" : ""}`,
+        `Generado: ${new Date().toLocaleString("es-MX", { timeZone: "America/Monterrey" })}`,
+        state.employee ? `Cajero: ${state.employee.nombre}` : "",
+        "",
+        `Total vendido: ${money(cut.sales)}`,
+        `Efectivo: ${money(cut.cash)}`,
+        `Clip: ${money(cut.clip)}`,
+        `Descuentos: ${money(cut.discounts)}`,
+        `Cuentas cobradas: ${cut.paid.length}`,
+        `Cuentas anuladas: ${cut.voided.length}`,
+        `Ticket promedio: ${money(cut.paid.length ? cut.sales / cut.paid.length : 0)}`,
+        "",
+        "Productos más vendidos",
+        ...cut.top.map(([name, item]) => `${item.quantity} × ${name} — ${money(item.amount)}`),
+        "",
+        "Cuentas cobradas",
+        ...cut.paid.map((check) => `${check.tableName} — ${check.paymentMethod} — ${money(check.total)}${check.discountTotal ? ` (desc. ${money(check.discountTotal)})` : ""}`)
+      ].filter((line, index, all) => line !== "" || all[index - 1] !== "");
+      const url = URL.createObjectURL(new Blob([lines.join("\r\n")], { type: "text/plain;charset=utf-8" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `corte-${date}${state.testMode ? "-prueba" : ""}.txt`;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      toast("Corte guardado en el dispositivo.");
     }
     function renderReceipt(table, check) {
       const items = check.tickets.flatMap((ticket) => ticket.items);
-      const total = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+      const total = checkTotal(check);
+      const gross = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
       return `<div class="ticket-head"><div><h3>${escapeHtml(table.name)}</h3><span class="badge ${check.status}">${statusLabel(check.status)}</span></div>
         <span class="muted">${check.tickets.length} comandas</span></div>
         <div class="receipt">${check.tickets.map((ticket) => `<div class="section-heading"><strong>#${ticket.number}</strong><span class="muted">${timeMty(ticket.createdAt)}</span></div>
           ${ticket.items.map((item) => `<div class="receipt-row"><span>${item.quantity}× ${escapeHtml(item.name)}
             ${item.modifiers.length ? `<small class="detail" style="display:block">${escapeHtml(item.modifiers.map((modifier) => modifier.name).join(" · "))}</small>` : ""}</span>
-            <strong>${money(item.quantity * item.unitPrice)}</strong></div>
+            <strong>${money(itemNet(item))}</strong></div>
+            ${item.discountType ? `<div class="receipt-row"><small class="detail">Descuento ${item.discountType === "porcentaje" ? `${item.discountValue}%` : money(item.discountValue)}</small><small class="detail">−${money(item.quantity * item.unitPrice - itemNet(item))}</small></div>` : ""}
             <div class="actions no-print"><button class="small-button" aria-label="Quitar uno" data-item-qty="${item.id}" data-check="${check.id}" data-qty="${item.quantity - 1}">−</button>
               <button class="small-button" aria-label="Agregar uno" data-item-qty="${item.id}" data-check="${check.id}" data-qty="${Math.min(99, item.quantity + 1)}">+</button>
               <button class="small-button" data-item-qty="${item.id}" data-check="${check.id}" data-qty="0">Quitar</button></div>`).join("")}`).join("")}
+          ${check.discountType ? `<div class="receipt-row"><span>Descuento de la cuenta ${check.discountType === "porcentaje" ? `${check.discountValue}%` : money(check.discountValue)}</span><strong>−${money(checkNet(check) - total)}</strong></div>` : ""}
           <div class="receipt-total"><span>Total</span><span>${money(total)}</span></div></div>
         <p class="payment-note">${state.testMode
           ? "Modo de prueba: los botones simulan el pago y no registran una venta real."
           : "Antes de cobrar, confirma el total con el cliente. Para Clip, realiza primero el cobro en la terminal y regístralo aquí después."}</p>
         <div class="actions no-print">
-          ${check.status !== "por_cobrar" ? `<button class="button warning" data-mark-due="${check.id}">${state.testMode ? "Prueba por cobrar" : "Marcar por cobrar"}</button>` : ""}
           <button class="button primary" data-pay="${check.id}" data-method="efectivo">${state.testMode ? "Simular efectivo" : "Cobrar efectivo"}</button>
           <button class="button primary" data-pay="${check.id}" data-method="clip">${state.testMode ? "Simular Clip" : "Registrar Clip"}</button>
           <button class="button danger" data-void="${check.id}">Anular cuenta</button>
@@ -1647,20 +1714,6 @@
         return;
       }
       toast("Cuenta actualizada.");
-      await refreshRemoteData();
-    }
-    async function markDue(checkId) {
-      if (!await ensureFreshData()) return;
-      const { error } = await supabaseClient.rpc("solicitar_cuenta", {
-        p_cuenta: checkId,
-        p_es_prueba: state.testMode
-      });
-      if (error) {
-        console.error("No se pudo marcar la cuenta por cobrar.", error);
-        toast(`No se pudo marcar por cobrar: ${error.message}`, true);
-        return;
-      }
-      toast("Cuenta marcada por cobrar.");
       await refreshRemoteData();
     }
     async function payCheck(checkId, method) {
@@ -1956,12 +2009,21 @@
         render();
       } else if (target.dataset.itemQty) {
         editCheckItem(target.dataset.check, target.dataset.itemQty, Number(target.dataset.qty));
-      } else if (target.dataset.markDue) {
-        markDue(target.dataset.markDue);
+      } else if (target.dataset.openCut !== undefined) {
+        if (window.confirm("¿Terminar la jornada y generar el corte de caja?")) {
+          state.cutOpen = true;
+          state.closeDate = todayMty();
+          render();
+        }
+      } else if (target.dataset.closeCut !== undefined) {
+        state.cutOpen = false;
+        render();
+      } else if (target.dataset.saveCut !== undefined) {
+        saveCutToDevice();
       } else if (target.dataset.pay) {
         const check = state.data.checks.find((item) => item.id === target.dataset.pay &&
           ["abierta", "por_cobrar"].includes(item.status));
-        const total = check?.tickets.reduce((sum, ticket) => sum + ticketTotal(ticket), 0) ?? 0;
+        const total = check ? checkTotal(check) : 0;
         const method = target.dataset.method;
         if (!check) {
           toast("La cuenta no está disponible para cobro.", true);

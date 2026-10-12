@@ -161,6 +161,11 @@
       #dashboard > .tabs .tab[aria-selected="true"] { background: var(--accent-soft); color: var(--accent); box-shadow: none; }
       #dashboard > section:not(.dashboard-heading) { grid-column: 2; }
     }
+    .top-row { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto auto; align-items: center; gap: .75rem; padding: .5rem 0; border-bottom: 1px solid var(--line); }
+    .top-row:last-child { border-bottom: 0; }
+    .top-rank { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--accent-soft); color: var(--accent); font-weight: 700; font-size: .8rem; }
+    .top-bar { height: 6px; margin-top: .35rem; border-radius: 99px; background: #eef0f3; }
+    .top-bar span { display: block; height: 100%; border-radius: 99px; background: var(--accent); }
     @media (max-width: 640px) {
       main { padding: .75rem; }
       .dashboard-heading { flex-direction: column; align-items: stretch; }
@@ -233,6 +238,21 @@
 
         <div class="section-block">
           <div class="section-head">
+            <h3>Productos más vendidos</h3>
+            <label>Periodo
+              <select id="top-period">
+                <option value="hoy">Hoy</option>
+                <option value="7">Últimos 7 días</option>
+                <option value="mes">Este mes</option>
+                <option value="todo">Todo el historial</option>
+              </select>
+            </label>
+          </div>
+          <div id="top-products" class="card"></div>
+        </div>
+
+        <div class="section-block">
+          <div class="section-head">
             <h3>Piso</h3>
             <p class="muted">Meseros, mesas y órdenes abiertas</p>
           </div>
@@ -286,6 +306,20 @@
               <div class="actions"><button class="primary" type="submit">Guardar producto</button><button type="button" data-clear-form>Limpiar</button></div>
             </form>
             <div id="products-list" class="management-list"></div>
+          </section>
+
+          <section class="card">
+            <h3>Promociones y combos</h3>
+            <p class="muted">Aparecen como categoría «Promociones» en el servicio. En la descripción indica qué incluye.</p>
+            <form id="promo-form" class="management-form">
+              <input name="id" type="hidden">
+              <label>Nombre<input name="name" maxlength="100" required placeholder="Ej. Combo 3 tacos + agua"></label>
+              <label>Precio (MXN)<input name="price" type="number" min="0" max="100000" step="0.01" required></label>
+              <label>Descripción<input name="description" maxlength="300" placeholder="Qué incluye"></label>
+              <label class="check-label"><input name="active" type="checkbox" checked> Vigente</label>
+              <div class="actions"><button class="primary" type="submit">Guardar promoción</button><button type="button" data-clear-form>Limpiar</button></div>
+            </form>
+            <div id="promos-list" class="management-list"></div>
           </section>
 
           <section class="card">
@@ -462,7 +496,7 @@
     }
     const AUDIT_TYPES = {
       comandas: ["enviar_comanda", "reclamar_mesa", "actualizar_comanda", "editar_comanda"],
-      cobros: ["cobrar_cuenta", "anular_cuenta"],
+      cobros: ["cobrar_cuenta", "anular_cuenta", "aplicar_descuento", "quitar_descuento"],
       turnos: ["entrada_empleado", "salida_empleado"],
       cambios: ["editar_producto", "editar_mesa", "editar_empleado"]
     };
@@ -478,7 +512,9 @@
         editar_producto: "editó producto",
         editar_mesa: "editó mesa",
         editar_comanda: "editó comanda",
-        editar_empleado: "editó empleado"
+        editar_empleado: "editó empleado",
+        aplicar_descuento: "aplicó descuento",
+        quitar_descuento: "quitó descuento"
       })[accion] ?? accion;
     }
     function money(value) {
@@ -643,13 +679,18 @@
       }
       root.innerHTML = filtered.map((item) => {
         const detalle = item.detalle || {};
-        const extra = item.accion === "cobrar_cuenta" && detalle.metodo_pago
-          ? ` · ${escapeHtml(detalle.metodo_pago)}`
+        const discountNote = ["aplicar_descuento", "quitar_descuento"].includes(item.accion)
+          ? ` · ${detalle.alcance === "articulo" ? escapeHtml(detalle.articulo || "artículo") : "cuenta"}${
+              item.accion === "aplicar_descuento" && detalle.tipo ? ` (${escapeHtml(detalle.tipo === "porcentaje" ? `${detalle.valor}%` : money(detalle.valor))})` : ""}${
+              detalle.motivo ? ` · motivo: ${escapeHtml(detalle.motivo)}` : ""}`
+          : "";
+        const extra = discountNote || (item.accion === "cobrar_cuenta" && detalle.metodo_pago
+          ? ` · ${escapeHtml(detalle.metodo_pago)}${detalle.descuento > 0 ? ` · desc. ${escapeHtml(money(detalle.descuento))}` : ""}`
           : item.accion === "anular_cuenta" && detalle.motivo
             ? ` · motivo: ${escapeHtml(detalle.motivo)}`
             : item.accion === "actualizar_comanda" && detalle.estado_nuevo
               ? ` · ${escapeHtml(detalle.estado_anterior)} → ${escapeHtml(detalle.estado_nuevo)}`
-              : "";
+              : "");
         const device = item.role === "admin" ? "" : item.device_label;
         return `<article class="audit-row audit-${escapeHtml(item.role)}">
           <time class="audit-time">${escapeHtml(formatTime(item.created_at))}</time>
@@ -672,12 +713,19 @@
       latestAccounts = data.accounts || [];
       latestAttendance = data.attendance || [];
       latestSales = data.sales || [];
-      document.getElementById("products-list").innerHTML = latestProducts.map((product) =>
+      document.getElementById("products-list").innerHTML = latestProducts.filter((product) => product.categoria !== "Promociones").map((product) =>
         `<article class="management-row">
           <div><strong>${escapeHtml(product.nombre)}</strong><p class="muted">${escapeHtml(product.categoria)} · ${escapeHtml(money(product.precio))} · ${product.activo ? "Disponible" : "Pausado"}${product.permite_mezcla ? " · Personalizable" : ""}</p></div>
           <button type="button" data-product-edit="${escapeHtml(product.id)}">Editar</button>
         </article>`
       ).join("") || `<p class="muted">No hay productos.</p>`;
+
+      document.getElementById("promos-list").innerHTML = latestProducts.filter((product) => product.categoria === "Promociones").map((promo) =>
+        `<article class="management-row">
+          <div><strong>${escapeHtml(promo.nombre)}</strong><p class="muted">${escapeHtml(money(promo.precio))} · ${promo.activo ? "Vigente" : "Pausada"}${promo.descripcion ? ` · ${escapeHtml(promo.descripcion)}` : ""}</p></div>
+          <button type="button" data-promo-edit="${escapeHtml(promo.id)}">Editar</button>
+        </article>`
+      ).join("") || `<p class="muted">Aún no hay promociones.</p>`;
 
       document.getElementById("tables-list").innerHTML = latestTables.map((table) =>
         `<article class="management-row">
@@ -710,7 +758,8 @@
       document.getElementById("accounts-list").innerHTML = latestAccounts.map((account) => {
         const lines = account.comandas.flatMap((ticket) => ticket.items.map((item) =>
           `<div class="account-item">
-            <span>${escapeHtml(item.cantidad)}× ${escapeHtml(item.nombre)} · ${escapeHtml(money(item.cantidad * Number(item.precio)))}</span>
+            <span>${escapeHtml(item.cantidad)}× ${escapeHtml(item.nombre)} · ${escapeHtml(money(item.cantidad * Number(item.precio)))}${
+              item.descuento_tipo ? ` <span class="status approved">−${escapeHtml(item.descuento_tipo === "porcentaje" ? `${item.descuento_valor}%` : money(item.descuento_valor))}</span>` : ""}</span>
             <div class="actions">
               <button type="button" aria-label="Quitar una unidad" data-item-adjust="${escapeHtml(account.id)}" data-item-id="${escapeHtml(item.id)}" data-quantity="${escapeHtml(item.cantidad)}" data-delta="-1">−</button>
               <button type="button" aria-label="Agregar una unidad" data-item-adjust="${escapeHtml(account.id)}" data-item-id="${escapeHtml(item.id)}" data-quantity="${escapeHtml(item.cantidad)}" data-delta="1">+</button>
@@ -723,13 +772,15 @@
         ).join("");
         const isOpen = openAccounts.has(account.id);
         const accountItems = account.comandas.flatMap((ticket) => ticket.items);
-        const accountTotal = accountItems.reduce((sum, item) => sum + item.cantidad * Number(item.precio), 0);
+        const accountTotal = Number(account.total ?? accountItems.reduce((sum, item) => sum + item.cantidad * Number(item.precio), 0));
+        const discountScopes = `<option value="">Toda la cuenta</option>${accountItems.map((item) =>
+          `<option value="${escapeHtml(item.id)}">${escapeHtml(item.cantidad)}× ${escapeHtml(item.nombre)}</option>`).join("")}`;
         const waiters = [...new Set(account.comandas.map((ticket) => ticket.mesero).filter(Boolean))].join(", ");
         const statusText = account.estado === "por_cobrar" ? "Por cobrar" : "Abierta";
         return `<article class="management-row" style="display:block">
           <div class="request-head">
             <div class="row-main"><strong>${escapeHtml(account.mesa)}</strong>
-              <p class="muted">${accountItems.length} artículos · ${escapeHtml(money(accountTotal))}${waiters ? ` · ${escapeHtml(waiters)}` : ""}</p></div>
+              <p class="muted">${accountItems.length} artículos · ${escapeHtml(money(accountTotal))}${account.descuento_tipo ? ` · descuento ${escapeHtml(account.descuento_tipo === "porcentaje" ? `${account.descuento_valor}%` : money(account.descuento_valor))}` : ""}${waiters ? ` · ${escapeHtml(waiters)}` : ""}</p></div>
             <span class="status ${escapeHtml(account.estado)}">${statusText}</span>
             <button type="button" data-account-toggle="${escapeHtml(account.id)}" aria-expanded="${isOpen}">${isOpen ? "Cerrar" : "Modificar"}</button>
           </div>
@@ -743,6 +794,14 @@
               <select aria-label="Opción del producto" data-add-option="${escapeHtml(account.id)}" hidden></select>
               <select aria-label="Tamaño" data-add-option-2="${escapeHtml(account.id)}" hidden></select>
               <button class="primary" type="button" data-item-add="${escapeHtml(account.id)}">Agregar artículo</button>
+            </div>
+            <div class="toolbar" style="margin-top:.65rem">
+              <select aria-label="Aplicar descuento a" data-disc-scope="${escapeHtml(account.id)}">${discountScopes}</select>
+              <select aria-label="Tipo de descuento" data-disc-type="${escapeHtml(account.id)}"><option value="porcentaje">%</option><option value="monto">$ MXN</option></select>
+              <input aria-label="Valor del descuento" type="number" min="0" step="0.01" placeholder="Descuento" data-disc-value="${escapeHtml(account.id)}" style="width:110px">
+              <input aria-label="Motivo" maxlength="200" placeholder="Motivo (opcional)" data-disc-reason="${escapeHtml(account.id)}">
+              <button class="primary" type="button" data-discount-apply="${escapeHtml(account.id)}">Aplicar descuento</button>
+              <button type="button" data-discount-clear="${escapeHtml(account.id)}">Quitar descuento</button>
             </div>
           </div>
         </article>`;
@@ -807,6 +866,30 @@
       }
     }
 
+    async function loadTopProducts() {
+      const today = todayMtyInput();
+      const period = document.getElementById("top-period").value;
+      const shift = (days) => new Date(Date.parse(`${today}T12:00:00Z`) - days * 86400000).toISOString().slice(0, 10);
+      const desde = period === "hoy" ? today : period === "7" ? shift(6)
+        : period === "mes" ? `${today.slice(0, 7)}-01` : null;
+      const { data, error } = await supabaseClient.rpc("admin_productos_vendidos", {
+        p_desde: desde, p_hasta: period === "todo" ? null : today, p_es_prueba: testMode
+      });
+      const root = document.getElementById("top-products");
+      if (error) {
+        console.error("No se pudieron cargar los productos más vendidos.", error);
+        root.innerHTML = `<p class="muted">No se pudo consultar. ¿Aplicaste la migración 0019?</p>`;
+        return;
+      }
+      const max = Math.max(1, ...(data || []).map((row) => Number(row.cantidad)));
+      root.innerHTML = (data || []).length ? data.map((row, index) =>
+        `<div class="top-row"><span class="top-rank">${index + 1}</span>
+          <div class="top-main"><strong>${escapeHtml(row.nombre)}</strong>
+            <div class="top-bar"><span style="width:${Math.round(Number(row.cantidad) / max * 100)}%"></span></div></div>
+          <span class="muted">${escapeHtml(row.cantidad)} pzas.</span><strong>${escapeHtml(money(row.importe))}</strong></div>`
+      ).join("") : `<p class="muted">Sin ventas cobradas en este periodo.</p>`;
+    }
+
     async function loadOperacion() {
       if (!currentUser) return;
       opsMessage.textContent = "Actualizando operación…";
@@ -820,6 +903,7 @@
         return;
       }
       renderOperacion(data || {}, staff.data || []);
+      void loadTopProducts();
       opsMessage.textContent = `Operación actualizada ${formatDate(new Date().toISOString())}.`;
     }
 
@@ -918,7 +1002,7 @@
           
           ${request.status === "approved" && request.empleado_id ? `<p class="muted">${request.en_turno ? `En turno desde ${escapeHtml(formatDate(request.entrada_at))}` : "Fuera de turno"}</p>` : ""}
           <p><strong>Fecha de solicitud:</strong> ${escapeHtml(formatDate(request.requested_at))}</p>
-          <p class="muted"><strong>Identificador del dispositivo:</strong> ${escapeHtml(request.user_id)}</p>
+          <details class="pin-chip"><summary>Detalles técnicos</summary><span class="muted">ID: ${escapeHtml(request.user_id)}</span></details>
           ${controls}
         </article>`;
       }).join("") : `<article class="muted">Aún no hay solicitudes de acceso.</article>`;
@@ -1172,6 +1256,15 @@
         p_precio: Number(form.elements.price.value), p_activo: form.elements.active.checked
       }, "Producto guardado.");
     });
+    document.getElementById("promo-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      await saveManagementForm(form, "admin_guardar_promocion", {
+        p_id: form.elements.id.value || null, p_nombre: form.elements.name.value.trim(),
+        p_precio: Number(form.elements.price.value), p_descripcion: form.elements.description.value.trim(),
+        p_activo: form.elements.active.checked
+      }, "Promoción guardada.");
+    });
     document.getElementById("table-form").addEventListener("submit", async (event) => {
       event.preventDefault();
       const form = event.currentTarget;
@@ -1250,6 +1343,40 @@
         } finally {
           button.disabled = false;
         }
+      } else if (button.dataset.discountApply || button.dataset.discountClear) {
+        const accountId = button.dataset.discountApply || button.dataset.discountClear;
+        const pick = (name) => document.querySelector(`[data-disc-${name}="${CSS.escape(accountId)}"]`);
+        const clearing = Boolean(button.dataset.discountClear);
+        const value = Number(pick("value").value);
+        if (!clearing && !(value > 0)) {
+          document.getElementById("management-message").textContent = "Escribe el valor del descuento.";
+          return;
+        }
+        button.disabled = true;
+        try {
+          const { error } = await supabaseClient.rpc("admin_aplicar_descuento", {
+            p_cuenta: accountId, p_item: pick("scope").value || null,
+            p_tipo: clearing ? null : pick("type").value, p_valor: clearing ? null : value,
+            p_motivo: pick("reason").value.trim() || null
+          });
+          if (error) throw error;
+          document.getElementById("management-message").textContent = clearing ? "Descuento quitado." : "Descuento aplicado.";
+          await loadManagement();
+        } catch (error) {
+          console.error("No se pudo aplicar el descuento.", error);
+          document.getElementById("management-message").textContent = error.message || "No se pudo aplicar el descuento.";
+        } finally {
+          button.disabled = false;
+        }
+      } else if (button.dataset.promoEdit) {
+        const promo = latestProducts.find((item) => item.id === button.dataset.promoEdit);
+        if (!promo) return;
+        const form = document.getElementById("promo-form");
+        form.elements.id.value = promo.id;
+        form.elements.name.value = promo.nombre;
+        form.elements.price.value = promo.precio;
+        form.elements.description.value = promo.descripcion ?? "";
+        form.elements.active.checked = promo.activo;
       } else if (button.dataset.itemAdd) {
         const accountId = button.dataset.itemAdd;
         const productId = document.querySelector(`[data-add-product="${CSS.escape(accountId)}"]`)?.value;
@@ -1290,6 +1417,7 @@
       }
     });
 
+    document.getElementById("top-period").addEventListener("change", () => { void loadTopProducts(); });
     document.getElementById("attendance-date").addEventListener("change", () => { void loadManagement(); });
     document.getElementById("sales-date").addEventListener("change", () => { void loadManagement(); });
     document.getElementById("refresh-accounts").addEventListener("click", () => { void loadManagement(); });
