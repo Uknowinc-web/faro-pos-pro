@@ -16,7 +16,7 @@ Tienes dos maneras directas de obtener el código completo del proyecto:
 ## 2. Esquema y seguridad de base de datos
 
 Las migraciones SQL vigentes están en `drizzle/migrations`. En una base nueva,
-ejecutar 0000–0012 en orden; en una base ya migrada, ejecutar únicamente las
+ejecutar 0000–0013 en orden; en una base ya migrada, ejecutar únicamente las
 pendientes. La 0003 cierra permisos directos al rol PostgreSQL `anon`, define
 roles y restringe las consultas y operaciones RPC. La 0004 verifica catálogo,
 modificadores y precio en PostgreSQL. La 0005 limita las cuentas al rol de caja
@@ -35,6 +35,13 @@ una cuenta administradora. 0012 crea `audit_acciones`, instrumenta las RPC
 operativas, y expone `panel_operacion_vivo` / `listar_auditoria_admin` para el
 panel de supervisión en [`admin-accesos.html`](./admin-accesos.html) (corte en
 vivo, piso, cocina y bitácora por dispositivo).
+0013 mueve el catálogo de productos a PostgreSQL para que administración pueda
+actualizar productos y precios con validación en servidor; permite editar mesas
+y artículos de cuentas abiertas; y añade empleados con PIN cifrado, turnos,
+asistencia y ventas atribuidas al mesero de cada comanda. Los puestos requieren
+un turno válido para reclamar mesas, enviar/actualizar comandas y procesar
+cuentas. La pestaña Gestión y el inicio de turno del POS requieren esta
+migración aplicada.
 
 **No uses los fragmentos SQL históricos de esta sección como mecanismo de
 despliegue.** La autorización canónica está en
@@ -46,7 +53,8 @@ despliegue.** La autorización canónica está en
 [`0008_validar_modo_en_operaciones.sql`](./drizzle/migrations/0008_validar_modo_en_operaciones.sql) y
 [`0009_responsable_de_mesa_y_sugerencias.sql`](./drizzle/migrations/0009_responsable_de_mesa_y_sugerencias.sql) y
 [`0010_crear_mesas_desde_servicio.sql`](./drizzle/migrations/0010_crear_mesas_desde_servicio.sql) y
-[`0012_panel_admin_operacion.sql`](./drizzle/migrations/0012_panel_admin_operacion.sql).
+[`0012_panel_admin_operacion.sql`](./drizzle/migrations/0012_panel_admin_operacion.sql) y
+[`0013_admin_jornada_y_empleados.sql`](./drizzle/migrations/0013_admin_jornada_y_empleados.sql).
 Consulta [SUPABASE_ACCESO.md](./SUPABASE_ACCESO.md) para aplicar migraciones,
 configurar la cuenta `admin`, aprobar aparatos y comprobar que el rol de base
 `anon` no tenga permisos.
@@ -57,8 +65,9 @@ validan en Supabase y solo una cuenta `admin` puede consultarlos en
 [`admin-accesos.html`](./admin-accesos.html). El aparato crea una identidad
 anónima individual sin permisos y espera la aprobación de esa cuenta. Una vez
 aprobada la identidad, el personal ingresa el código al abrir o recargar la
-liga. Los QR públicos de [`QR_PUESTOS.html`](./QR_PUESTOS.html) no incluyen
-códigos.
+liga y, para iniciar cada jornada, ingresa su PIN personal. Administración
+crea o desactiva empleados y asigna/cambia sus PIN desde la pestaña Gestión.
+Los QR públicos de [`QR_PUESTOS.html`](./QR_PUESTOS.html) no incluyen códigos.
 
 Cada puesto muestra claramente **Modo operación** o **Modo de prueba**. Los
 ensayos usan mesas `PRUEBA · ...` y no deben mezclarse con tickets, pagos o

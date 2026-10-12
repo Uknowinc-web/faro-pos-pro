@@ -37,6 +37,7 @@ En el SQL Editor del proyecto Supabase, ejecutar una vez y en orden:
 11. `drizzle/migrations/0010_crear_mesas_desde_servicio.sql`.
 12. `drizzle/migrations/0011_codigos_puesto_solo_administracion.sql`.
 13. `drizzle/migrations/0012_panel_admin_operacion.sql`.
+14. `drizzle/migrations/0013_admin_jornada_y_empleados.sql`.
 
 La migración 0011 ya se aplicó en el proyecto Supabase de producción. Se
 generaron tres códigos aleatorios y se verificó que los RPC existan y que ni
@@ -53,6 +54,18 @@ Operación y Bitácora de [`admin-accesos.html`](./admin-accesos.html). Crea
 confirma en **Database → Publications → supabase_realtime** que la tabla
 aparezca (si el `ALTER PUBLICATION` fallara por ya existir, no hace falta
 repetirlo).
+
+La migración **0013** agrega la pestaña **Gestión** al panel: catálogo de
+productos y precios, mesas activas/inactivas, edición de artículos en cuentas
+abiertas, administración de empleados/PIN, entradas y salidas, y ventas por
+mesero. El PIN se almacena como hash; cada empleado solo puede tener un turno
+abierto a la vez y debe coincidir con el puesto autorizado del aparato. La
+migración también valida en el servidor los turnos de meseros, caja y cocina,
+atribuye comandas a su mesero y publica el catálogo para actualizar el POS.
+Ejecuta 0013 después de 0012 y antes de desplegar la nueva versión de
+[`faro-pos-pro.html`](./faro-pos-pro.html) y [`admin-accesos.html`](./admin-accesos.html).
+No despliegues el HTML nuevo antes de aplicar la migración: el inicio de turno
+por PIN y las operaciones ya requieren sus funciones y tablas.
 
 En el proyecto Faro conectado, 0009 y 0010 ya se aplicaron en ese orden desde el
 SQL Editor. Se verificó que existan las tablas y RPC, que RLS esté habilitado en
@@ -86,6 +99,14 @@ de corte, piso, cocina y bitácora.
    monto cuando aplique.
 4. Con un usuario no admin (o anónimo), `panel_operacion_vivo` y
    `listar_auditoria_admin` deben fallar por autorización.
+5. Después de aplicar 0013, crea un empleado de prueba y verifica que su PIN
+   inicie/cierre turno en un aparato aprobado del puesto correcto; un PIN
+   erróneo y un segundo turno simultáneo deben rechazarse.
+6. Cambia el precio de un producto y confirma que el POS lo actualiza y que
+   PostgreSQL rechaza el precio anterior. Edita una cuenta abierta y valida
+   que el nuevo total coincida al cobrar.
+7. Confirma entradas/salidas en Gestión y que las ventas de las comandas
+   pagadas se atribuyan al mesero que inició el turno.
 
 ## Configurar Authentication
 

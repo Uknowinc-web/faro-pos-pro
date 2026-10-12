@@ -19,9 +19,11 @@ Sistema POS y KDS para taquería El Faro (Monterrey, N.L.).
 - `drizzle/migrations/0009_responsable_de_mesa_y_sugerencias.sql`: Asigna cada mesa al primer mesero que la abre; protege el envío y añade sugerencias con aceptación/rechazo en tiempo real.
 - `drizzle/migrations/0010_crear_mesas_desde_servicio.sql`: Permite al personal de servicio agregar mesas mediante una operación validada por el servidor.
 - `drizzle/migrations/0011_codigos_puesto_solo_administracion.sql`: Genera códigos aleatorios de puesto, los valida en Supabase y limita su consulta a administración.
+- `drizzle/migrations/0012_panel_admin_operacion.sql`: Añade operación en vivo y bitácora de acciones.
+- `drizzle/migrations/0013_admin_jornada_y_empleados.sql`: Añade catálogo editable, gestión de mesas/cuentas, PIN por empleado, asistencia y ventas por mesero.
 - `CHECKLIST_PILOTO_HOY.md`: Recorrido de pruebas por puesto, casos de aceptación y registro de incidencias.
 - `QR_PUESTOS.html` y `QR_MESERO.svg`, `QR_COCINA.svg`, `QR_CAJA.svg`: Hoja imprimible y QR por aparato; los tres abren el mismo enlace.
-- `admin-accesos.html`: Panel autenticado con operación en vivo (corte, piso, cocina), bitácora por dispositivo y aprobación de aparatos.
+- `admin-accesos.html`: Panel autenticado con operación en vivo, gestión de productos, precios, mesas, cuentas y empleados, asistencia, ventas por mesero, bitácora y aprobación de aparatos.
 - `SUPABASE_ACCESO.md`: Pasos para configurar el administrador, aprobar aparatos y verificar el acceso privado.
 - `MANUAL_TECNICO.md`: Documentación técnica detallada de la arquitectura, configuración de base de datos y despliegue.
 - `GUIA_DE_ACCION.md`: Plan priorizado para pasar del prototipo local a una aplicación segura y lista para operar.
@@ -34,7 +36,7 @@ El HTML independiente usa Supabase Auth, valida el rol y ejecuta las operaciones
 
 ## Aplicación HTML conectada
 
-Abre `https://faro-pos-pro.vercel.app/` en los dispositivos (redirige a `faro-pos-pro.html`). Cada QR contiene ese mismo enlace. Para la primera vinculación, el equipo indica un nombre y solicita a administración el código de su puesto. La persona administradora revisa y autoriza cada dispositivo desde `https://faro-pos-pro.vercel.app/admin-accesos.html`; en ese panel también puede consultar los códigos, el corte en vivo, el piso, la cocina y la bitácora (requiere migración 0012). La identidad del dispositivo no obtiene permisos hasta que se autoriza; las operaciones siguen protegidas por Supabase Auth y RLS.
+Abre `https://faro-pos-pro.vercel.app/` en los dispositivos (redirige a `faro-pos-pro.html`). Cada QR contiene ese mismo enlace. Para la primera vinculación, el equipo indica un nombre y solicita a administración el código de su puesto. La persona administradora revisa y autoriza cada dispositivo desde `https://faro-pos-pro.vercel.app/admin-accesos.html`; en ese panel también puede consultar los códigos, el corte en vivo, el piso, la cocina y la bitácora (migración 0012), así como configurar productos y mesas, gestionar cuentas y personal, y consultar asistencia y ventas por mesero (migración 0013). Una vez autorizado el aparato, cada empleado inicia su turno con su PIN personal. La identidad del dispositivo no obtiene permisos hasta que se autoriza; las operaciones siguen protegidas por Supabase Auth y RLS.
 
 Al volver a la aplicación desde otra pantalla, los datos se actualizan y las operaciones se bloquean mientras estén desactualizados o no haya conexión. El personal de servicio puede consultar mesas, comandas y artículos, y agregar mesas; no puede consultar cuentas. Cocina consulta comandas y artículos, mientras que caja consulta las cuentas. Los borradores de servicio se conservan en el navegador. Los pagos con Clip se registran en el POS y también deben cobrarse en la terminal.
 
