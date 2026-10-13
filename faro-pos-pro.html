@@ -94,6 +94,7 @@
       background: var(--card); color: inherit; text-align: left; transition: border-color .15s, box-shadow .15s, transform .15s;
     }
     .table-card { min-height: 118px; }
+    .product-card { content-visibility: auto; contain-intrinsic-size: auto 96px; }
     .table-card strong, .product-card strong { display: block; font-size: 1rem; }
     .table-card span, .product-card span { display: block; margin-top: .45rem; font-size: .84rem; color: var(--muted); }
     .table-card:hover, .product-card:hover { transform: translateY(-2px); border-color: #9cbcac; box-shadow: 0 8px 20px #18362a12; }
@@ -514,14 +515,51 @@
       const part = (type) => parts.find((item) => item.type === type)?.value;
       return `${part("year")}-${part("month")}-${part("day")}`;
     }
-    function productById(id) {
-      return PRODUCTOS.find((product) => product.id === id);
+    let catalogFingerprint = "";
+    let catalogLoadedAt = 0;
+    let productByIdMap = new Map();
+    let productGridCache = new Map();
+    const CATALOG_CACHE_KEY = "faro-catalogo-v1";
+    function catalogStamp(rows) {
+      let hash = 0;
+      for (const product of rows) {
+        const text = `${product.id}|${product.precio}|${product.nombre}|${product.categoria}|${product.mezcla}|${product.descripcion}`;
+        for (let index = 0; index < text.length; index += 1) hash = Math.imul(hash, 33) + text.charCodeAt(index) | 0;
+      }
+      return String(rows.length) + ":" + String(hash);
     }
-    async function loadProductCatalog() {
+    function rememberCatalog(rows, stamp) {
+      if (stamp === catalogFingerprint) {
+        catalogLoadedAt = Date.now();
+        return;
+      }
+      catalogFingerprint = stamp;
+      PRODUCTOS = rows;
+      productByIdMap = new Map(rows.map((product) => [product.id, product]));
+      productGridCache.clear();
+      catalogLoadedAt = Date.now();
+    }
+    function restoreCatalogCache() {
+      if (catalogFingerprint) return;
+      try {
+        const saved = JSON.parse(sessionStorage.getItem(CATALOG_CACHE_KEY) || "null");
+        if (!saved || saved.day !== todayMty() || !Array.isArray(saved.rows) || !saved.rows.length) return;
+        rememberCatalog(saved.rows, saved.stamp || catalogStamp(saved.rows));
+        catalogLoadedAt = Number(saved.at) || 0;
+      } catch {
+        catalogFingerprint = "";
+      }
+    }
+    function productById(id) {
+      return productByIdMap.get(id) || PRODUCTOS.find((product) => product.id === id);
+    }
+    async function loadProductCatalog(force = false) {
+      restoreCatalogCache();
+      if (!force && catalogFingerprint && Date.now() - catalogLoadedAt < 5 * 60_000) return;
       const { data, error } = await supabaseClient.rpc("listar_catalogo_pos");
       if (error) throw error;
       if (!Array.isArray(data)) throw new Error("La respuesta del catálogo no es válida.");
-      PRODUCTOS = data.map((product) => ({
+      const rows = data.map((product) => ({
         id: product.id,
         nombre: product.nombre,
         categoria: product.categoria,
@@ -531,6 +569,13 @@
         tripa: Number(product.extra_tripa_principal),
         queso: product.permite_queso ? Number(product.extra_queso) : 0
       }));
+      const stamp = catalogStamp(rows);
+      rememberCatalog(rows, stamp);
+      try {
+        sessionStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify({ day: todayMty(), at: Date.now(), stamp, rows }));
+      } catch {
+        /* el menú sigue en memoria */
+      }
     }
     function productPrice(product, modifiers) {
       return product.precio + modifiers.reduce((sum, modifier) => sum + modifier.extra, 0);
@@ -763,7 +808,13 @@
     }
     async function loadRemoteData(showError, scope = "all") {
       try {
-        if (scope !== "floor") await loadProductCatalog();
+        if (scope !== "floor") {
+          try {
+            await loadProductCatalog(scope === "catalog");
+          } catch (error) {
+            if (scope === "catalog" || !catalogFingerprint) throw error;
+          }
+        }
         if (scope === "catalog") return true;
         const { data: assignedRole, error: roleError } = await supabaseClient.from("staff_roles")
           .select("role").eq("user_id", state.user.id).maybeSingle();
@@ -1258,6 +1309,8 @@
       }
     }
     function render() {
+      const scrollY = window.scrollY;
+      const viewKey = `${state.stationRole}|${state.selectedTable || ""}|${state.category}|${state.view}`;
       const authorized = Boolean(state.user && state.role && state.stationRole === state.role);
       const operating = authorized && Boolean(state.employee);
       const nav = document.getElementById("module-nav");
@@ -1309,9 +1362,32 @@
         const view = state.stationRole === "mesero" ? renderWaiter() :
           state.stationRole === "cocina" ? renderKitchen() : renderCashier();
         app.innerHTML = employeeBanner + testBanner + connectionBanner + syncStatus + view;
+        if (viewKey === render.viewKey) window.scrollTo(0, scrollY);
+        render.viewKey = viewKey;
       }
     }
 
+    function productGridHtml(category) {
+      const key = catalogFingerprint + "|grid|" + category;
+      const cached = productGridCache.get(key);
+      if (cached) return cached;
+      const html = PRODUCTOS.filter((product) => product.categoria === category).map((product) =>
+        `<button class="product-card" data-product="${product.id}" aria-label="Agregar ${escapeHtml(product.nombre)}, ${money(product.precio)}"><strong>${escapeHtml(product.nombre)}</strong><span>${money(product.precio)}${product.mezcla ? " · Personalizable" : ""}</span>${product.descripcion ? `<small class="detail">${escapeHtml(product.descripcion)}</small>` : ""}</button>`
+      ).join("");
+      productGridCache.set(key, html);
+      return html;
+    }
+    function categoryButtonsHtml() {
+      const key = catalogFingerprint + "|cats|" + state.category;
+      const cached = productGridCache.get(key);
+      if (cached) return cached;
+      const present = new Set(PRODUCTOS.map((product) => product.categoria));
+      const html = CATEGORIAS.filter((category) => category === state.category || present.has(category)).map((category) =>
+        `<button class="category-button ${state.category === category ? "active" : ""}" aria-pressed="${state.category === category}" data-category="${escapeHtml(category)}">${escapeHtml(category)}</button>`
+      ).join("");
+      productGridCache.set(key, html);
+      return html;
+    }
     function renderWaiter() {
       const tables = [...state.data.tables].sort((a, b) => a.order - b.order);
       const ownerFor = (tableId) => state.data.owners.find((owner) => owner.mesa_id === tableId);
@@ -1388,7 +1464,7 @@
       }
 
       const table = state.data.tables.find((item) => item.id === state.selectedTable);
-      const products = PRODUCTOS.filter((product) => product.categoria === state.category);
+      const productsHtml = productGridHtml(state.category);
       const totalPieces = state.draft.reduce((sum, item) => sum + item.quantity, 0);
       const ownerName = state.selectedTableOwner?.responsable_nombre ?? "Mesero responsable";
       return `${suggestionInbox}<header class="page-heading"><div><p class="eyebrow">${state.suggestionMode ? "Sugerencia para otra mesa" : "Comanda nueva"}</p>
@@ -1398,13 +1474,8 @@
         <button class="button" data-action="back-tables">← Volver a mesas</button></header>
         <div class="layout"><section class="panel">
           <p class="eyebrow">1 · Elige una categoría y un producto</p>
-          <div class="categories">${CATEGORIAS.filter((category) => category === state.category || PRODUCTOS.some((product) => product.categoria === category)).map((category) =>
-            `<button class="category-button ${state.category === category ? "active" : ""}" aria-pressed="${state.category === category}" data-category="${escapeHtml(category)}">${escapeHtml(category)}</button>`
-          ).join("")}</div>
-          <div class="product-grid">${products.map((product) =>
-            `<button class="product-card" data-product="${product.id}" aria-label="Agregar ${escapeHtml(product.nombre)}, ${money(product.precio)}"><strong>${escapeHtml(product.nombre)}</strong>
-            <span>${money(product.precio)}${product.mezcla ? " · Personalizable" : ""}</span>${product.descripcion ? `<small class="detail">${escapeHtml(product.descripcion)}</small>` : ""}</button>`
-          ).join("")}</div>
+          <div class="categories">${categoryButtonsHtml()}</div>
+          <div class="product-grid">${productsHtml}</div>
         </section>
         <aside class="panel sticky ${state.draft.length ? "has-draft" : ""}"><p class="eyebrow">2 · Revisa y envía</p><h3>Comanda · ${totalPieces} ${totalPieces === 1 ? "artículo" : "artículos"}</h3>
           ${state.draft.length ? `<div class="cart-list">${state.draft.map((item, index) =>
