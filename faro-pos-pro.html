@@ -358,7 +358,7 @@
     const CATEGORIAS = ["Tacos", "Quesadillas", "Especiales", "Papas y Frijoles", "Postres", "Bebidas", "Promociones"];
     const NOTAS = ["Con todo", "Natural", "Sin salsa de tomate", "Sin lechuga", "Sin frijoles", "Bien cocida"];
     const OPCIONES_PRODUCTO = {
-      "agua-sabor": [{ label: "Sabor", choices: ["Jamaica", "Limón", "Pepino limón", "Tamarindo", "Piña", "Mango", "Sandía"] }],
+      "agua-sabor": [{ label: "Sabor", choices: ["Limón", "Pepino/limón", "Jamaica", "Tamarindo", "Mango", "Piña", "Sandía"] }],
       "horchata": [
         { label: "Bebida", choices: ["Horchata", "Cebada"] },
         { label: "Tamaño", choices: ["1 L", "1/2 L"] }
@@ -588,16 +588,37 @@
         /* el menú sigue en memoria */
       }
     }
+    function variantLeft(product, name) {
+      const row = (product.variantes || []).find((item) => item.variante === name);
+      if (!row || row.existencia == null) return null;
+      return Number(row.existencia);
+    }
+    function productSoldOut(product) {
+      if (product.activo === false) return true;
+      const variants = product.variantes || [];
+      if (variants.length) {
+        const tracked = variants.filter((item) => item.existencia != null);
+        return tracked.length === variants.length && tracked.every((item) => Number(item.existencia) <= 0);
+      }
+      return product.existencia != null && Number(product.existencia) <= 0;
+    }
     async function loadShiftAndStock() {
       if (state.role === "mesero") {
         const { data, error } = await supabaseClient.rpc("listar_meseros_turno");
         state.shiftWaiters = error || !Array.isArray(data) ? [] : data;
       }
-      const { data, error } = await supabaseClient.rpc("listar_inventario");
+      const [stockResult, variantResult] = await Promise.all([
+        supabaseClient.rpc("listar_inventario"),
+        supabaseClient.rpc("listar_inventario_variantes")
+      ]);
+      const data = stockResult.data;
+      const error = stockResult.error;
       if (error || !Array.isArray(data)) return;
       const stock = new Map(data.map((row) => [row.producto_id, row]));
+      const variants = Array.isArray(variantResult.data) ? variantResult.data : [];
       PRODUCTOS.forEach((product) => {
         const row = stock.get(product.id);
+        product.variantes = variants.filter((item) => item.producto_id === product.id);
         product.existencia = row && row.existencia != null ? Number(row.existencia) : null;
         if (row && row.activo === false) product.activo = false;
       });
@@ -623,7 +644,11 @@
       return product.precio + modifiers.reduce((sum, modifier) => sum + modifier.extra, 0);
     }
     function productOptionGroups(product) {
-      return OPCIONES_PRODUCTO[product.id] ?? [];
+      return OPCIONES_PRODUCTO[product.id] ?? OPCIONES_PRODUCTO[{
+        "Agua de sabor 1L": "agua-sabor",
+        "Horchata y cebada": "horchata",
+        "ToniCol y Titan": "toni-col"
+      }[product.nombre]] ?? [];
     }
     function productAllowsNotes(product) {
       return !["Postres", "Bebidas"].includes(product.categoria) && !PRODUCTOS_SIN_NOTAS.includes(product.id);
@@ -1521,7 +1546,7 @@
       const cached = productGridCache.get(key);
       if (cached) return cached;
       const html = PRODUCTOS.filter((product) => product.categoria === category).map((product) => {
-        const soldOut = product.activo === false || (product.existencia != null && Number(product.existencia) <= 0);
+        const soldOut = productSoldOut(product);
         return `<button class="product-card" ${soldOut ? "disabled" : `data-product="${product.id}"`} aria-label="${soldOut ? "Agotado" : "Agregar"} ${escapeHtml(product.nombre)}, ${money(product.precio)}"><strong>${escapeHtml(product.nombre)}</strong><span>${money(product.precio)}${soldOut ? " · Se acabó" : product.mezcla ? " · Personalizable" : ""}</span>${product.descripcion ? `<small class="detail">${escapeHtml(product.descripcion)}</small>` : ""}</button>`;
       }).join("");
       productGridCache.set(key, html);
@@ -2048,9 +2073,11 @@
         `<label class="choice"><input type="checkbox" name="quick-note" value="${escapeHtml(note)}">${escapeHtml(note)}</label>`
       ).join("");
       const optionGroups = productOptionGroups(product).map((group, groupIndex) =>
-        `<fieldset class="field"><legend>${escapeHtml(group.label)}</legend><div class="choice-grid">${group.choices.map((choice) =>
-          `<label class="choice"><input type="radio" name="option-${groupIndex}" value="${escapeHtml(choice)}">${escapeHtml(choice)}${choice === "1/2 L" ? ` (${money(product.precio / 2)})` : ""}</label>`
-        ).join("")}</div></fieldset>`
+        `<fieldset class="field"><legend>${escapeHtml(group.label)}</legend><div class="choice-grid">${group.choices.map((choice) => {
+          const left = variantLeft(product, choice);
+          const gone = left != null && left <= 0;
+          return `<label class="choice"><input type="radio" name="option-${groupIndex}" value="${escapeHtml(choice)}" ${gone ? "disabled" : ""}>${escapeHtml(choice)}${choice === "1/2 L" ? ` (${money(product.precio / 2)})` : ""}${gone ? " · Se acabó" : ""}</label>`;
+        }).join("")}</div></fieldset>`
       ).join("");
       const optionalExtras = (EXTRAS_OPCIONALES[product.id] ?? []).map((extra) =>
         `<label class="choice"><input type="checkbox" name="optional-extra" value="${escapeHtml(extra.name)}">${escapeHtml(extra.name)} (+${money(extra.extra)})</label>`
@@ -2188,6 +2215,14 @@
         const missing = groups.findIndex((_, index) => !selections[index]);
         if (missing !== -1) {
           toast(`Selecciona ${groups[missing].label.toLowerCase()}.`, true);
+          return;
+        }
+        const short = selections.find((choice) => {
+          const left = variantLeft(product, choice);
+          return left != null && quantity > left;
+        });
+        if (short) {
+          toast(variantLeft(product, short) <= 0 ? `Se acabó ${short}.` : `Solo quedan ${variantLeft(product, short)} de ${short}.`, true);
           return;
         }
         modifiers = optionModifiers(product, selections);
@@ -2820,7 +2855,7 @@
       await refreshRemoteData();
     }
     function openForgottenPicker(checkId) {
-      const products = PRODUCTOS.filter((product) => product.activo !== false && !(product.existencia != null && Number(product.existencia) <= 0));
+      const products = PRODUCTOS.filter((product) => !productSoldOut(product));
       document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop" data-dismiss-modal>
         <section class="modal" role="dialog" aria-modal="true" aria-labelledby="forget-title">
           <div class="modal-header"><h2 id="forget-title">Agregar a la cuenta</h2>
