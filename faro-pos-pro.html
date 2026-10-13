@@ -736,7 +736,6 @@
           userId: state.user.id,
           role: state.stationRole,
           testMode: state.testMode,
-          employee: state.employee,
           tables: state.data.tables,
           checks: state.data.checks,
           owners: state.data.owners,
@@ -753,13 +752,15 @@
     function restoreWorkSnapshot() {
       try {
         const saved = JSON.parse(localStorage.getItem(SNAPSHOT_KEY) || "null");
-        if (!saved || saved.userId !== state.user?.id || !saved.employee || !saved.role) return false;
+        if (!saved || saved.userId !== state.user?.id || !saved.role) return false;
+        // No se restaura una sesión offline con identidad de empleado almacenada en texto claro.
+        // La sesión solo puede reanudarse cuando el empleado se haya validado por el flujo de autenticación.
         if (state.stationBoundRole && saved.role !== state.stationBoundRole) return false;
         state.role = saved.role;
         state.stationRole = saved.role;
         state.stationBoundRole = saved.role;
         state.view = saved.role;
-        state.employee = saved.employee;
+        if (!state.employee) return false;
         state.testMode = Boolean(saved.testMode);
         state.data.tables = saved.tables || [];
         state.data.checks = saved.checks || [];
