@@ -365,7 +365,36 @@
 
           <section class="card">
             <h3>Inventario</h3>
-            <p class="muted">Escribe cuántas piezas quedan. En cero, el producto se acaba y el mesero ya no lo puede pedir. Si lo dejas vacío, no se controla.</p>
+            <p class="muted">Los insumos bajan solos cuando se vende un platillo que tiene receta. Compra, merma y ajuste quedan en el historial. Si un producto no tiene receta, se controla por piezas.</p>
+            <div class="toolbar">
+              <input id="insumo-name" maxlength="80" placeholder="Insumo" aria-label="Nombre del insumo">
+              <select id="insumo-unit" aria-label="Unidad"><option>kg</option><option>g</option><option>pza</option><option>litro</option><option>ml</option><option>caja</option></select>
+              <input id="insumo-min" type="number" min="0" step="0.001" placeholder="Mínimo" aria-label="Mínimo" style="width:90px">
+              <input id="insumo-cost" type="number" min="0" step="0.01" placeholder="Costo" aria-label="Costo" style="width:90px">
+              <input id="insumo-stock" type="number" step="0.001" placeholder="Existencia" aria-label="Existencia inicial" style="width:110px">
+              <button type="button" data-save-insumo>Guardar insumo</button>
+            </div>
+            <div id="insumo-list" class="management-list"></div>
+            <h3>Movimiento</h3>
+            <div class="toolbar">
+              <select id="move-insumo" aria-label="Insumo"></select>
+              <select id="move-type" aria-label="Tipo"><option value="compra">Compra</option><option value="merma">Merma</option><option value="salida">Salida</option><option value="ajuste">Ajuste (deja esta cantidad)</option></select>
+              <input id="move-qty" type="number" step="0.001" placeholder="Cantidad" aria-label="Cantidad" style="width:110px">
+              <input id="move-cost" type="number" min="0" step="0.01" placeholder="Costo de compra" aria-label="Costo de esta compra" style="width:130px">
+              <input id="move-reason" maxlength="160" placeholder="Proveedor, factura o motivo" aria-label="Motivo">
+              <button type="button" data-save-move>Registrar</button>
+            </div>
+            <div id="movement-list" class="management-list"></div>
+            <h3>Receta</h3>
+            <p class="muted">Cantidad de insumo por cada platillo vendido. En cero se quita de la receta.</p>
+            <div class="toolbar">
+              <select id="recipe-product" aria-label="Producto"></select>
+              <select id="recipe-insumo" aria-label="Insumo de la receta"></select>
+              <input id="recipe-qty" type="number" min="0" step="0.001" placeholder="Por pieza" aria-label="Cantidad por pieza" style="width:110px">
+              <button type="button" data-save-recipe>Guardar receta</button>
+            </div>
+            <div id="recipe-list" class="management-list"></div>
+            <h3>Productos por pieza</h3>
             <div id="inventory-list" class="management-list"></div>
           </section>
         </div>
@@ -878,11 +907,41 @@
       document.getElementById("management-test-mode").checked = testMode;
       const inventoryRoot = document.getElementById("inventory-list");
       if (inventoryRoot) {
-        inventoryRoot.innerHTML = (data.inventory || []).map((item) =>
-          `<article class="management-row"><div><strong>${escapeHtml(item.nombre)}</strong><p class="muted">${item.existencia == null ? "Sin control" : `${item.existencia} ${escapeHtml(item.unidad || "pza")}`}${item.activo === false ? " · Pausado" : ""}</p></div>
+        const pieceProducts = (data.inventory || []).filter((item) => !(data.recipes || []).some((recipe) => recipe.producto_id === item.producto_id));
+        inventoryRoot.innerHTML = pieceProducts.map((item) =>
+          `<article class="management-row"><div><strong>${escapeHtml(item.nombre)}</strong><p class="muted">${item.existencia == null ? "Sin control por pieza" : `${item.existencia} ${escapeHtml(item.unidad || "pza")}`}</p></div>
             <div class="actions"><input aria-label="Existencia de ${escapeHtml(item.nombre)}" data-stock="${escapeHtml(item.producto_id)}" type="number" min="0" step="1" value="${item.existencia == null ? "" : escapeHtml(item.existencia)}" style="width:90px">
             <button type="button" data-save-stock="${escapeHtml(item.producto_id)}">Guardar</button></div></article>`
-        ).join("") || `<p class="muted">El inventario aparece después de pegar la migración 0031.</p>`;
+        ).join("") || `<p class="muted">Los platillos con receta no aparecen aquí.</p>`;
+      }
+      const insumoRoot = document.getElementById("insumo-list");
+      if (insumoRoot) {
+        insumoRoot.innerHTML = (data.insumos || []).map((item) =>
+          `<article class="management-row"><div><strong>${escapeHtml(item.nombre)}</strong><p class="muted">${Number(item.existencia)} ${escapeHtml(item.unidad)} · mínimo ${Number(item.minimo)} · costo ${escapeHtml(money(item.costo))} · valor ${escapeHtml(money(item.valor))}${item.bajo ? " · bajo de mínimo" : ""}</p></div></article>`
+        ).join("") || `<p class="muted">Todavía no hay insumos. Pega la migración 0032.</p>`;
+        const options = (data.insumos || []).map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.nombre)} · ${escapeHtml(item.unidad)}</option>`).join("");
+        const moveSelect = document.getElementById("move-insumo");
+        const recipeInsumo = document.getElementById("recipe-insumo");
+        if (moveSelect) moveSelect.innerHTML = options;
+        if (recipeInsumo) recipeInsumo.innerHTML = options;
+      }
+      const recipeProduct = document.getElementById("recipe-product");
+      if (recipeProduct) {
+        recipeProduct.innerHTML = (data.products || []).filter((product) => product.activo !== false).map((product) =>
+          `<option value="${escapeHtml(product.id)}">${escapeHtml(product.nombre)}</option>`).join("");
+      }
+      const movementRoot = document.getElementById("movement-list");
+      if (movementRoot) {
+        movementRoot.innerHTML = (data.movements || []).map((item) =>
+          `<article class="management-row"><div><strong>${escapeHtml(item.insumo || "Producto")}</strong><p class="muted">${escapeHtml(item.tipo)} · ${Number(item.cantidad)} ${escapeHtml(item.unidad || "")}${item.motivo ? ` · ${escapeHtml(item.motivo)}` : ""} · queda ${item.existencia_despues ?? "—"}</p></div></article>`
+        ).join("") || `<p class="muted">Sin movimientos.</p>`;
+      }
+      const recipeRoot = document.getElementById("recipe-list");
+      if (recipeRoot) {
+        recipeRoot.innerHTML = (data.recipes || []).map((item) =>
+          `<article class="management-row"><div><strong>${escapeHtml(item.producto)}</strong><p class="muted">${Number(item.cantidad)} ${escapeHtml(item.unidad)} de ${escapeHtml(item.insumo)} por pieza</p></div>
+            <button type="button" data-clear-recipe="${escapeHtml(item.producto_id)}" data-recipe-insumo="${escapeHtml(item.insumo_id)}">Quitar</button></article>`
+        ).join("") || `<p class="muted">Sin recetas. Hasta que armes una, la venta no descuenta insumos.</p>`;
       }
       document.querySelectorAll("[data-add-product]").forEach(syncAddOptions);
     }
@@ -929,6 +988,11 @@
           if (result.error) throw result.error;
         }
         const inventoryResult = await supabaseClient.rpc("listar_inventario");
+        const [insumosResult, recipesResult, movementsResult] = await Promise.all([
+          supabaseClient.rpc("listar_insumos"),
+          supabaseClient.rpc("listar_recetas"),
+          supabaseClient.rpc("listar_movimientos")
+        ]);
         renderManagement({
           products: productsResult.data || [],
           employees: employeesResult.data || [],
@@ -936,7 +1000,10 @@
           sales: salesResult.data || [],
           accounts: accountsResult.data || [],
           tables: tablesResult.data || [],
-          inventory: inventoryResult.error ? [] : (inventoryResult.data || [])
+          inventory: inventoryResult.error ? [] : (inventoryResult.data || []),
+          insumos: Array.isArray(insumosResult.data) ? insumosResult.data : [],
+          recipes: Array.isArray(recipesResult.data) ? recipesResult.data : [],
+          movements: Array.isArray(movementsResult.data) ? movementsResult.data : []
         });
         message.textContent = `Gestión actualizada ${formatDate(new Date().toISOString())}.`;
       } catch (error) {
@@ -1492,6 +1559,36 @@
         if (error) { document.getElementById("management-message").textContent = error.message; return; }
         document.getElementById("management-message").textContent = "Producto eliminado del menú.";
         await loadManagement();
+      } else if (button.dataset.saveInsumo !== undefined) {
+        const nombre = document.getElementById("insumo-name")?.value.trim();
+        const { error } = await supabaseClient.rpc("admin_guardar_insumo", {
+          p_nombre: nombre,
+          p_unidad: document.getElementById("insumo-unit")?.value,
+          p_minimo: Number(document.getElementById("insumo-min")?.value || 0),
+          p_costo: Number(document.getElementById("insumo-cost")?.value || 0),
+          p_existencia: document.getElementById("insumo-stock")?.value === "" ? null : Number(document.getElementById("insumo-stock")?.value)
+        });
+        document.getElementById("management-message").textContent = error ? error.message : `${nombre} guardado.`;
+        if (!error) await loadManagement();
+      } else if (button.dataset.saveMove !== undefined) {
+        const { error } = await supabaseClient.rpc("admin_movimiento_inventario", {
+          p_insumo: document.getElementById("move-insumo")?.value,
+          p_tipo: document.getElementById("move-type")?.value,
+          p_cantidad: Number(document.getElementById("move-qty")?.value),
+          p_motivo: document.getElementById("move-reason")?.value.trim() || null,
+          p_costo: document.getElementById("move-cost")?.value === "" ? null : Number(document.getElementById("move-cost")?.value)
+        });
+        document.getElementById("management-message").textContent = error ? error.message : "Movimiento registrado.";
+        if (!error) await loadManagement();
+      } else if (button.dataset.saveRecipe !== undefined || button.dataset.clearRecipe) {
+        const producto = button.dataset.clearRecipe || document.getElementById("recipe-product")?.value;
+        const insumo = button.dataset.recipeInsumo || document.getElementById("recipe-insumo")?.value;
+        const cantidad = button.dataset.clearRecipe ? 0 : Number(document.getElementById("recipe-qty")?.value);
+        const { error } = await supabaseClient.rpc("admin_guardar_receta", {
+          p_producto: producto, p_insumo: insumo, p_cantidad: cantidad
+        });
+        document.getElementById("management-message").textContent = error ? error.message : "Receta actualizada.";
+        if (!error) await loadManagement();
       } else if (button.dataset.saveStock) {
         const input = document.querySelector(`[data-stock="${button.dataset.saveStock}"]`);
         const raw = input?.value.trim();
