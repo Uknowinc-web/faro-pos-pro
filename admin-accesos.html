@@ -365,13 +365,16 @@
 
         <section class="section-block">
           <div class="section-head"><h3>Solicitudes de acceso</h3></div>
-          <p id="dashboard-message" class="message" role="status">Revisa el nombre y el área antes de autorizar cada dispositivo.</p>
+          <p id="dashboard-message" class="message" role="status">Autorizar un aparato no crea un empleado. El empleado se da de alta abajo, con su PIN.</p>
+          <div class="actions" style="margin-top:0">
+            <button id="cleanup-devices" type="button">Limpiar aparatos huérfanos</button>
+          </div>
           <div id="requests" class="requests"></div>
         </section>
 
         <section class="card section-block">
           <h3>Empleados y PIN</h3>
-          <p class="muted">Al aprobar una solicitud el empleado queda sin PIN; asígnalo aquí con Editar. Hasta entonces el POS no le pedirá PIN. El PIN es único dentro de cada área.</p>
+          <p class="muted">Los empleados se crean aquí, no al aprobar un aparato. Asigna nombre, puesto y PIN. El PIN abre turno en cualquier aparato ya autorizado de esa misma área. El PIN es único dentro de cada área.</p>
           <form id="employee-form" class="management-form">
             <input name="id" type="hidden">
             <label>Nombre<input name="name" maxlength="80" required></label>
@@ -999,7 +1002,7 @@
             <span class="status ${escapeHtml(request.status)}">${escapeHtml(statusLabel)}</span>
           </div>
           <p><strong>Área solicitada:</strong> ${escapeHtml(roleLabel(request.requested_role))}</p>
-          ${request.empleado_nombre ? `<p><strong>Empleado:</strong> ${escapeHtml(request.empleado_nombre)}</p>` : ""}
+          <p class="muted">Aparato. La persona entra con su PIN después de que lo autorices.</p>
           
           ${request.status === "approved" && request.empleado_id ? `<p class="muted">${request.en_turno ? `En turno desde ${escapeHtml(formatDate(request.entrada_at))}` : "Fuera de turno"}</p>` : ""}
           <p><strong>Fecha de solicitud:</strong> ${escapeHtml(formatDate(request.requested_at))}</p>
@@ -1172,6 +1175,19 @@
       } finally {
         button.disabled = false;
       }
+    });
+
+    document.getElementById("cleanup-devices").addEventListener("click", async () => {
+      if (!window.confirm("Se borrarán los aparatos anónimos sin acceso aprobado y sin solicitud pendiente. Los administradores y los aparatos autorizados no se tocan.")) return;
+      dashboardMessage.textContent = "Limpiando aparatos huérfanos…";
+      const { data, error } = await supabaseClient.rpc("admin_limpiar_aparatos_huerfanos");
+      if (error) {
+        console.error("No se pudieron limpiar los aparatos.", error);
+        dashboardMessage.textContent = "No se pudieron limpiar los aparatos. Inténtalo de nuevo.";
+        return;
+      }
+      dashboardMessage.textContent = `Se eliminaron ${data ?? 0} aparatos huérfanos.`;
+      await loadRequests();
     });
 
     document.getElementById("requests").addEventListener("click", async (event) => {
