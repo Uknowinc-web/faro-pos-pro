@@ -156,7 +156,7 @@
     .person-columns .section-head h4 { margin: 0; }
     .person-columns .section-head button { flex: 0 0 auto; min-height: 34px; padding: .25rem .7rem; }
     #employee-form .actions, .sheet-panel .management-form .actions { grid-column: auto; justify-content: flex-start; margin: 0; }
-    #employee-form.management-form { grid-template-columns: repeat(2, minmax(0, 260px)); justify-content: start; margin-bottom: 1rem; }
+    .sheet-panel #employee-form.management-form { grid-template-columns: 1fr; }
     #employee-form .check-label, #employee-form .quiet-danger { grid-column: 1 / -1; }
     .quiet-danger { display: flex; justify-content: flex-start; margin: .85rem 0 0; padding-top: .75rem; border-top: 1px solid var(--line); }
     .quiet-danger:has(button[hidden]) { display: none; }
@@ -174,7 +174,7 @@
     .stock-actions input { width: 7.2rem; min-width: 0; min-height: 36px; flex: 1 1 6.5rem; }
     .stock-actions button { min-height: 36px; }
     @media (max-width: 900px) {
-      #product-sheet, #table-sheet { order: -1; }
+      #product-sheet, #table-sheet, #employee-sheet { order: -1; }
     }
     @media (max-width: 480px) {
       .audit-row { grid-template-columns: 1fr; gap: .25rem; }
@@ -504,22 +504,35 @@
           </div>
         </div>
 
-        <div class="section-head"><h3>Personas</h3></div>
-        <form id="employee-form" class="card management-form" hidden>
-          <input name="id" type="hidden">
-          <label>Nombre<input name="name" maxlength="80" required></label>
-          <label>Puesto<select name="role" required>
-            <option value="mesero">Mesero</option><option value="caja">Caja</option><option value="cocina">Cocina</option>
-          </select></label>
-          <label>PIN (4–8 dígitos)<input name="pin" type="text" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" autocomplete="off" required></label>
-          <label class="check-label"><input name="active" type="checkbox" checked> Activo</label>
-          <div class="actions"><button class="primary" type="submit">Guardar persona</button><button type="button" data-close-employee>Cerrar</button></div>
-          <div class="quiet-danger"><button class="danger" type="button" id="offboard-current-employee" hidden>Dar de baja</button></div>
-        </form>
-        <div id="employees-list"></div>
+        <div class="section-block">
+          <h3>En turno</h3>
+          <div id="on-shift-list" class="tile-grid"></div>
+        </div>
+        <div class="catalog-toolbar">
+          <h3>Personal</h3>
+          <button id="new-employee" class="primary" type="button">+ Nuevo</button>
+        </div>
+        <p id="staff-count" class="muted"></p>
+        <div class="menu-layout">
+          <div id="employees-list" class="tile-grid"></div>
+          <aside id="employee-sheet" class="card sheet-panel" hidden>
+            <form id="employee-form" class="management-form">
+              <p class="eyebrow">Ficha</p>
+              <input name="id" type="hidden">
+              <label>Nombre<input name="name" maxlength="80" required></label>
+              <label>Puesto<select name="role" required>
+                <option value="mesero">Mesero</option><option value="caja">Caja</option><option value="cocina">Cocina</option>
+              </select></label>
+              <label>PIN (4–8 dígitos)<input name="pin" type="text" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" autocomplete="off" required></label>
+              <label class="check-label"><input name="active" type="checkbox" checked> Activo</label>
+              <div class="actions"><button class="primary" type="submit">Guardar</button><button type="button" data-close-employee>Cerrar</button></div>
+              <div class="quiet-danger"><button class="danger" type="button" id="offboard-current-employee" hidden>Dar de baja</button></div>
+            </form>
+          </aside>
+        </div>
 
         <section class="card section-block">
-          <div class="section-head"><h3>Asistencia de hoy</h3><label class="date-field">Fecha<input id="attendance-date" type="date"></label></div>
+          <div class="section-head"><h3>Asistencia</h3><label class="date-field">Fecha<input id="attendance-date" type="date"></label></div>
           <div id="attendance-list" class="tile-grid"></div>
         </section>
 
@@ -564,7 +577,7 @@
             <label>Área
               <select id="audit-role-filter">
                 <option value="">Todas</option>
-                <option value="mesero">Servicio</option>
+                <option value="mesero">Mesero</option>
                 <option value="cocina">Cocina</option>
                 <option value="caja">Caja</option>
                 <option value="admin">Administración</option>
@@ -607,7 +620,7 @@
       operacion: "Operación en vivo",
       cuentas: "Cuentas abiertas",
       catalogo: "Catálogo",
-      accesos: "Personas y aparatos",
+      accesos: "Personal y aparatos",
       bitacora: "Bitácora de acciones"
     };
     let currentUser = null;
@@ -639,6 +652,9 @@
     let sheetOpen = false;
     let selectedTableId = null;
     let tableSheetOpen = false;
+    let selectedEmployeeId = null;
+    let employeeSheetOpen = false;
+    let selectedDeviceId = null;
     let latestBundle = null;
     const MENU_CATEGORIES = ["Tacos", "Quesadillas", "Especiales", "Papas y Frijoles", "Postres", "Bebidas", "Promociones"];
 
@@ -648,7 +664,7 @@
       })[char]);
     }
     function roleLabel(role) {
-      return ({ mesero: "Servicio", cocina: "Cocina", caja: "Caja", admin: "Admin" })[role] ?? role;
+      return ({ mesero: "Mesero", cocina: "Cocina", caja: "Caja", admin: "Admin" })[role] ?? role;
     }
     function mesaEstadoLabel(status) {
       return ({
@@ -942,26 +958,25 @@
           <div class="tile-actions"><button type="button" data-table-edit="${escapeHtml(table.id)}">Ficha</button></div></article>`
       ).join("") || `<p class="muted">No hay mesas en este modo.</p>`;
 
-      const roleOrder = ["mesero", "cocina", "caja"];
-      const extraPeople = latestEmployees.filter((employee) => !roleOrder.includes(employee.puesto));
-      const grouped = `<div class="person-columns">${roleOrder.map((role) => {
-        const people = latestEmployees.filter((employee) => employee.puesto === role);
-        return `<section><div class="section-head"><h4>${escapeHtml(roleLabel(role))}</h4><button type="button" data-new-employee="${role}">+ Nueva</button></div><div class="tile-grid">${people.map((employee) =>
-          `<article class="tile"><strong>${escapeHtml(employee.nombre)}</strong>
-            <span class="muted">${employee.entrada_at ? "En turno" : employee.activo ? "Fuera de turno" : "Inactivo"}${employee.aparato ? ` · ${escapeHtml(employee.aparato)}` : ""}</span>
-            <div class="tile-actions"><button type="button" data-employee-edit="${escapeHtml(employee.id)}">Editar</button></div></article>`
-        ).join("") || `<p class="muted">Nadie en esta área.</p>`}</div></section>`;
-      }).join("")}</div>`;
-      const extras = extraPeople.length ? `<section class="menu-group"><h4>Otros</h4><div class="tile-grid">${extraPeople.map((employee) =>
+      const onShift = latestEmployees.filter((employee) => employee.entrada_at && employee.activo !== false);
+      document.getElementById("on-shift-list").innerHTML = onShift.map((employee) =>
         `<article class="tile"><strong>${escapeHtml(employee.nombre)}</strong><span class="muted">${escapeHtml(roleLabel(employee.puesto))}</span></article>`
-      ).join("")}</div></section>` : "";
-      document.getElementById("employees-list").innerHTML = (grouped + extras) || `<p class="muted">Aún no hay empleados registrados.</p>`;
+      ).join("") || `<p class="muted">Nadie en turno.</p>`;
+      document.getElementById("staff-count").textContent = `${latestEmployees.length} ${latestEmployees.length === 1 ? "persona" : "personas"}`;
+      document.getElementById("employee-sheet").hidden = !employeeSheetOpen;
+      document.getElementById("employees-list").innerHTML = latestEmployees.map((employee) =>
+        `<article class="tile ${employee.id === selectedEmployeeId ? "selected" : ""}">
+          <button type="button" class="text-button" data-employee-edit="${escapeHtml(employee.id)}"><strong>${escapeHtml(employee.nombre)}</strong></button>
+          <span class="muted">${escapeHtml(roleLabel(employee.puesto))}${employee.activo === false ? " · Inactivo" : ""}</span>
+          <div class="tile-actions"><button type="button" data-employee-edit="${escapeHtml(employee.id)}">Ficha</button></div></article>`
+      ).join("") || `<p class="muted">Aún no hay personal registrado.</p>`;
 
       const attendanceDate = document.getElementById("attendance-date").value;
+      const attendance = attendanceByDay(data.attendance);
       document.getElementById("attendance-list").className = "tile-grid";
-      document.getElementById("attendance-list").innerHTML = (data.attendance || []).map((shift) =>
-        `<article class="tile"><strong>${escapeHtml(shift.nombre)}</strong><span class="muted">${escapeHtml(roleLabel(shift.puesto))}</span><span class="muted">${escapeHtml(formatDate(shift.entrada_at))}${shift.salida_at ? ` – ${escapeHtml(formatDate(shift.salida_at))}` : " · En turno"}</span></article>`
-      ).join("") || `<p class="muted">Sin registros de asistencia el ${escapeHtml(formatDay(attendanceDate))}.</p>`;
+      document.getElementById("attendance-list").innerHTML = attendance.map((shift) =>
+        `<article class="tile"><strong>${escapeHtml(shift.nombre)}</strong><span class="muted">${escapeHtml(roleLabel(shift.puesto))}</span><span class="muted">${shift.salida_at ? "Presente" : "En turno"}</span></article>`
+      ).join("") || `<p class="muted">Sin asistencia el ${escapeHtml(formatDay(attendanceDate))}.</p>`;
 
       document.getElementById("sales-list").className = "tile-grid";
       document.getElementById("sales-list").innerHTML = (data.sales || []).map((sale) =>
@@ -1207,6 +1222,21 @@
       document.getElementById("audit-year-field").hidden = mode !== "anio";
     }
 
+    function attendanceByDay(rows) {
+      const grouped = new Map();
+      for (const shift of rows || []) {
+        const key = shift.empleado_id || shift.nombre;
+        const current = grouped.get(key);
+        if (!current) {
+          grouped.set(key, { ...shift });
+          continue;
+        }
+        if (new Date(shift.entrada_at) < new Date(current.entrada_at)) current.entrada_at = shift.entrada_at;
+        if (!shift.salida_at || !current.salida_at) current.salida_at = null;
+        else if (new Date(shift.salida_at) > new Date(current.salida_at)) current.salida_at = shift.salida_at;
+      }
+      return [...grouped.values()];
+    }
     function nameQuotaMessage(left, hasName) {
       if (left == null) return "";
       if (!hasName) return "El primer nombre no gasta cambios. Después podrás cambiarlo 2 veces.";
@@ -1284,18 +1314,20 @@
       const card = (request) => {
         const pending = request.status === "pending";
         const statusLabel = { pending: "Pendiente", approved: "Aprobado", rejected: "Rechazado", revoked: "Revocado" }[request.status] ?? request.status;
+        const opened = selectedDeviceId === request.user_id;
         let controls = "";
-        if (pending) {
+        if (opened && pending) {
           controls = `<div class="actions"><button class="primary" type="button" data-approve="${escapeHtml(request.user_id)}">Aprobar</button><button type="button" data-reject="${escapeHtml(request.user_id)}">Rechazar</button><button class="danger" type="button" data-delete="${escapeHtml(request.user_id)}">Eliminar</button></div>`;
-        } else if (request.status === "approved") {
+        } else if (opened && request.status === "approved") {
           controls = `<div class="tile-actions"><button class="danger" type="button" data-revoke="${escapeHtml(request.user_id)}">Retirar</button><button class="danger" type="button" data-delete="${escapeHtml(request.user_id)}">Eliminar</button></div>`;
-        } else {
+        } else if (opened) {
           controls = `<div class="tile-actions"><button class="primary" type="button" data-reactivate="${escapeHtml(request.user_id)}">Autorizar</button><button class="danger" type="button" data-delete="${escapeHtml(request.user_id)}">Eliminar</button></div>`;
         }
+        const ficha = `<div class="tile-actions"><button type="button" data-device-edit="${escapeHtml(request.user_id)}">${opened ? "Cerrar" : "Ficha"}</button></div>`;
         if (pending) {
-          return `<article class="request-pending"><div class="request-head"><h3>${escapeHtml(request.device_label)}</h3><span class="status pending">${escapeHtml(statusLabel)}</span></div><p class="muted">Solicitud pendiente · ${escapeHtml(roleLabel(request.requested_role))}</p>${controls}</article>`;
+          return `<article class="request-pending"><div class="request-head"><h3>${escapeHtml(request.device_label)}</h3><span class="status pending">${escapeHtml(statusLabel)}</span></div><p class="muted">Solicitud pendiente · ${escapeHtml(roleLabel(request.requested_role))}</p>${ficha}${controls}</article>`;
         }
-        return `<article class="tile"><strong>${escapeHtml(request.device_label)}</strong><span class="muted">${escapeHtml(statusLabel)} · ${escapeHtml(roleLabel(request.requested_role))}</span>${controls}</article>`;
+        return `<article class="tile ${opened ? "selected" : ""}"><strong>${escapeHtml(request.device_label)}</strong><span class="muted">${escapeHtml(statusLabel)} · ${escapeHtml(roleLabel(request.requested_role))}</span>${ficha}${controls}</article>`;
       };
       const pending = data.filter((request) => request.status === "pending");
       const approved = data.filter((request) => request.status === "approved");
@@ -1733,8 +1765,36 @@
         p_puesto: form.elements.role.value, p_pin: form.elements.pin.value,
         p_activo: form.elements.active.checked
       }, "Empleado guardado.");
-      if (ok) form.hidden = true;
+      if (ok) {
+        employeeSheetOpen = false;
+        selectedEmployeeId = null;
+        if (latestBundle) renderManagement(latestBundle);
+      }
     });
+
+    function openEmployeeSheet(employee) {
+      selectedEmployeeId = employee?.id || null;
+      employeeSheetOpen = true;
+      const form = document.getElementById("employee-form");
+      if (!employee) {
+        clearManagementForm(form);
+        form.elements.role.value = "mesero";
+      } else {
+        form.elements.id.value = employee.id;
+        form.elements.name.value = employee.nombre;
+        form.elements.role.value = employee.puesto;
+        form.elements.pin.value = employee.pin ?? "";
+        form.elements.pin.required = !employee.pin;
+        form.elements.active.checked = employee.activo !== false;
+        const remove = document.getElementById("offboard-current-employee");
+        remove.hidden = employee.activo === false;
+        if (employee.activo !== false) remove.dataset.employeeOffboard = employee.id;
+        else delete remove.dataset.employeeOffboard;
+      }
+      if (latestBundle) renderManagement(latestBundle);
+      document.getElementById("employee-sheet")?.scrollIntoView({ block: "nearest" });
+      if (!employee) form.elements.name?.focus();
+    }
 
     function openProductSheet(product) {
       selectedProductId = product.id;
@@ -1827,16 +1887,19 @@
         renderManagement(latestBundle);
         return;
       }
-      if (button.dataset.newEmployee) {
-        const form = document.getElementById("employee-form");
-        clearManagementForm(form);
-        form.hidden = false;
-        form.elements.role.value = button.dataset.newEmployee;
-        form.scrollIntoView({ block: "nearest" });
+      if (button.id === "new-employee") {
+        openEmployeeSheet(null);
         return;
       }
-      if (button.dataset.closeEmployee !== undefined) {
-        document.getElementById("employee-form").hidden = true;
+      if (button.dataset.closeEmployee !== undefined && latestBundle) {
+        employeeSheetOpen = false;
+        selectedEmployeeId = null;
+        renderManagement(latestBundle);
+        return;
+      }
+      if (button.dataset.deviceEdit) {
+        selectedDeviceId = selectedDeviceId === button.dataset.deviceEdit ? null : button.dataset.deviceEdit;
+        await loadRequests();
         return;
       }
       if (button.dataset.stockPick && latestBundle) {
@@ -2026,23 +2089,13 @@
         const { error } = await supabaseClient.rpc("admin_dar_baja_empleado", { p_id: employee.id });
         if (error) { document.getElementById("management-message").textContent = error.message; return; }
         document.getElementById("management-message").textContent = `${employee.nombre} dado de baja. Sus mesas quedaron libres.`;
+        employeeSheetOpen = false;
+        selectedEmployeeId = null;
         await loadManagement();
       } else if (button.dataset.employeeEdit) {
         const employee = latestEmployees.find((item) => item.id === button.dataset.employeeEdit);
         if (!employee) return;
-        const form = document.getElementById("employee-form");
-        form.elements.id.value = employee.id;
-        form.elements.name.value = employee.nombre;
-        form.elements.role.value = employee.puesto;
-        form.elements.pin.value = employee.pin ?? "";
-        form.elements.pin.required = !employee.pin;
-        form.elements.active.checked = employee.activo;
-        const remove = document.getElementById("offboard-current-employee");
-        remove.hidden = !employee.activo;
-        if (employee.activo) remove.dataset.employeeOffboard = employee.id;
-        else delete remove.dataset.employeeOffboard;
-        form.hidden = false;
-        form.scrollIntoView({ block: "nearest" });
+        openEmployeeSheet(employee);
       } else if (button.dataset.itemAdjust || button.dataset.itemDelete) {
         const accountId = button.dataset.itemAdjust || button.dataset.itemDelete;
         const itemId = button.dataset.itemId;
