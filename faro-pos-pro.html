@@ -755,12 +755,12 @@
         if (!saved || saved.userId !== state.user?.id || !saved.role) return false;
         // No se restaura una sesión offline con identidad de empleado almacenada en texto claro.
         // La sesión solo puede reanudarse cuando el empleado se haya validado por el flujo de autenticación.
+        if (!state.employee) return false;
         if (state.stationBoundRole && saved.role !== state.stationBoundRole) return false;
         state.role = saved.role;
         state.stationRole = saved.role;
         state.stationBoundRole = saved.role;
         state.view = saved.role;
-        if (!state.employee) return false;
         state.testMode = Boolean(saved.testMode);
         state.data.tables = saved.tables || [];
         state.data.checks = saved.checks || [];
