@@ -11,7 +11,7 @@
     body { margin: 0; min-width: 320px; }
     header { position: sticky; top: 0; z-index: 2; padding: 1rem max(1rem, calc((100vw - 1100px) / 2)); background: var(--green); color: white; box-shadow: 0 3px 16px #14251d2e; }
     header h1 { margin: 0; font-size: 1.15rem; }
-    main { width: min(1100px, 100%); margin: auto; padding: 1.25rem; }
+    main { width: min(1280px, 100%); margin: auto; padding: 1.25rem; }
     .panel, article, .card { padding: 1.1rem; border: 1px solid var(--line); border-radius: 16px; background: var(--card); box-shadow: var(--shadow); }
     .panel { max-width: 480px; margin: 2rem auto; }
     h2 { margin: 0 0 .4rem; letter-spacing: -.02em; }
@@ -62,7 +62,7 @@
     .toolbar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
     .toolbar label { margin: 0; display: flex; align-items: center; gap: .45rem; font-weight: 650; }
     .toolbar input[type="checkbox"] { width: auto; min-height: auto; }
-    .toolbar select { width: auto; min-width: 140px; min-height: 44px; }
+    .toolbar select, .toolbar input { width: auto; min-width: 120px; flex: 1 1 140px; }
     .audit-row { display: grid; grid-template-columns: 5.5rem 1fr; gap: .75rem; align-items: start; border-left: 4px solid var(--line); }
     .audit-row.audit-mesero { border-left-color: #4f9d69; }
     .audit-row.audit-cocina { border-left-color: #d49a2a; }
@@ -75,6 +75,21 @@
     .audit-filters select, .audit-filters input { width: 100%; }
     .audit-meta { display: flex; flex-wrap: wrap; gap: .5rem .9rem; color: var(--muted); font-size: .9rem; }
     .management-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 1rem; }
+    .catalog-forms { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; align-items: start; }
+    .split-2 { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(280px, .85fr); gap: 1rem; align-items: start; }
+    .tile-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: .55rem; }
+    .tile { display: flex; flex-direction: column; gap: .3rem; padding: .7rem; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+    .tile strong { line-height: 1.25; }
+    .tile .muted { font-size: .82rem; }
+    .tile-actions { display: flex; gap: .35rem; margin-top: auto; padding-top: .35rem; }
+    .tile-actions button { flex: 1; min-height: 34px; padding: .25rem .4rem; font-size: .82rem; }
+    .menu-group { margin-top: .85rem; }
+    .menu-group h4 { margin: 0 0 .4rem; color: var(--green); font-size: .78rem; letter-spacing: .07em; text-transform: uppercase; }
+    .sheet { width: 100%; border-collapse: collapse; }
+    .sheet th, .sheet td { padding: .45rem .35rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+    .sheet th { color: var(--muted); font-size: .72rem; letter-spacing: .05em; text-transform: uppercase; font-weight: 750; }
+    .sheet tr.low td { background: #fff4f2; }
+    .sheet input { min-height: 36px; }
     .management-list { display: grid; gap: .6rem; margin-top: .8rem; }
     .management-row { display: flex; justify-content: space-between; align-items: center; gap: .7rem; padding: .7rem; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
     .management-row p { margin: .15rem 0; }
@@ -111,6 +126,7 @@
       .tabs .tab { flex: 0 0 auto; }
       .toolbar select { width: 100%; }
       .management-row > button { width: 100%; }
+      .catalog-forms, .split-2 { grid-template-columns: 1fr; }
     }
     @media (min-width: 721px) and (max-width: 1100px) {
       main { padding: 1rem 1.25rem; }
@@ -318,9 +334,9 @@
       </div>
 
       <section id="panel-catalogo" role="tabpanel" aria-labelledby="tab-catalogo" hidden>
-        <div class="management-grid">
+        <div class="catalog-forms">
           <section class="card">
-            <h3>Productos y precios</h3>
+            <h3>Producto</h3>
             <form id="product-form" class="management-form">
               <input name="id" type="hidden">
               <label>Nombre<input name="name" maxlength="100" required></label>
@@ -329,75 +345,92 @@
                 <option>Papas y Frijoles</option><option>Tortas</option><option>Postres</option><option>Bebidas</option>
               </select></label>
               <label>Precio (MXN)<input name="price" type="number" min="0" max="100000" step="0.01" required></label>
-              <label class="check-label"><input name="mix" type="checkbox"> Personalizable (elige carne)</label>
+              <label class="check-label"><input name="mix" type="checkbox"> Personalizable</label>
               <label class="check-label"><input name="active" type="checkbox" checked> Disponible</label>
-              <p class="muted">Bebidas y postres no aceptan personalización. Si lo marcas, el mesero elige carne como en un taco.</p>
-              <div class="actions"><button class="primary" type="submit">Guardar producto</button><button type="button" data-clear-form>Limpiar</button></div>
+              <div class="actions"><button class="primary" type="submit">Guardar</button><button type="button" data-clear-form>Limpiar</button></div>
             </form>
-            <div id="products-list" class="management-list"></div>
           </section>
-
           <section class="card">
-            <h3>Promociones y combos</h3>
-            <p class="muted">Aparecen como categoría «Promociones» en el servicio. En la descripción indica qué incluye.</p>
+            <h3>Promoción</h3>
             <form id="promo-form" class="management-form">
               <input name="id" type="hidden">
-              <label>Nombre<input name="name" maxlength="100" required placeholder="Ej. Combo 3 tacos + agua"></label>
+              <label>Nombre<input name="name" maxlength="100" required placeholder="Combo 3 tacos + agua"></label>
               <label>Precio (MXN)<input name="price" type="number" min="0" max="100000" step="0.01" required></label>
-              <label>Descripción<input name="description" maxlength="300" placeholder="Qué incluye"></label>
+              <label>Incluye<input name="description" maxlength="300" placeholder="Qué incluye"></label>
               <label class="check-label"><input name="active" type="checkbox" checked> Vigente</label>
-              <div class="actions"><button class="primary" type="submit">Guardar promoción</button><button type="button" data-clear-form>Limpiar</button></div>
+              <div class="actions"><button class="primary" type="submit">Guardar</button><button type="button" data-clear-form>Limpiar</button></div>
             </form>
-            <div id="promos-list" class="management-list"></div>
           </section>
-
           <section class="card">
-            <h3>Mesas</h3>
-            <p class="muted">El orden en la lista es automático: las mesas nuevas quedan al final.</p>
+            <h3>Mesa</h3>
             <form id="table-form" class="management-form">
               <input name="id" type="hidden">
               <label>Nombre<input name="name" maxlength="80" required></label>
               <label class="check-label"><input name="active" type="checkbox" checked> Activa</label>
-              <div class="actions"><button class="primary" type="submit">Guardar mesa</button><button type="button" data-clear-form>Limpiar</button></div>
+              <div class="actions"><button class="primary" type="submit">Guardar</button><button type="button" data-clear-form>Limpiar</button></div>
             </form>
-            <div id="tables-list" class="management-list"></div>
-          </section>
-
-          <section class="card">
-            <h3>Inventario</h3>
-            <p class="muted">Los insumos bajan solos cuando se vende un platillo que tiene receta. Compra, merma y ajuste quedan en el historial. Si un producto no tiene receta, se controla por piezas.</p>
-            <div class="toolbar">
-              <input id="insumo-name" maxlength="80" placeholder="Insumo" aria-label="Nombre del insumo">
-              <select id="insumo-unit" aria-label="Unidad"><option>kg</option><option>g</option><option>pza</option><option>litro</option><option>ml</option><option>caja</option></select>
-              <input id="insumo-min" type="number" min="0" step="0.001" placeholder="Mínimo" aria-label="Mínimo" style="width:90px">
-              <input id="insumo-cost" type="number" min="0" step="0.01" placeholder="Costo" aria-label="Costo" style="width:90px">
-              <input id="insumo-stock" type="number" step="0.001" placeholder="Existencia" aria-label="Existencia inicial" style="width:110px">
-              <button type="button" data-save-insumo>Guardar insumo</button>
-            </div>
-            <div id="insumo-list" class="management-list"></div>
-            <h3>Movimiento</h3>
-            <div class="toolbar">
-              <select id="move-insumo" aria-label="Insumo"></select>
-              <select id="move-type" aria-label="Tipo"><option value="compra">Compra</option><option value="merma">Merma</option><option value="salida">Salida</option><option value="ajuste">Ajuste (deja esta cantidad)</option></select>
-              <input id="move-qty" type="number" step="0.001" placeholder="Cantidad" aria-label="Cantidad" style="width:110px">
-              <input id="move-cost" type="number" min="0" step="0.01" placeholder="Costo de compra" aria-label="Costo de esta compra" style="width:130px">
-              <input id="move-reason" maxlength="160" placeholder="Proveedor, factura o motivo" aria-label="Motivo">
-              <button type="button" data-save-move>Registrar</button>
-            </div>
-            <div id="movement-list" class="management-list"></div>
-            <h3>Receta</h3>
-            <p class="muted">Cantidad de insumo por cada platillo vendido. En cero se quita de la receta.</p>
-            <div class="toolbar">
-              <select id="recipe-product" aria-label="Producto"></select>
-              <select id="recipe-insumo" aria-label="Insumo de la receta"></select>
-              <input id="recipe-qty" type="number" min="0" step="0.001" placeholder="Por pieza" aria-label="Cantidad por pieza" style="width:110px">
-              <button type="button" data-save-recipe>Guardar receta</button>
-            </div>
-            <div id="recipe-list" class="management-list"></div>
-            <h3>Productos por pieza</h3>
-            <div id="inventory-list" class="management-list"></div>
           </section>
         </div>
+
+        <section class="card section-block">
+          <h3>Menú por categoría</h3>
+          <div id="products-list"></div>
+        </section>
+        <section class="card section-block">
+          <h3>Promociones</h3>
+          <div id="promos-list" class="tile-grid"></div>
+        </section>
+        <section class="card section-block">
+          <h3>Mesas</h3>
+          <div id="tables-list" class="tile-grid"></div>
+        </section>
+
+        <section class="card section-block">
+          <h3>Inventario</h3>
+          <p class="muted">Los insumos se agrupan en una tabla. La venta descuenta la receta. Lo que no tiene receta se controla por piezas.</p>
+          <div class="split-2">
+            <div>
+              <h3>Existencias</h3>
+              <div class="toolbar">
+                <input id="insumo-name" maxlength="80" placeholder="Insumo" aria-label="Nombre del insumo">
+                <select id="insumo-unit" aria-label="Unidad"><option>kg</option><option>g</option><option>pza</option><option>litro</option><option>ml</option><option>caja</option></select>
+                <input id="insumo-min" type="number" min="0" step="0.001" placeholder="Mínimo" aria-label="Mínimo">
+                <input id="insumo-cost" type="number" min="0" step="0.01" placeholder="Costo" aria-label="Costo">
+                <input id="insumo-stock" type="number" step="0.001" placeholder="Existencia" aria-label="Existencia inicial">
+                <button type="button" data-save-insumo>Agregar</button>
+              </div>
+              <div id="insumo-list"></div>
+            </div>
+            <div>
+              <h3>Movimiento</h3>
+              <div class="toolbar">
+                <select id="move-insumo" aria-label="Insumo"></select>
+                <select id="move-type" aria-label="Tipo"><option value="compra">Compra</option><option value="merma">Merma</option><option value="salida">Salida</option><option value="ajuste">Ajuste</option></select>
+                <input id="move-qty" type="number" step="0.001" placeholder="Cantidad" aria-label="Cantidad">
+                <input id="move-cost" type="number" min="0" step="0.01" placeholder="Costo" aria-label="Costo de esta compra">
+                <input id="move-reason" maxlength="160" placeholder="Proveedor o motivo" aria-label="Motivo">
+                <button type="button" data-save-move>Registrar</button>
+              </div>
+              <div id="movement-list"></div>
+            </div>
+          </div>
+          <div class="split-2" style="margin-top:1rem">
+            <div>
+              <h3>Recetas</h3>
+              <div class="toolbar">
+                <select id="recipe-product" aria-label="Producto"></select>
+                <select id="recipe-insumo" aria-label="Insumo de la receta"></select>
+                <input id="recipe-qty" type="number" min="0" step="0.001" placeholder="Por pieza" aria-label="Cantidad por pieza">
+                <button type="button" data-save-recipe>Guardar</button>
+              </div>
+              <div id="recipe-list" class="tile-grid"></div>
+            </div>
+            <div>
+              <h3>Por pieza</h3>
+              <div id="inventory-list" class="tile-grid"></div>
+            </div>
+          </div>
+        </section>
       </section>
 
       <section id="panel-cuentas" role="tabpanel" aria-labelledby="tab-cuentas" hidden>
@@ -820,48 +853,62 @@
       latestAccounts = data.accounts || [];
       latestAttendance = data.attendance || [];
       latestSales = data.sales || [];
-      document.getElementById("products-list").innerHTML = latestProducts.filter((product) => product.categoria !== "Promociones" && !/barra|barista/i.test(`${product.categoria} ${product.nombre}`)).map((product) =>
-        `<article class="management-row">
-          <div><strong>${escapeHtml(product.nombre)}</strong><p class="muted">${escapeHtml(product.categoria)} · ${escapeHtml(money(product.precio))} · ${product.activo ? "Disponible" : "Pausado"}${product.permite_mezcla ? " · Personalizable" : ""}</p></div>
-          <div class="row-actions"><button type="button" data-product-edit="${escapeHtml(product.id)}">Editar</button>
-            <button class="danger" type="button" data-product-delete="${escapeHtml(product.id)}">Eliminar</button></div>
-        </article>`
+      const menuProducts = latestProducts.filter((product) => product.categoria !== "Promociones" && !/barra|barista/i.test(`${product.categoria} ${product.nombre}`));
+      const categoryOrder = ["Tacos", "Quesadillas", "Especiales", "Tortas", "Papas y Frijoles", "Postres", "Bebidas"];
+      const categories = [...new Set(menuProducts.map((product) => product.categoria))]
+        .sort((a, b) => (categoryOrder.indexOf(a) + 1 || 99) - (categoryOrder.indexOf(b) + 1 || 99));
+      document.getElementById("products-list").innerHTML = categories.map((category) =>
+        `<section class="menu-group"><h4>${escapeHtml(category)}</h4><div class="tile-grid">${
+          menuProducts.filter((product) => product.categoria === category).map((product) =>
+            `<article class="tile"><strong>${escapeHtml(product.nombre)}</strong>
+              <span class="muted">${escapeHtml(money(product.precio))} · ${product.activo ? "Disponible" : "Pausado"}${product.permite_mezcla ? " · Personalizable" : ""}</span>
+              <div class="tile-actions"><button type="button" data-product-edit="${escapeHtml(product.id)}">Editar</button>
+                <button class="danger" type="button" data-product-delete="${escapeHtml(product.id)}">Eliminar</button></div></article>`
+          ).join("")
+        }</div></section>`
       ).join("") || `<p class="muted">No hay productos.</p>`;
 
       document.getElementById("promos-list").innerHTML = latestProducts.filter((product) => product.categoria === "Promociones").map((promo) =>
-        `<article class="management-row">
-          <div><strong>${escapeHtml(promo.nombre)}</strong><p class="muted">${escapeHtml(money(promo.precio))} · ${promo.activo ? "Vigente" : "Pausada"}${promo.descripcion ? ` · ${escapeHtml(promo.descripcion)}` : ""}</p></div>
-          <button type="button" data-promo-edit="${escapeHtml(promo.id)}">Editar</button>
-        </article>`
+        `<article class="tile"><strong>${escapeHtml(promo.nombre)}</strong>
+          <span class="muted">${escapeHtml(money(promo.precio))} · ${promo.activo ? "Vigente" : "Pausada"}</span>
+          ${promo.descripcion ? `<span class="muted">${escapeHtml(promo.descripcion)}</span>` : ""}
+          <div class="tile-actions"><button type="button" data-promo-edit="${escapeHtml(promo.id)}">Editar</button></div></article>`
       ).join("") || `<p class="muted">Aún no hay promociones.</p>`;
 
       document.getElementById("tables-list").innerHTML = latestTables.filter((table) => table.activa !== false).map((table) =>
-        `<article class="management-row">
-          <div><strong>${escapeHtml(table.nombre)}</strong><p class="muted">${escapeHtml(mesaEstadoLabel(table.estado))} · ${table.activa ? "Activa" : "Inactiva"}${table.es_prueba ? " · Prueba" : ""}</p></div>
-          <div class="row-actions"><button type="button" data-table-edit="${escapeHtml(table.id)}">Editar</button>
-            <button class="danger" type="button" data-table-delete="${escapeHtml(table.id)}">Eliminar</button></div>
-        </article>`
+        `<article class="tile"><strong>${escapeHtml(table.nombre)}</strong>
+          <span class="muted">${escapeHtml(mesaEstadoLabel(table.estado))}${table.es_prueba ? " · Prueba" : ""}</span>
+          <div class="tile-actions"><button type="button" data-table-edit="${escapeHtml(table.id)}">Editar</button>
+            <button class="danger" type="button" data-table-delete="${escapeHtml(table.id)}">Eliminar</button></div></article>`
       ).join("") || `<p class="muted">No hay mesas en este modo.</p>`;
 
-      document.getElementById("employees-list").innerHTML = latestEmployees.map((employee) => {
-        const lastEntry = employee.entrada_at ?? employee.ultima_entrada_at;
-        return `<article class="management-row">
-          <div class="row-main"><strong>${escapeHtml(employee.nombre)}</strong>
-            <p class="muted">${escapeHtml(roleLabel(employee.puesto))}${employee.aparato ? ` · ${escapeHtml(employee.aparato)}` : ""}</p>
-            <p class="muted">${employee.entrada_at ? `<span class="status approved">En turno</span> desde ${escapeHtml(formatDate(employee.entrada_at))}` : `<span class="status">${employee.activo ? "Fuera de turno" : "Inactivo"}</span>${lastEntry ? ` · Última entrada ${escapeHtml(formatDate(lastEntry))}` : ""}`}</p>
-            ${employee.pin ? `<details class="pin-chip"><summary>Ver PIN</summary><strong>${escapeHtml(employee.pin)}</strong></details>` : `<p class="muted pin-chip"><strong>Sin PIN asignado</strong> · edítalo para asignar uno.</p>`}</div>
-          <div class="row-actions"><button type="button" data-employee-edit="${escapeHtml(employee.id)}">Editar</button>
-            ${employee.activo ? `<button class="danger" type="button" data-employee-offboard="${escapeHtml(employee.id)}">Dar de baja</button>` : ""}</div>
-        </article>`;
-      }).join("") || `<p class="muted">Aún no hay empleados registrados.</p>`;
+      const roleOrder = ["mesero", "cocina", "caja"];
+      const extraPeople = latestEmployees.filter((employee) => !roleOrder.includes(employee.puesto));
+      document.getElementById("employees-list").innerHTML = (roleOrder.map((role) => {
+        const people = latestEmployees.filter((employee) => employee.puesto === role);
+        if (!people.length) return "";
+        return `<section class="menu-group"><h4>${escapeHtml(roleLabel(role))}</h4><div class="tile-grid">${people.map((employee) => {
+          return `<article class="tile"><strong>${escapeHtml(employee.nombre)}</strong>
+            <span class="muted">${employee.entrada_at ? "En turno" : employee.activo ? "Fuera de turno" : "Inactivo"}${employee.aparato ? ` · ${escapeHtml(employee.aparato)}` : ""}</span>
+            ${employee.pin ? `<details class="pin-chip"><summary>Ver PIN</summary><strong>${escapeHtml(employee.pin)}</strong></details>` : `<span class="muted">Sin PIN</span>`}
+            <div class="tile-actions"><button type="button" data-employee-edit="${escapeHtml(employee.id)}">Editar</button>
+              ${employee.activo ? `<button class="danger" type="button" data-employee-offboard="${escapeHtml(employee.id)}">Baja</button>` : ""}</div></article>`;
+        }).join("")}</div></section>`;
+      }).join("");
+      const extras = extraPeople.length ? `<section class="menu-group"><h4>Otros</h4><div class="tile-grid">${extraPeople.map((employee) =>
+        `<article class="tile"><strong>${escapeHtml(employee.nombre)}</strong><span class="muted">${escapeHtml(roleLabel(employee.puesto))}</span></article>`
+      ).join("")}</div></section>` : "";
+      document.getElementById("employees-list").innerHTML = (document.getElementById("employees-list").innerHTML + extras) || `<p class="muted">Aún no hay empleados registrados.</p>`;
 
       const attendanceDate = document.getElementById("attendance-date").value;
+      document.getElementById("attendance-list").className = "tile-grid";
       document.getElementById("attendance-list").innerHTML = (data.attendance || []).map((shift) =>
-        `<article class="management-row"><div><strong>${escapeHtml(shift.nombre)}</strong><p class="muted">${escapeHtml(roleLabel(shift.puesto))} · Entrada ${escapeHtml(formatDate(shift.entrada_at))}${shift.salida_at ? ` · Salida ${escapeHtml(formatDate(shift.salida_at))}` : " · En turno"}</p></div></article>`
+        `<article class="tile"><strong>${escapeHtml(shift.nombre)}</strong><span class="muted">${escapeHtml(roleLabel(shift.puesto))}</span><span class="muted">${escapeHtml(formatDate(shift.entrada_at))}${shift.salida_at ? ` – ${escapeHtml(formatDate(shift.salida_at))}` : " · En turno"}</span></article>`
       ).join("") || `<p class="muted">Sin registros de asistencia el ${escapeHtml(formatDay(attendanceDate))}.</p>`;
 
+      document.getElementById("sales-list").className = "tile-grid";
       document.getElementById("sales-list").innerHTML = (data.sales || []).map((sale) =>
-        `<article class="management-row"><div><strong>${escapeHtml(sale.nombre)}</strong><p class="muted">${escapeHtml(sale.cuentas)} cuentas</p></div><strong>${escapeHtml(money(sale.venta))}</strong></article>`
+        `<article class="tile"><strong>${escapeHtml(sale.nombre)}</strong><span class="muted">${escapeHtml(sale.cuentas)} cuentas</span><strong>${escapeHtml(money(sale.venta))}</strong></article>`
       ).join("") || `<p class="muted">Sin ventas registradas ese día.</p>`;
 
       const activeProducts = latestProducts.filter((product) => product.activo);
@@ -923,16 +970,19 @@
       if (inventoryRoot) {
         const pieceProducts = (data.inventory || []).filter((item) => !(data.recipes || []).some((recipe) => recipe.producto_id === item.producto_id));
         inventoryRoot.innerHTML = pieceProducts.map((item) =>
-          `<article class="management-row"><div><strong>${escapeHtml(item.nombre)}</strong><p class="muted">${item.existencia == null ? "Sin control por pieza" : `${item.existencia} ${escapeHtml(item.unidad || "pza")}`}</p></div>
-            <div class="actions"><input aria-label="Existencia de ${escapeHtml(item.nombre)}" data-stock="${escapeHtml(item.producto_id)}" type="number" min="0" step="1" value="${item.existencia == null ? "" : escapeHtml(item.existencia)}" style="width:90px">
+          `<article class="tile"><strong>${escapeHtml(item.nombre)}</strong>
+            <span class="muted">${item.existencia == null ? "Sin control" : `${item.existencia} ${escapeHtml(item.unidad || "pza")}`}</span>
+            <div class="tile-actions"><input aria-label="Existencia de ${escapeHtml(item.nombre)}" data-stock="${escapeHtml(item.producto_id)}" type="number" min="0" step="1" value="${item.existencia == null ? "" : escapeHtml(item.existencia)}">
             <button type="button" data-save-stock="${escapeHtml(item.producto_id)}">Guardar</button></div></article>`
         ).join("") || `<p class="muted">Los platillos con receta no aparecen aquí.</p>`;
       }
       const insumoRoot = document.getElementById("insumo-list");
       if (insumoRoot) {
-        insumoRoot.innerHTML = (data.insumos || []).map((item) =>
-          `<article class="management-row"><div><strong>${escapeHtml(item.nombre)}</strong><p class="muted">${Number(item.existencia)} ${escapeHtml(item.unidad)} · mínimo ${Number(item.minimo)} · costo ${escapeHtml(money(item.costo))} · valor ${escapeHtml(money(item.valor))}${item.bajo ? " · bajo de mínimo" : ""}</p></div></article>`
-        ).join("") || `<p class="muted">Todavía no hay insumos. Pega la migración 0032.</p>`;
+        insumoRoot.innerHTML = (data.insumos || []).length ? `<table class="sheet"><thead><tr><th>Insumo</th><th>Hay</th><th>Mínimo</th><th>Costo</th><th></th></tr></thead><tbody>${
+          (data.insumos || []).map((item) =>
+            `<tr class="${item.bajo ? "low" : ""}"><td>${escapeHtml(item.nombre)}</td><td>${Number(item.existencia)} ${escapeHtml(item.unidad)}</td><td>${Number(item.minimo)}</td><td>${escapeHtml(money(item.costo))}</td><td>${item.bajo ? "Bajo" : ""}</td></tr>`
+          ).join("")
+        }</tbody></table>` : `<p class="muted">Todavía no hay insumos. Pega la migración 0032.</p>`;
         const options = (data.insumos || []).map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.nombre)} · ${escapeHtml(item.unidad)}</option>`).join("");
         const moveSelect = document.getElementById("move-insumo");
         const recipeInsumo = document.getElementById("recipe-insumo");
@@ -946,16 +996,18 @@
       }
       const movementRoot = document.getElementById("movement-list");
       if (movementRoot) {
-        movementRoot.innerHTML = (data.movements || []).map((item) =>
-          `<article class="management-row"><div><strong>${escapeHtml(item.insumo || "Producto")}</strong><p class="muted">${escapeHtml(item.tipo)} · ${Number(item.cantidad)} ${escapeHtml(item.unidad || "")}${item.motivo ? ` · ${escapeHtml(item.motivo)}` : ""} · queda ${item.existencia_despues ?? "—"}</p></div></article>`
-        ).join("") || `<p class="muted">Sin movimientos.</p>`;
+        movementRoot.innerHTML = (data.movements || []).length ? `<table class="sheet"><thead><tr><th>Insumo</th><th>Tipo</th><th>Cant.</th><th>Queda</th></tr></thead><tbody>${
+          (data.movements || []).slice(0, 8).map((item) =>
+            `<tr><td>${escapeHtml(item.insumo || "Producto")}</td><td>${escapeHtml(item.tipo)}</td><td>${Number(item.cantidad)}</td><td>${item.existencia_despues ?? "—"}</td></tr>`
+          ).join("")
+        }</tbody></table>` : `<p class="muted">Sin movimientos.</p>`;
       }
       const recipeRoot = document.getElementById("recipe-list");
       if (recipeRoot) {
         recipeRoot.innerHTML = (data.recipes || []).map((item) =>
-          `<article class="management-row"><div><strong>${escapeHtml(item.producto)}</strong><p class="muted">${Number(item.cantidad)} ${escapeHtml(item.unidad)} de ${escapeHtml(item.insumo)} por pieza</p></div>
-            <button type="button" data-clear-recipe="${escapeHtml(item.producto_id)}" data-recipe-insumo="${escapeHtml(item.insumo_id)}">Quitar</button></article>`
-        ).join("") || `<p class="muted">Sin recetas. Hasta que armes una, la venta no descuenta insumos.</p>`;
+          `<article class="tile"><strong>${escapeHtml(item.producto)}</strong><span class="muted">${Number(item.cantidad)} ${escapeHtml(item.unidad)} de ${escapeHtml(item.insumo)}</span>
+            <div class="tile-actions"><button type="button" data-clear-recipe="${escapeHtml(item.producto_id)}" data-recipe-insumo="${escapeHtml(item.insumo_id)}">Quitar</button></div></article>`
+        ).join("") || `<p class="muted">Sin recetas.</p>`;
       }
       document.querySelectorAll("[data-add-product]").forEach(syncAddOptions);
     }
