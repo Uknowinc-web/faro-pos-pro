@@ -431,6 +431,8 @@
       addToCheck: null,
       closeDate: todayMty(),
       cutOpen: false,
+      cutFloat: 2000,
+      cashbook: { loans: [], expenses: [], employees: [] },
       data: { tables: [], checks: [], nextTicket: 1, drafts: {}, owners: [], suggestions: [] }
     };
 
@@ -599,6 +601,22 @@
         if (row && row.activo === false) product.activo = false;
       });
       productGridCache.clear();
+    }
+    async function loadCashbook() {
+      if (state.role !== "caja") return;
+      const fecha = state.closeDate || todayMty();
+      const [loans, expenses, employees, fondo] = await Promise.all([
+        supabaseClient.rpc("caja_listar_prestamos", { p_fecha: fecha, p_es_prueba: state.testMode }),
+        supabaseClient.rpc("caja_listar_gastos", { p_fecha: fecha, p_es_prueba: state.testMode }),
+        supabaseClient.rpc("caja_listar_empleados"),
+        supabaseClient.rpc("caja_fondo_del_dia", { p_fecha: fecha, p_es_prueba: state.testMode })
+      ]);
+      state.cashbook = {
+        loans: Array.isArray(loans.data) ? loans.data : [],
+        expenses: Array.isArray(expenses.data) ? expenses.data : [],
+        employees: Array.isArray(employees.data) ? employees.data : state.cashbook.employees || []
+      };
+      if (!fondo.error && fondo.data != null && fondo.data !== "") state.cutFloat = Number(fondo.data);
     }
     function productPrice(product, modifiers) {
       return product.precio + modifiers.reduce((sum, modifier) => sum + modifier.extra, 0);
@@ -1074,6 +1092,7 @@
         };
         state.offlineMode = false;
         await loadShiftAndStock();
+        await loadCashbook();
         saveWorkSnapshot();
         return true;
       } catch (error) {
@@ -1469,7 +1488,7 @@
       const cached = productGridCache.get(key);
       if (cached) return cached;
       const html = PRODUCTOS.filter((product) => product.categoria === category).map((product) => {
-        const soldOut = product.existencia === 0 || product.activo === false;
+        const soldOut = product.activo === false || (product.existencia != null && Number(product.existencia) <= 0);
         return `<button class="product-card" ${soldOut ? "disabled" : `data-product="${product.id}"`} aria-label="${soldOut ? "Agotado" : "Agregar"} ${escapeHtml(product.nombre)}, ${money(product.precio)}"><strong>${escapeHtml(product.nombre)}</strong><span>${money(product.precio)}${soldOut ? " · Se acabó" : product.mezcla ? " · Personalizable" : ""}</span>${product.descripcion ? `<small class="detail">${escapeHtml(product.descripcion)}</small>` : ""}</button>`;
       }).join("");
       productGridCache.set(key, html);
@@ -1732,6 +1751,7 @@
       const selected = active.find(({ table }) => table.id === state.cashierTable);
       const date = state.closeDate;
       const cut = cutData(date);
+      const drawer = drawerParts(cut);
       const { paid, voided, sales, cash, clip, top } = cut;
       const openCount = state.data.tables.filter((table) => activeCheck(table.id)?.status === "abierta").length;
       return `      <header class="page-heading"><div><p class="eyebrow">${escapeHtml(stationHeading("caja"))}</p><h2>Caja</h2>
@@ -1763,6 +1783,7 @@
           return renderReceipt(selected.table, current, checks);
         })()}</aside></div>
         ${state.showPaid ? paidTodayHtml() : ""}
+        ${cashDeskHtml(date)}
         <div class="section-heading no-print"><h3>Corte a esta hora</h3>
           <p class="section-description">No cierra el día. Sirve para contar a media jornada.</p>
           ${state.cutOpen ? "" : `<button class="button primary" data-open-cut>Anotar conteo</button>`}
@@ -1770,7 +1791,7 @@
         ${state.cutOpen ? `<div class="toolbar no-print">
           <label for="close-date" class="muted">Fecha</label>
           <input id="close-date" type="date" value="${escapeHtml(date)}">
-          <label class="muted">Fondo<input id="cut-float" type="number" min="0" step="0.01" value="${escapeHtml(String(state.cutFloat ?? 0))}"></label>
+          <label class="muted">Fondo inicial<input id="cut-float" type="number" min="0" step="0.01" value="${escapeHtml(String(state.cutFloat ?? 2000))}"></label>
           <label class="muted">Efectivo contado<input id="cut-counted" type="number" min="0" step="0.01" value="${escapeHtml(String(state.cutCounted ?? ""))}"></label>
           <button class="button primary" data-save-cut>Guardar conteo</button>
           <button class="button" data-print>Imprimir</button>
@@ -1779,8 +1800,12 @@
           <div class="stat"><span>Total vendido</span><strong>${money(sales)}</strong></div>
           <div class="stat"><span>Efectivo</span><strong>${money(cash)}</strong></div>
           <div class="stat"><span>Clip registrado</span><strong>${money(clip)}</strong></div>
-          <div class="stat"><span>Efectivo esperado</span><strong>${money((state.cutFloat || 0) + cash + (cut.cashTips || 0))}</strong></div>
-          <div class="stat"><span>Diferencia</span><strong>${state.cutCounted === "" || state.cutCounted == null ? "—" : money(Number(state.cutCounted) - ((state.cutFloat || 0) + cash + (cut.cashTips || 0)))}</strong></div>
+          <div class="stat"><span>Fondo inicial</span><strong>${money(drawer.floatValue)}</strong></div>
+          <div class="stat"><span>Gastos</span><strong>${money(drawer.expenses)}</strong></div>
+          <div class="stat"><span>Préstamos</span><strong>${money(drawer.lent)}</strong></div>
+          <div class="stat"><span>Préstamos cobrados</span><strong>${money(drawer.repaid)}</strong></div>
+          <div class="stat"><span>Efectivo esperado</span><strong>${money(drawer.expected)}</strong></div>
+          <div class="stat"><span>Diferencia</span><strong>${state.cutCounted === "" || state.cutCounted == null ? "—" : money(Number(state.cutCounted) - drawer.expected)}</strong></div>
           <div class="stat"><span>Descuentos</span><strong>${money(cut.discounts)}</strong></div>
           <div class="stat"><span>Ticket promedio</span><strong>${money(paid.length ? sales / paid.length : 0)}</strong></div>
           <div class="stat"><span>Cuentas cobradas</span><strong>${paid.length}</strong></div>
@@ -1820,6 +1845,48 @@
         top: [...ranking.entries()].sort((a, b) => b[1].quantity - a[1].quantity).slice(0, 10)
       };
     }
+    function drawerParts(cut) {
+      const book = state.cashbook || { loans: [], expenses: [] };
+      const expenses = (book.expenses || []).reduce((sum, item) => sum + Number(item.monto || 0), 0);
+      const lent = (book.loans || []).filter((item) => item.fecha === state.closeDate)
+        .reduce((sum, item) => sum + Number(item.monto || 0), 0);
+      const repaid = (book.loans || []).filter((item) => item.liquidado_fecha === state.closeDate)
+        .reduce((sum, item) => sum + Number(item.monto || 0), 0);
+      const floatValue = state.cutFloat ?? 2000;
+      return {
+        expenses, lent, repaid, floatValue,
+        expected: floatValue + cut.cash + (cut.cashTips || 0) - expenses - lent + repaid
+      };
+    }
+    function cashDeskHtml(date) {
+      const book = state.cashbook || { loans: [], expenses: [], employees: [] };
+      const employees = book.employees || [];
+      return `<section class="panel"><h3>Movimientos de caja</h3>
+        <p class="muted">El fondo estándar es $2,000. Cámbialo solo si hoy abriste con otra cantidad. Los préstamos y gastos salen del efectivo esperado.</p>
+        <div class="toolbar">
+          <label>Fondo inicial<input id="desk-float" type="number" min="0" step="0.01" value="${escapeHtml(String(state.cutFloat ?? 2000))}"></label>
+          <button class="button" type="button" data-save-float>Guardar fondo</button>
+        </div>
+        <h3>Préstamo</h3>
+        <div class="toolbar">
+          <label>Empleado<select id="loan-employee">${employees.length ? employees.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.nombre)}</option>`).join("") : `<option value="">Sin empleados</option>`}</select></label>
+          <label>Cantidad<input id="loan-amount" type="number" min="0.01" step="0.01" inputmode="decimal"></label>
+          <label>Fecha<input id="loan-date" type="date" value="${escapeHtml(date)}"></label>
+          <label>Nota<input id="loan-note" maxlength="120" placeholder="Opcional"></label>
+          <button class="button primary" type="button" data-save-loan>Registrar préstamo</button>
+        </div>
+        ${(book.loans || []).length ? book.loans.map((loan) => `<div class="receipt-row"><span>${escapeHtml(loan.empleado)} · ${escapeHtml(loan.fecha)}${loan.nota ? ` · ${escapeHtml(loan.nota)}` : ""}${loan.liquidado_fecha ? ` · cobrado ${escapeHtml(loan.liquidado_fecha)}` : ""}</span><span class="actions"><strong>${money(loan.monto)}</strong>${loan.liquidado_fecha ? "" : `<button class="button" type="button" data-settle-loan="${escapeHtml(loan.id)}">Cobrado</button>`}</span></div>`).join("") : `<p class="muted">Sin préstamos abiertos.</p>`}
+        <h3>Gasto operativo</h3>
+        <div class="toolbar">
+          <label>Concepto<input id="expense-concept" maxlength="120" placeholder="Gas, hielo, mandado"></label>
+          <label>Categoría<select id="expense-category"><option value="insumos">Insumos</option><option value="servicios">Servicios</option><option value="limpieza">Limpieza</option><option value="nomina">Nómina</option><option value="otro">Otro</option></select></label>
+          <label>Monto<input id="expense-amount" type="number" min="0.01" step="0.01" inputmode="decimal"></label>
+          <label>Fecha<input id="expense-date" type="date" value="${escapeHtml(date)}"></label>
+          <button class="button primary" type="button" data-save-expense>Registrar gasto</button>
+        </div>
+        ${(book.expenses || []).length ? book.expenses.map((item) => `<div class="receipt-row"><span>${escapeHtml(item.concepto)} · ${escapeHtml(item.categoria)}</span><strong>${money(item.monto)}</strong></div>`).join("") : `<p class="muted">Sin gastos en esta fecha.</p>`}
+      </section>`;
+    }
     async function saveCutToDevice() {
       const floatValue = Number(document.getElementById("cut-float")?.value || 0);
       const countedRaw = document.getElementById("cut-counted")?.value;
@@ -1833,20 +1900,23 @@
         if (error) toast(error.message || "No se pudo guardar el corte en el servidor.", true);
         else toast("Corte registrado.");
       }
-      const date = state.closeDate;
       const cut = cutData(date);
+      const drawer = drawerParts(cut);
       const lines = [
         `Tacos El Faro · Corte de caja ${date}${state.testMode ? " (PRUEBA)" : ""}`,
         `Generado: ${new Date().toLocaleString("es-MX", { timeZone: "America/Monterrey" })}`,
         state.employee ? `Cajero: ${state.employee.nombre}` : "",
         "",
         `Total vendido: ${money(cut.sales)}`,
-        `Fondo: ${money(state.cutFloat || 0)}`,
+        `Fondo inicial: ${money(drawer.floatValue)}`,
         `Efectivo vendido: ${money(cut.cash)}`,
         `Propinas en efectivo: ${money(cut.cashTips || 0)}`,
-        `Efectivo esperado en caja: ${money((state.cutFloat || 0) + cut.cash + (cut.cashTips || 0))}`,
+        `Gastos: ${money(drawer.expenses)}`,
+        `Préstamos del día: ${money(drawer.lent)}`,
+        `Préstamos cobrados: ${money(drawer.repaid)}`,
+        `Efectivo esperado en caja: ${money(drawer.expected)}`,
         `Efectivo contado: ${state.cutCounted === "" || state.cutCounted == null ? "—" : money(Number(state.cutCounted))}`,
-        `Diferencia: ${state.cutCounted === "" || state.cutCounted == null ? "—" : money(Number(state.cutCounted) - ((state.cutFloat || 0) + cut.cash + (cut.cashTips || 0)))}`,
+        `Diferencia: ${state.cutCounted === "" || state.cutCounted == null ? "—" : money(Number(state.cutCounted) - drawer.expected)}`,
         `Clip: ${money(cut.clip)}`,
         `Descuentos: ${money(cut.discounts)}`,
         `Cuentas cobradas: ${cut.paid.length}`,
@@ -1857,7 +1927,13 @@
         ...cut.top.map(([name, item]) => `${item.quantity} × ${name} — ${money(item.amount)}`),
         "",
         "Cuentas cobradas",
-        ...cut.paid.map((check) => `${check.tableName} — ${check.paymentMethod} — ${money(check.total)}${check.discountTotal ? ` (desc. ${money(check.discountTotal)})` : ""}`)
+        ...cut.paid.map((check) => `${check.tableName} — ${check.paymentMethod} — ${money(check.total)}${check.discountTotal ? ` (desc. ${money(check.discountTotal)})` : ""}`),
+        "",
+        "Préstamos",
+        ...(state.cashbook.loans || []).map((loan) => `${loan.fecha} · ${loan.empleado} · ${money(loan.monto)}${loan.liquidado_fecha ? ` · cobrado ${loan.liquidado_fecha}` : " · pendiente"}`),
+        "",
+        "Gastos",
+        ...(state.cashbook.expenses || []).map((item) => `${item.categoria} · ${item.concepto} · ${money(item.monto)}`)
       ].filter((line, index, all) => line !== "" || all[index - 1] !== "");
       const url = URL.createObjectURL(new Blob([lines.join("\r\n")], { type: "text/plain;charset=utf-8" }));
       const link = document.createElement("a");
@@ -2707,7 +2783,7 @@
       await refreshRemoteData();
     }
     function openForgottenPicker(checkId) {
-      const products = PRODUCTOS.filter((product) => product.existencia !== 0 && product.activo !== false);
+      const products = PRODUCTOS.filter((product) => product.activo !== false && !(product.existencia != null && Number(product.existencia) <= 0));
       document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop" data-dismiss-modal>
         <section class="modal" role="dialog" aria-modal="true" aria-labelledby="forget-title">
           <div class="modal-header"><h2 id="forget-title">Agregar a la cuenta</h2>
@@ -2999,6 +3075,68 @@
         await applyCashierDiscount(target.dataset.confirmDiscount);
       } else if (target.dataset.refund) {
         await refundCheck(target.dataset.refund);
+      } else if (target.dataset.saveFloat !== undefined) {
+        const amount = Number(document.getElementById("desk-float")?.value);
+        if (!(amount >= 0)) {
+          toast("El fondo no puede ser negativo.", true);
+          return;
+        }
+        state.cutFloat = amount;
+        const { error } = await supabaseClient.rpc("caja_guardar_fondo", {
+          p_fecha: state.closeDate, p_monto: amount, p_es_prueba: state.testMode
+        });
+        if (error) toast(error.message || "No se pudo guardar el fondo. Falta la migración 0032.", true);
+        else toast("Fondo inicial guardado.");
+        render();
+      } else if (target.dataset.saveLoan !== undefined) {
+        const empleado = document.getElementById("loan-employee")?.value;
+        const monto = Number(document.getElementById("loan-amount")?.value);
+        const fecha = document.getElementById("loan-date")?.value || state.closeDate;
+        const nota = document.getElementById("loan-note")?.value.trim();
+        if (!empleado || !(monto > 0)) {
+          toast("Elige el empleado y la cantidad prestada.", true);
+          return;
+        }
+        const { error } = await supabaseClient.rpc("caja_registrar_prestamo", {
+          p_empleado: empleado, p_monto: monto, p_fecha: fecha, p_nota: nota || null, p_es_prueba: state.testMode
+        });
+        if (error) {
+          toast(error.message || "No se pudo registrar el préstamo.", true);
+          return;
+        }
+        toast("Préstamo registrado. Ya se restó del efectivo esperado.");
+        await loadCashbook();
+        render();
+      } else if (target.dataset.settleLoan) {
+        const { error } = await supabaseClient.rpc("caja_liquidar_prestamo", {
+          p_id: target.dataset.settleLoan, p_fecha: state.closeDate
+        });
+        if (error) {
+          toast(error.message || "No se pudo marcar el préstamo.", true);
+          return;
+        }
+        toast("Préstamo cobrado. El efectivo vuelve a la caja.");
+        await loadCashbook();
+        render();
+      } else if (target.dataset.saveExpense !== undefined) {
+        const concepto = document.getElementById("expense-concept")?.value.trim();
+        const monto = Number(document.getElementById("expense-amount")?.value);
+        const fecha = document.getElementById("expense-date")?.value || state.closeDate;
+        const categoria = document.getElementById("expense-category")?.value;
+        if (!concepto || !(monto > 0)) {
+          toast("Escribe el gasto y el monto.", true);
+          return;
+        }
+        const { error } = await supabaseClient.rpc("caja_registrar_gasto", {
+          p_concepto: concepto, p_monto: monto, p_fecha: fecha, p_categoria: categoria, p_es_prueba: state.testMode
+        });
+        if (error) {
+          toast(error.message || "No se pudo registrar el gasto.", true);
+          return;
+        }
+        toast("Gasto registrado.");
+        await loadCashbook();
+        render();
       } else if (target.dataset.togglePaid !== undefined) {
         state.showPaid = !state.showPaid;
         render();
@@ -3029,7 +3167,7 @@
     document.addEventListener("change", (event) => {
       if (event.target.id === "close-date" && /^\d{4}-\d{2}-\d{2}$/.test(event.target.value)) {
         state.closeDate = event.target.value;
-        render();
+        void loadCashbook().then(() => render());
       }
     });
     document.addEventListener("input", (event) => {
