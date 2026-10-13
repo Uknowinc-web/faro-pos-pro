@@ -233,6 +233,7 @@
           <p class="eyebrow">Administración — Panel de control</p>
           <h2 id="dashboard-title">Operación en vivo</h2>
           <p id="admin-label" class="muted"></p>
+          <p id="admin-sync" class="muted"></p>
         </div>
         <div class="actions">
           <button id="rename-admin" type="button">Nombre</button>
@@ -1082,33 +1083,48 @@
       } else await loadAudit();
     }
 
+    let adminRefreshTimer = null;
+    let adminNeeds = { operacion: false, cuentas: false, catalogo: false, bitacora: false };
+    let adminLive = false;
+    function scheduleAdmin(kind) {
+      adminNeeds[kind] = true;
+      window.clearTimeout(adminRefreshTimer);
+      adminRefreshTimer = window.setTimeout(() => {
+        const needs = adminNeeds;
+        adminNeeds = { operacion: false, cuentas: false, catalogo: false, bitacora: false };
+        if (needs.operacion && activeTab === "operacion") void loadOperacion();
+        if ((needs.cuentas && activeTab === "cuentas") || (needs.catalogo && (activeTab === "catalogo" || activeTab === "cuentas"))) {
+          void loadManagement();
+        }
+        if (needs.bitacora && activeTab === "bitacora") void loadAudit();
+      }, 300);
+    }
+    function setAdminSync(live) {
+      adminLive = live;
+      const label = document.getElementById("admin-sync");
+      if (!label) return;
+      label.textContent = live ? "En línea" : "Actualizando cada 12 s";
+    }
+
     function subscribeRealtime() {
       if (realtimeChannel) {
         void supabaseClient.removeChannel(realtimeChannel);
         realtimeChannel = null;
       }
+      setAdminSync(false);
       realtimeChannel = supabaseClient.channel("admin-operacion")
-        .on("postgres_changes", { event: "*", schema: "public", table: "mesas" }, () => {
-          void loadOperacion();
-          if (managementTabs.includes(activeTab)) void loadManagement();
-        })
-        .on("postgres_changes", { event: "*", schema: "public", table: "cuentas" }, () => {
-          void loadOperacion();
-          if (managementTabs.includes(activeTab)) void loadManagement();
-        })
+        .on("postgres_changes", { event: "*", schema: "public", table: "mesas" }, () => scheduleAdmin("operacion"))
+        .on("postgres_changes", { event: "*", schema: "public", table: "cuentas" }, () => scheduleAdmin("cuentas"))
         .on("postgres_changes", { event: "*", schema: "public", table: "comandas" }, () => {
-          void loadOperacion();
-          if (managementTabs.includes(activeTab)) void loadManagement();
+          scheduleAdmin("operacion");
+          scheduleAdmin("cuentas");
         })
-        .on("postgres_changes", { event: "*", schema: "public", table: "catalogo_productos" }, () => {
-          if (managementTabs.includes(activeTab)) void loadManagement();
-        })
-        .on("postgres_changes", { event: "*", schema: "public", table: "audit_acciones" }, () => {
-          void loadOperacion();
-          if (activeTab === "bitacora") void loadAudit();
-          if (managementTabs.includes(activeTab)) void loadManagement();
-        })
-        .subscribe();
+        .on("postgres_changes", { event: "*", schema: "public", table: "catalogo_productos" }, () => scheduleAdmin("catalogo"))
+        .on("postgres_changes", { event: "*", schema: "public", table: "audit_acciones" }, () => scheduleAdmin("bitacora"))
+        .subscribe((status) => {
+          if (status === "SUBSCRIBED") setAdminSync(true);
+          else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") setAdminSync(false);
+        });
     }
 
     function showLogin(message = "") {
@@ -1158,7 +1174,10 @@
       await loadAudit();
       subscribeRealtime();
       window.clearInterval(refreshTimer);
-      refreshTimer = window.setInterval(() => { void refreshActive(); }, 12000);
+      refreshTimer = window.setInterval(() => {
+        if (adminLive) return;
+        void refreshActive();
+      }, 12000);
     }
 
     document.querySelectorAll(".tab").forEach((button) => {
