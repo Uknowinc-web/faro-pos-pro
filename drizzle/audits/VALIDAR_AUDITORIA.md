@@ -1,0 +1,10 @@
+-- Guía de validación manual de la salida de auditar_security_definer.sql.
+-- Este archivo no altera la base ni asume que toda SECURITY DEFINER sea vulnerable.
+--
+-- Para cada función:
+-- 1. Confirmar que search_path esté fijado a esquemas confiables y mínimos.
+-- 2. Confirmar EXECUTE únicamente para roles requeridos; revisar PUBLIC (grantee NULL/0).
+-- 3. Verificar autorización dentro de la función (no solo en la interfaz).
+-- 4. Revisar lectura/escritura de PIN, tokens, datos personales y datos de caja.
+-- 5. Comparar propietarios, dependencias, invocadores y pruebas de rol anon/device/mesero/cocina/caja/admin.
+-- 6. No revocar permisos ni alterar funciones automáticamente a partir de heurísticas de texto.
