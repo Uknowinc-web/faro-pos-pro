@@ -362,6 +362,12 @@
             </form>
             <div id="tables-list" class="management-list"></div>
           </section>
+
+          <section class="card">
+            <h3>Inventario</h3>
+            <p class="muted">Escribe cuántas piezas quedan. En cero, el producto se acaba y el mesero ya no lo puede pedir. Si lo dejas vacío, no se controla.</p>
+            <div id="inventory-list" class="management-list"></div>
+          </section>
         </div>
       </section>
 
@@ -771,7 +777,7 @@
       latestAccounts = data.accounts || [];
       latestAttendance = data.attendance || [];
       latestSales = data.sales || [];
-      document.getElementById("products-list").innerHTML = latestProducts.filter((product) => product.categoria !== "Promociones").map((product) =>
+      document.getElementById("products-list").innerHTML = latestProducts.filter((product) => product.categoria !== "Promociones" && !/barra|barista/i.test(`${product.categoria} ${product.nombre}`)).map((product) =>
         `<article class="management-row">
           <div><strong>${escapeHtml(product.nombre)}</strong><p class="muted">${escapeHtml(product.categoria)} · ${escapeHtml(money(product.precio))} · ${product.activo ? "Disponible" : "Pausado"}${product.permite_mezcla ? " · Personalizable" : ""}</p></div>
           <div class="row-actions"><button type="button" data-product-edit="${escapeHtml(product.id)}">Editar</button>
@@ -844,6 +850,7 @@
               <p class="muted">${accountItems.length} artículos · ${escapeHtml(money(accountTotal))}${account.descuento_tipo ? ` · descuento ${escapeHtml(account.descuento_tipo === "porcentaje" ? `${account.descuento_valor}%` : money(account.descuento_valor))}` : ""}${waiters ? ` · ${escapeHtml(waiters)}` : ""}</p></div>
             <span class="status ${escapeHtml(account.estado)}">${statusText}</span>
             <button type="button" data-account-toggle="${escapeHtml(account.id)}" aria-expanded="${isOpen}">${isOpen ? "Cerrar" : "Modificar"}</button>
+            <button type="button" data-account-invoice="${escapeHtml(account.id)}" data-account-name="${escapeHtml(account.mesa)}">Nota</button>
             <button class="danger" type="button" data-account-delete="${escapeHtml(account.id)}" data-account-name="${escapeHtml(account.mesa)}">Eliminar cuenta</button>
           </div>
           <div class="account-editor" ${isOpen ? "" : "hidden"}>${lines || `<p class="muted">Sin artículos.</p>`}
@@ -869,6 +876,14 @@
         </article>`;
       }).join("") || `<article class="muted">No hay cuentas abiertas en este modo.</article>`;
       document.getElementById("management-test-mode").checked = testMode;
+      const inventoryRoot = document.getElementById("inventory-list");
+      if (inventoryRoot) {
+        inventoryRoot.innerHTML = (data.inventory || []).map((item) =>
+          `<article class="management-row"><div><strong>${escapeHtml(item.nombre)}</strong><p class="muted">${item.existencia == null ? "Sin control" : `${item.existencia} ${escapeHtml(item.unidad || "pza")}`}${item.activo === false ? " · Pausado" : ""}</p></div>
+            <div class="actions"><input aria-label="Existencia de ${escapeHtml(item.nombre)}" data-stock="${escapeHtml(item.producto_id)}" type="number" min="0" step="1" value="${item.existencia == null ? "" : escapeHtml(item.existencia)}" style="width:90px">
+            <button type="button" data-save-stock="${escapeHtml(item.producto_id)}">Guardar</button></div></article>`
+        ).join("") || `<p class="muted">El inventario aparece después de pegar la migración 0031.</p>`;
+      }
       document.querySelectorAll("[data-add-product]").forEach(syncAddOptions);
     }
 
@@ -913,13 +928,15 @@
         for (const result of [productsResult, employeesResult, attendanceResult, salesResult, accountsResult, tablesResult]) {
           if (result.error) throw result.error;
         }
+        const inventoryResult = await supabaseClient.rpc("listar_inventario");
         renderManagement({
           products: productsResult.data || [],
           employees: employeesResult.data || [],
           attendance: attendanceResult.data || [],
           sales: salesResult.data || [],
           accounts: accountsResult.data || [],
-          tables: tablesResult.data || []
+          tables: tablesResult.data || [],
+          inventory: inventoryResult.error ? [] : (inventoryResult.data || [])
         });
         message.textContent = `Gestión actualizada ${formatDate(new Date().toISOString())}.`;
       } catch (error) {
@@ -1475,6 +1492,37 @@
         if (error) { document.getElementById("management-message").textContent = error.message; return; }
         document.getElementById("management-message").textContent = "Producto eliminado del menú.";
         await loadManagement();
+      } else if (button.dataset.saveStock) {
+        const input = document.querySelector(`[data-stock="${button.dataset.saveStock}"]`);
+        const raw = input?.value.trim();
+        if (raw === "" || Number(raw) < 0) {
+          document.getElementById("management-message").textContent = "Escribe la existencia, cero o más.";
+          return;
+        }
+        const { error } = await supabaseClient.rpc("admin_guardar_inventario", {
+          p_producto: button.dataset.saveStock, p_existencia: Number(raw), p_minimo: 0, p_unidad: "pza"
+        });
+        document.getElementById("management-message").textContent = error ? error.message : "Inventario actualizado.";
+        if (!error) await loadManagement();
+      } else if (button.dataset.accountInvoice) {
+        const name = window.prompt(`Nombre para la nota de ${button.dataset.accountName || "la cuenta"}`);
+        if (!name || !name.trim()) return;
+        const rfc = window.prompt("RFC (opcional). Déjalo vacío si no lo tienes.") || "";
+        const { data, error } = await supabaseClient.rpc("crear_factura", {
+          p_cuenta: button.dataset.accountInvoice, p_receptor: name.trim(), p_rfc: rfc.trim() || null
+        });
+        if (error) {
+          document.getElementById("management-message").textContent = error.message;
+          return;
+        }
+        const items = Array.isArray(data?.items) ? data.items : [];
+        const sheet = window.open("", "nota", "width=420,height=640");
+        if (sheet) {
+          const rows = items.map((item) => `<li>${item.cantidad} × ${item.nombre}</li>`).join("");
+          sheet.document.write(`<title>${data.folio}</title><h1>Tacos El Faro</h1><p>Nota ${data.folio}</p><p>${data.mesa || ""} · ${name}</p><ul>${rows}</ul><p><strong>Total ${data.total}</strong></p><p>Esta nota no sustituye una factura fiscal.</p>`);
+          sheet.print();
+        }
+        document.getElementById("management-message").textContent = `Nota ${data.folio} emitida.`;
       } else if (button.dataset.accountDelete) {
         const nombre = button.dataset.accountName || "esta mesa";
         if (!window.confirm(`Eliminar la cuenta de ${nombre}. Se borra el pedido y la mesa queda libre.`)) return;
