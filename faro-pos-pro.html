@@ -408,6 +408,7 @@
       awaitingApproval: false,
       deviceLabel: "",
       employee: null,
+      staffAccess: { abierto: true, motivo: "" },
       authReady: false,
       authMessage: "",
       dataFresh: false,
@@ -838,6 +839,23 @@
         <button class="button full" type="button" data-action="check-approval" ${state.authReady ? "" : "disabled"}>Actualizar estado</button>
       </section>`;
     }
+    function renderClosedAccess() {
+      return `<section class="panel access-card">
+        <p class="eyebrow">Acceso cerrado</p>
+        <h2>En este momento no puedes entrar</h2>
+        <p>${escapeHtml(state.staffAccess?.motivo || "El ingreso de empleados está cerrado.")}</p>
+        <p class="muted">Solo administración puede usar el sistema fuera de este horario.</p>
+        <div class="actions">
+          <button class="button primary" type="button" data-action="check-access">Revisar de nuevo</button>
+          ${state.employee ? `<button class="button" type="button" data-action="clock-out">Registrar salida</button>` : ""}
+        </div>
+      </section>`;
+    }
+    async function loadStaffAccess() {
+      const { data, error } = await supabaseClient.rpc("ingreso_empleados_estado");
+      if (error || !data) return;
+      state.staffAccess = data;
+    }
     function renderEmployeeLogin() {
       if (state.hasPin === false) {
         return `<section class="panel access-card approval-card">
@@ -870,6 +888,12 @@
     }
     async function refreshRemoteData(showError = true, scope = "all") {
       if (!state.user || !state.role || !state.employee || state.stationRole !== state.role) return false;
+      await loadStaffAccess();
+      if (state.staffAccess?.abierto === false) {
+        state.syncing = false;
+        render();
+        return false;
+      }
       if (remoteRefreshPromise) {
         queuedScope = widenScope(queuedScope, scope);
         return remoteRefreshPromise;
@@ -1242,6 +1266,7 @@
         state.pendingStationRole = null;
         state.view = requestedRole;
         state.authReady = true;
+        await loadStaffAccess();
         const { data: shift, error: shiftError } = await supabaseClient.rpc("turno_empleado_actual");
         if (shiftError) throw shiftError;
         state.employee = shift;
@@ -1275,6 +1300,12 @@
       const pin = form.elements["employee-pin"].value.trim();
       const button = form.querySelector("button[type=submit]");
       button.disabled = true;
+      await loadStaffAccess();
+      if (state.staffAccess?.abierto === false) {
+        state.authMessage = state.staffAccess.motivo || "El ingreso de empleados está cerrado.";
+        render();
+        return;
+      }
       state.authMessage = "Validando PIN…";
       render();
       try {
@@ -1451,6 +1482,8 @@
       document.getElementById("access-notice").classList.toggle("hidden", authorized);
       if (!authorized) {
         app.innerHTML = state.awaitingApproval ? renderStationApproval() : renderStationCode();
+      } else if (state.staffAccess?.abierto === false) {
+        app.innerHTML = renderClosedAccess();
       } else if (!operating) {
         app.innerHTML = renderEmployeeLogin();
       } else {
@@ -2881,6 +2914,9 @@
         }
       } else if (target.dataset.action === "clock-out") {
         await endEmployeeShift();
+      } else if (target.dataset.action === "check-access") {
+        await loadStaffAccess();
+        render();
       } else if (target.dataset.action === "check-pin") {
         loadPinStatus().then(render).catch(() => render());
       } else if (target.dataset.action === "check-approval") {
@@ -3237,7 +3273,13 @@
     updateClock();
     window.setInterval(() => {
       updateClock();
-      if (state.view === "cocina") render();
+      if (state.user && state.role) {
+        const wasOpen = state.staffAccess?.abierto !== false;
+        void loadStaffAccess().then(() => {
+          if (wasOpen !== (state.staffAccess?.abierto !== false)) render();
+        });
+      }
+      if (state.view === "cocina" && state.staffAccess?.abierto !== false) render();
     }, 30_000);
     render();
     initializeAuth();
