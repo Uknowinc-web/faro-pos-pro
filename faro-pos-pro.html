@@ -721,23 +721,36 @@
       </section>`;
     }
     let remoteRefreshPromise = null;
-    async function refreshRemoteData(showError = true) {
+    let queuedScope = null;
+    function widenScope(current, next) {
+      if (!current || current === next) return next;
+      return "all";
+    }
+    async function refreshRemoteData(showError = true, scope = "all") {
       if (!state.user || !state.role || !state.employee || state.stationRole !== state.role) return false;
-      if (remoteRefreshPromise) return remoteRefreshPromise;
+      if (remoteRefreshPromise) {
+        queuedScope = widenScope(queuedScope, scope);
+        return remoteRefreshPromise;
+      }
       state.syncing = true;
-      state.dataFresh = false;
-      state.syncError = "";
+      if (scope !== "catalog") {
+        state.dataFresh = false;
+        state.syncError = "";
+      }
       render();
       remoteRefreshPromise = (async () => {
-        const success = await loadRemoteData(showError);
+        const success = await loadRemoteData(showError, scope);
         state.syncing = false;
-        state.dataFresh = success;
+        if (scope !== "catalog") state.dataFresh = success;
         if (success) {
           state.lastSyncedAt = Date.now();
-          void flushOffline();
+          if (scope !== "catalog") void flushOffline();
         }
         render();
         remoteRefreshPromise = null;
+        const follow = queuedScope;
+        queuedScope = null;
+        if (follow) void refreshRemoteData(false, follow);
         return success;
       })();
       return remoteRefreshPromise;
@@ -748,9 +761,10 @@
       if (!refreshed) toast("No se realizó la operación porque los datos no se pudieron sincronizar.", true);
       return refreshed;
     }
-    async function loadRemoteData(showError) {
+    async function loadRemoteData(showError, scope = "all") {
       try {
-        await loadProductCatalog();
+        if (scope !== "floor") await loadProductCatalog();
+        if (scope === "catalog") return true;
         const { data: assignedRole, error: roleError } = await supabaseClient.from("staff_roles")
           .select("role").eq("user_id", state.user.id).maybeSingle();
         if (roleError) throw roleError;
@@ -937,16 +951,45 @@
     }
     let realtimeChannel = null;
     let refreshTimer = null;
+    let refreshScope = null;
     let realtimeFallbackTimer = null;
+    let kitchenWakeLock = null;
+    function fallbackSeconds() {
+      return state.stationRole === "cocina" ? 4 : 8;
+    }
+    async function holdKitchenScreen() {
+      if (state.stationRole !== "cocina" || !state.employee || !navigator.wakeLock) return;
+      try {
+        kitchenWakeLock = await navigator.wakeLock.request("screen");
+        kitchenWakeLock.addEventListener("release", () => { kitchenWakeLock = null; });
+      } catch {
+        kitchenWakeLock = null;
+      }
+    }
+    async function releaseKitchenScreen() {
+      try { await kitchenWakeLock?.release(); } catch { /* el navegador ya la soltó */ }
+      kitchenWakeLock = null;
+    }
+    function scheduleRefresh(scope) {
+      refreshScope = widenScope(refreshScope, scope);
+      if (scope !== "catalog") state.dataFresh = false;
+      window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => {
+        const next = refreshScope || "floor";
+        refreshScope = null;
+        void refreshRemoteData(false, next);
+      }, 250);
+    }
     function setRealtimeConnection(connected) {
       state.realtimeConnected = connected;
       window.clearInterval(realtimeFallbackTimer);
       realtimeFallbackTimer = null;
       if (!connected && state.user && state.role && state.employee && state.stationRole === state.role) {
         realtimeFallbackTimer = window.setInterval(() => {
-          if (!navigator.onLine || document.visibilityState === "hidden" || state.syncing) return;
-          void refreshRemoteData(false);
-        }, 15_000);
+          if (!navigator.onLine || state.syncing) return;
+          if (state.stationRole !== "cocina" && document.visibilityState === "hidden") return;
+          void refreshRemoteData(false, "floor");
+        }, fallbackSeconds() * 1000);
       }
       render();
     }
@@ -957,22 +1000,20 @@
       const tables = state.role !== "caja" ? ["mesas", "comandas", "comanda_items", "catalogo_productos"] :
         ["mesas", "cuentas", "comandas", "comanda_items", "catalogo_productos"];
       if (state.role === "mesero") tables.push("mesa_responsables", "sugerencias_comanda");
-      const channel = supabaseClient.channel(`faro-pos-${state.user.id}`);
+      const channel = supabaseClient.channel(`faro-pos-${state.user.id}-${state.stationRole}`);
       realtimeChannel = channel;
       tables.forEach((table) => {
         channel.on("postgres_changes", { event: "*", schema: "public", table }, () => {
-          state.dataFresh = false;
           state.syncError = "";
-          render();
-          window.clearTimeout(refreshTimer);
-          refreshTimer = window.setTimeout(() => refreshRemoteData(), 250);
+          scheduleRefresh(table === "catalogo_productos" ? "catalog" : "floor");
         });
       });
       channel.subscribe((status) => {
         if (realtimeChannel !== channel) return;
         if (status === "SUBSCRIBED") {
           setRealtimeConnection(true);
-          void refreshRemoteData(false);
+          void refreshRemoteData(false, "all");
+          if (state.stationRole === "cocina") void holdKitchenScreen();
         } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
           setRealtimeConnection(false);
         }
@@ -1114,6 +1155,7 @@
         realtimeChannel = null;
         window.clearInterval(realtimeFallbackTimer);
         window.clearTimeout(refreshTimer);
+        void releaseKitchenScreen();
         state.employee = null;
         state.dataFresh = false;
         state.authMessage = "";
@@ -1248,7 +1290,7 @@
           state.realtimeConnected ? "connected" : "polling";
         const connectionChip = connectionState === "connected"
           ? `<span class="status-chip ok">En línea</span>`
-          : `<span class="status-chip warn">${connectionState === "offline" ? "Sin internet" : "Conexión lenta"}</span>
+          : `<span class="status-chip warn">${connectionState === "offline" ? "Sin internet" : `Actualizando cada ${fallbackSeconds()} s`}</span>
              <button class="button" type="button" data-action="retry-sync" ${state.syncing ? "disabled" : ""}>Reintentar</button>`;
         const employeeBanner = `<div class="status-bar" role="status">
           <span class="who">${escapeHtml(state.employee.nombre)}</span>
@@ -2221,6 +2263,7 @@
         subscribeToChanges();
         await refreshRemoteData();
       } else if (target.dataset.action === "sign-out") {
+        void releaseKitchenScreen();
         const { error } = await supabaseClient.auth.signOut();
         if (error) {
           console.error("No se pudo cerrar la sesión.", error);
@@ -2473,6 +2516,11 @@
       state.dataFresh = false;
       state.syncError = "Sin conexión. Las comandas nuevas se guardan en el aparato.";
       setRealtimeConnection(false);
+    });
+    window.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible" && state.stationRole === "cocina" && state.employee) {
+        void holdKitchenScreen();
+      }
     });
     window.addEventListener("online", () => {
       if (!state.user || !state.role || state.stationRole !== state.role) return;
