@@ -1062,8 +1062,10 @@
     async function endEmployeeShift() {
       if (!state.employee) return;
       try {
-        const { error } = await supabaseClient.rpc("cerrar_turno_empleado");
-        if (error) throw error;
+        const { error } = await supabaseClient.rpc("soltar_mesas_sin_orden", { p_es_prueba: state.testMode });
+        if (error) console.error("No se pudieron soltar las mesas sin pedido.", error);
+        const { error: closeError } = await supabaseClient.rpc("cerrar_turno_empleado");
+        if (closeError) throw closeError;
         if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
         realtimeChannel = null;
         window.clearInterval(realtimeFallbackTimer);
@@ -1277,7 +1279,7 @@
           </div>
           ${suggestionInbox}${suggestionUpdates}
           <div class="section-heading"><div><h3>Mesas</h3>
-            <p class="section-description">El nombre del responsable aparece en las mesas ocupadas.</p></div>
+            <p class="section-description">El nombre queda solo si hay un pedido o un borrador en curso.</p></div>
             <span class="badge">${tables.length} en total</span>
           </div>
           <div class="table-grid">${tables.map((table) => {
@@ -2259,11 +2261,23 @@
         await refreshRemoteData();
         render();
       } else if (target.dataset.action === "back-tables") {
+        const leaving = state.selectedTable;
+        const hadDraft = state.draft.length > 0;
+        const owns = state.selectedTableOwner && !state.suggestionMode;
         if (!persistDraft()) return;
         state.selectedTable = null;
         state.selectedTableOwner = null;
         state.suggestionMode = false;
         render();
+        if (owns && !hadDraft && leaving) {
+          const { error } = await supabaseClient.rpc("soltar_mesa_sin_orden", {
+            p_mesa: leaving, p_es_prueba: state.testMode
+          });
+          if (error && !/ya tiene un pedido/i.test(error.message || "")) {
+            console.error("No se pudo soltar la mesa.", error);
+          }
+          await refreshRemoteData(false);
+        }
       } else if (target.dataset.category) {
         state.category = target.dataset.category;
         render();
