@@ -270,6 +270,8 @@
     .pay-box .row { display: flex; gap: .4rem; flex-wrap: wrap; align-items: end; }
     .pay-box label { display: grid; gap: .2rem; font-size: .82rem; color: var(--muted); }
     .pay-box input, .pay-box select { min-height: 40px; }
+    .change-line { margin: .15rem 0 .2rem; font-size: 1.35rem; font-weight: 800; }
+    .pay-danger { margin-top: .35rem; padding-top: .55rem; border-top: 1px solid var(--line); }
     @media print {
       body * { visibility: hidden !important; }
       #ticket-print, #ticket-print * { visibility: visible !important; }
@@ -423,6 +425,8 @@
       cashierTable: null,
       cashierSearch: "",
       cashierFilter: "todas",
+      showPaid: false,
+      lastPayments: {},
       closeDate: todayMty(),
       cutOpen: false,
       data: { tables: [], checks: [], nextTicket: 1, drafts: {}, owners: [], suggestions: [] }
@@ -890,7 +894,7 @@
         const [tablesResult, accountsLoaded, ownersResult, suggestionsResult] = await Promise.all([
           tablesQuery,
           state.role !== "caja" ? Promise.resolve({ data: null, error: null }) :
-            supabaseClient.from("cuentas").select("id,mesa_id,estado,metodo_pago,total,pagado,propina,efectivo,clip,propina_efectivo,descuento_tipo,descuento_valor,descuento_total,motivo_anulacion,fecha_operativa,mesas!inner(nombre,es_prueba),comandas(id,numero,estado,created_at,comanda_items(id,producto_id,nombre,cantidad,precio_unitario,descuento_tipo,descuento_valor,modificadores,notas))")
+            supabaseClient.from("cuentas").select("id,mesa_id,estado,metodo_pago,total,pagado,propina,efectivo,clip,propina_efectivo,clip_referencia,descuento_tipo,descuento_valor,descuento_total,motivo_anulacion,fecha_operativa,mesas!inner(nombre,es_prueba),comandas(id,numero,estado,created_at,comanda_items(id,producto_id,nombre,cantidad,precio_unitario,descuento_tipo,descuento_valor,modificadores,notas))")
               .eq("mesas.es_prueba", state.testMode).order("abierta_at", { ascending: false }),
           state.role !== "mesero" ? Promise.resolve({ data: [], error: null }) :
             supabaseClient.rpc("listar_responsables_mesa", { p_es_prueba: state.testMode }),
@@ -922,6 +926,7 @@
           cash: Number(account.efectivo ?? 0),
           clipAmount: Number(account.clip ?? 0),
           cashTip: Number(account.propina_efectivo ?? 0),
+          clipReference: account.clip_referencia || "",
           discountType: account.descuento_tipo,
           discountValue: Number(account.descuento_valor ?? 0),
           discountTotal: Number(account.descuento_total ?? 0),
@@ -1657,12 +1662,15 @@
         <p>${state.testMode ? "Modo de prueba · los cobros no afectan las ventas reales." : "Revisa la cuenta antes de registrar el pago."}</p></div></header>
         <div class="summary-strip cashier-summary" aria-label="Resumen de caja">
           <div class="summary-item"><span>Cuentas abiertas</span><strong>${openCount}</strong></div>
+          <div class="summary-item"><span>Por cobrar</span><strong>${money(dueMoney())}</strong></div>
         </div>
         <div class="section-heading"><div><h3>Mesas y cuentas</h3><p class="section-description">${active.filter((entry) => entry.check).length} cuentas activas</p></div></div>
         <div class="toolbar no-print">
           <input type="search" id="cashier-search" placeholder="Buscar mesa o comanda" aria-label="Buscar mesa o número de comanda" value="${escapeHtml(state.cashierSearch)}">
           <button class="button ${state.cashierFilter === "todas" ? "primary" : ""}" aria-pressed="${state.cashierFilter === "todas"}" data-cashier-filter="todas">Todas</button>
           <button class="button ${state.cashierFilter === "con_cuenta" ? "primary" : ""}" aria-pressed="${state.cashierFilter === "con_cuenta"}" data-cashier-filter="con_cuenta">Con cuenta</button>
+          <button class="button ${state.cashierFilter === "por_cobrar" ? "primary" : ""}" aria-pressed="${state.cashierFilter === "por_cobrar"}" data-cashier-filter="por_cobrar">Por cobrar</button>
+          <button class="button ${state.showPaid ? "primary" : ""}" aria-pressed="${state.showPaid}" data-toggle-paid>Cobradas hoy</button>
         </div>
         <div class="layout cashier-layout"><div><div class="table-grid">${active.map(({ table, check }) => {
           const status = check?.status ?? "disponible";
@@ -1678,6 +1686,7 @@
           if (!current) return `<p class="empty">${selected ? `${escapeHtml(selected.table.name)} no tiene cuenta activa.` : "Selecciona una mesa con cuenta activa."}</p>`;
           return renderReceipt(selected.table, current, checks);
         })()}</aside></div>
+        ${state.showPaid ? paidTodayHtml() : ""}
         ${state.cutOpen ? `<div class="section-heading"><h3>Corte de caja</h3><div class="toolbar no-print">
           <label for="close-date" class="muted">Fecha</label>
           <input id="close-date" type="date" value="${escapeHtml(date)}">
@@ -1808,22 +1817,28 @@
           <div class="receipt-total"><span>Saldo</span><span>${money(balance)}</span></div></div>
         ${switcher}
         <div class="pay-box no-print">
+          <p class="muted">Clip se cobra en la terminal. Aquí solo se anota el monto y la referencia.</p>
           <div class="row">
-            <label>Monto<input name="pay-amount" data-pay-amount="${check.id}" type="number" min="0.01" step="0.01" value="${balance.toFixed(2)}"></label>
             <label>Propina<input name="pay-tip" data-pay-tip="${check.id}" type="number" min="0" step="0.01" value="0"></label>
+            <label>Efectivo recibido<input name="cash-received" data-cash-received="${check.id}" type="number" min="0" step="0.01" value="${balance.toFixed(2)}" inputmode="decimal"></label>
+            <label>Monto Clip<input name="clip-amount" data-clip-amount="${check.id}" type="number" min="0.01" step="0.01" value="${balance.toFixed(2)}" inputmode="decimal"></label>
+          </div>
+          <p class="change-line" data-change-line="${check.id}">Cambio ${money(0)}</p>
+          <label>Referencia Clip<input name="clip-ref" data-clip-ref="${check.id}" maxlength="40" placeholder="Autorización de la terminal" autocomplete="off"></label>
+          <div class="actions">
+            <button class="button primary" data-pay-part="${check.id}" data-method="efectivo">${state.testMode ? "Simular efectivo" : "Cobrar efectivo"}</button>
+            <button class="button primary" data-pay-part="${check.id}" data-method="clip">${state.testMode ? "Simular Clip" : "Registrar Clip"}</button>
+          </div>
+          <div class="row">
             <label>Dividir entre<input name="pay-parts" data-pay-parts="${check.id}" type="number" min="2" max="20" step="1" value="2"></label>
             <button class="button" type="button" data-split-equal="${check.id}">Poner parte</button>
-          </div>
-          <div class="actions">
-            <button class="button primary" data-pay-part="${check.id}" data-method="efectivo">${state.testMode ? "Simular efectivo" : "Efectivo"}</button>
-            <button class="button primary" data-pay-part="${check.id}" data-method="clip">${state.testMode ? "Simular Clip" : "Clip"}</button>
             <button class="button" data-split-items="${check.id}">Separar marcados</button>
             <button class="button" data-move-check="${check.id}">Mover mesa</button>
-            <button class="button danger" data-void="${check.id}">Cerrar cuenta</button>
-            <button class="button" data-print-check="${check.id}">Imprimir</button>
+            <button class="button" data-open-discount="${check.id}">Descuento</button>
+            <button class="button" data-print-check="${check.id}">Imprimir ticket</button>
           </div>
           ${freeTables.length ? `<label>Mesa destino<select data-move-target="${check.id}">${freeTables.map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join("")}</select></label>` : `<p class="muted">No hay otra mesa libre para mover esta cuenta.</p>`}
-          <p class="muted">Marca artículos para separarlos en otra cuenta. Dividir entre solo calcula la parte; el cobro es el monto de arriba.</p>
+          <div class="pay-danger"><button class="button danger" data-void="${check.id}">Anular cuenta</button></div>
         </div>`;
     }
 
@@ -2190,26 +2205,165 @@
       toast("Cuenta actualizada.");
       await refreshRemoteData();
     }
-    function payFields(checkId) {
-      const amount = Number(document.querySelector(`[data-pay-amount="${checkId}"]`)?.value);
-      const tip = Number(document.querySelector(`[data-pay-tip="${checkId}"]`)?.value || 0);
-      return { amount, tip };
+    function dueMoney() {
+      return state.data.checks
+        .filter((check) => ["abierta", "por_cobrar"].includes(check.status))
+        .reduce((sum, check) => sum + Math.max(0, checkTotal(check) - (check.paid || 0)), 0);
     }
-    async function payPart(checkId, method) {
-      if (!await ensureFreshData()) return;
-      const { amount, tip } = payFields(checkId);
-      if (!(amount > 0) || tip < 0) {
-        toast("Escribe un monto válido.", true);
+    function paidTodayHtml() {
+      const today = todayMty();
+      const paid = state.data.checks.filter((check) => check.status === "pagada" && check.operatingDate === today);
+      if (!paid.length) return `<section class="panel"><h3>Cobradas hoy</h3><p class="muted">Todavía no hay cuentas cobradas hoy.</p></section>`;
+      return `<section class="panel"><h3>Cobradas hoy · ${paid.length}</h3>
+        ${paid.map((check) => `<div class="receipt-row"><span>${escapeHtml(check.tableName)} · ${escapeHtml(check.paymentMethod || "pago")} · ${money(check.total)}</span>
+          <span class="actions"><button class="button" data-print-check="${check.id}">Reimprimir</button>
+          <button class="button danger" data-refund="${check.id}">Devolver</button></span></div>`).join("")}
+      </section>`;
+    }
+    function printCustomerReceipt(check, table, extra = {}) {
+      const items = check.tickets.flatMap((ticket) => ticket.items);
+      const total = checkTotal(check);
+      const tip = extra.tip ?? check.tip ?? 0;
+      const method = extra.method || check.paymentMethod || "";
+      const methodLabel = method === "clip" ? "Clip" : method === "mixto" ? "Efectivo y Clip" : method === "efectivo" ? "Efectivo" : "Cuenta";
+      const root = document.getElementById("ticket-print");
+      root.innerHTML = `<h2>Tacos El Faro</h2>
+        <p>${escapeHtml(table?.name || check.tableName)} · ${methodLabel}</p>
+        <p>${new Date().toLocaleString("es-MX", { timeZone: "America/Monterrey" })}</p>
+        <ul>${items.map((item) => `<li>${item.quantity}× ${escapeHtml(item.name)} · ${money(itemNet(item))}</li>`).join("")}</ul>
+        ${check.discountTotal ? `<p>Descuento −${money(check.discountTotal)}</p>` : ""}
+        <p><strong>Total ${money(total)}</strong></p>
+        ${tip ? `<p>Propina ${money(tip)}</p>` : ""}
+        ${extra.received ? `<p>Recibió ${money(extra.received)}</p><p><strong>Cambio ${money(extra.change || 0)}</strong></p>` : ""}
+        ${extra.reference || check.clipReference ? `<p>Clip ${escapeHtml(extra.reference || check.clipReference)}</p>` : ""}
+        <p>${state.testMode ? "Comprobante de prueba. No es un cobro." : "Gracias."}</p>`;
+      window.print();
+      root.innerHTML = "";
+    }
+    function openDiscountDialog(checkId) {
+      const check = state.data.checks.find((item) => item.id === checkId);
+      if (!check) return;
+      document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop" data-dismiss-modal>
+        <section class="modal" role="dialog" aria-modal="true" aria-labelledby="discount-title">
+          <div class="modal-header"><h2 id="discount-title">Descuento · ${escapeHtml(check.tableName)}</h2>
+            <button class="small-button" type="button" data-close-modal aria-label="Cerrar">✕</button></div>
+          <label class="field">Tipo<select name="discount-type"><option value="porcentaje">Porcentaje</option><option value="monto">Monto</option></select></label>
+          <label class="field">Valor<input name="discount-value" type="number" min="0" step="0.01" inputmode="decimal"></label>
+          <label class="field">Motivo<input name="discount-reason" maxlength="200" autocomplete="off"></label>
+          <div class="modal-footer"><button class="button" type="button" data-close-modal>Cancelar</button>
+            <button class="button primary" type="button" data-confirm-discount="${check.id}">Aplicar</button></div>
+        </section></div>`;
+      document.querySelector(".modal-backdrop").addEventListener("click", (event) => {
+        if (event.target.matches("[data-dismiss-modal]")) closeModal();
+      });
+    }
+    async function applyCashierDiscount(checkId) {
+      if (!needsNetwork("El descuento necesita conexión.")) return;
+      const type = document.querySelector("[name='discount-type']")?.value;
+      const value = Number(document.querySelector("[name='discount-value']")?.value);
+      const reason = document.querySelector("[name='discount-reason']")?.value.trim();
+      if (!reason || !(value > 0)) {
+        toast("Escribe el valor y el motivo del descuento.", true);
         return;
       }
-      const { error } = await supabaseClient.rpc("pago_cuenta", {
-        p_cuenta: checkId, p_metodo: method, p_monto: amount, p_propina: tip, p_es_prueba: state.testMode
+      const { error } = await supabaseClient.rpc("caja_aplicar_descuento", {
+        p_cuenta: checkId, p_item: null, p_tipo: type, p_valor: value, p_motivo: reason
       });
+      if (error) {
+        toast(error.message || "No se pudo aplicar el descuento. Falta pegar la migración 0030.", true);
+        return;
+      }
+      closeModal();
+      toast("Descuento aplicado.");
+      await refreshRemoteData();
+    }
+    async function refundCheck(checkId) {
+      const check = state.data.checks.find((item) => item.id === checkId && item.status === "pagada");
+      if (!check) return;
+      const reason = window.prompt(`Motivo de la devolución de ${check.tableName}`);
+      if (!reason || !reason.trim()) return;
+      if (!needsNetwork("La devolución necesita conexión.")) return;
+      const { error } = await supabaseClient.rpc("devolver_cuenta", {
+        p_cuenta: checkId, p_motivo: reason.trim(), p_es_prueba: state.testMode
+      });
+      if (error) {
+        toast(error.message || "No se pudo devolver la cuenta. Falta pegar la migración 0030.", true);
+        return;
+      }
+      toast("Devolución registrada. El corte ya no la cuenta como venta.");
+      await refreshRemoteData();
+    }
+    function payFields(checkId) {
+      const tip = Number(document.querySelector(`[data-pay-tip="${checkId}"]`)?.value || 0);
+      const received = Number(document.querySelector(`[data-cash-received="${checkId}"]`)?.value);
+      const clipAmount = Number(document.querySelector(`[data-clip-amount="${checkId}"]`)?.value);
+      const reference = document.querySelector(`[data-clip-ref="${checkId}"]`)?.value.trim() || "";
+      return { tip, received, clipAmount, reference };
+    }
+    async function payPart(checkId, method) {
+      if (!needsNetwork("El cobro necesita conexión. La cuenta sigue abierta.")) return;
+      if (!await ensureFreshData()) return;
+      const check = state.data.checks.find((item) => item.id === checkId);
+      const table = state.data.tables.find((item) => item.id === check?.tableId);
+      if (!check) return;
+      const balance = Math.max(0, checkTotal(check) - (check.paid || 0));
+      const fields = payFields(checkId);
+      if (fields.tip < 0) {
+        toast("La propina no puede ser negativa.", true);
+        return;
+      }
+      let amount = balance;
+      let tip = fields.tip;
+      let change = 0;
+      if (method === "efectivo") {
+        if (!(fields.received > 0)) {
+          toast("Escribe el efectivo que te entregaron.", true);
+          return;
+        }
+        if (fields.received + 0.009 < balance) {
+          if (!window.confirm(`El efectivo no cubre el saldo. ¿Registrar un abono de ${money(fields.received)}?`)) return;
+          amount = Math.round(fields.received * 100) / 100;
+          tip = 0;
+        } else if (fields.received + 0.009 < balance + tip) {
+          toast("El efectivo no cubre el saldo y la propina.", true);
+          return;
+        } else {
+          amount = balance;
+          change = Math.round((fields.received - balance - tip) * 100) / 100;
+        }
+      } else {
+        if (!fields.reference) {
+          toast("Escribe la referencia que muestra la terminal Clip.", true);
+          return;
+        }
+        amount = fields.clipAmount;
+        if (!(amount > 0) || amount > balance + 0.009) {
+          toast("El monto Clip tiene que ser mayor a 0 y no pasar el saldo.", true);
+          return;
+        }
+        if (amount + 0.009 < balance) tip = 0;
+      }
+      const args = {
+        p_cuenta: checkId, p_metodo: method, p_monto: amount, p_propina: tip, p_es_prueba: state.testMode
+      };
+      let { error } = method === "clip"
+        ? await supabaseClient.rpc("pago_cuenta", { ...args, p_referencia: fields.reference })
+        : await supabaseClient.rpc("pago_cuenta", args);
+      if (error && method === "clip" && /referencia|schema cache|function/i.test(error.message || "")) {
+        ({ error } = await supabaseClient.rpc("pago_cuenta", args));
+      }
       if (error) {
         toast(error.message || "No se pudo registrar el pago.", true);
         return;
       }
-      toast(method === "clip" ? "Abono Clip registrado." : "Abono en efectivo registrado.");
+      state.lastPayments[checkId] = {
+        method, tip, change, received: method === "efectivo" ? fields.received : 0, reference: fields.reference
+      };
+      const closed = amount + 0.009 >= balance;
+      toast(method === "efectivo"
+        ? (change > 0 ? `Cambio ${money(change)}` : "Efectivo registrado.")
+        : "Clip anotado. El cobro se hizo en la terminal, no aquí.");
+      if (closed) printCustomerReceipt(check, table, state.lastPayments[checkId]);
       await refreshRemoteData();
     }
     async function splitItems(checkId) {
@@ -2325,6 +2479,21 @@
       await refreshRemoteData();
     }
 
+    document.addEventListener("input", (event) => {
+      const field = event.target.closest("[data-cash-received], [data-pay-tip]");
+      if (!field) return;
+      const id = field.dataset.cashReceived || field.dataset.payTip;
+      const check = state.data.checks.find((item) => item.id === id);
+      const line = document.querySelector(`[data-change-line="${id}"]`);
+      if (!check || !line) return;
+      const balance = Math.max(0, checkTotal(check) - (check.paid || 0));
+      const tip = Number(document.querySelector(`[data-pay-tip="${id}"]`)?.value || 0);
+      const received = Number(document.querySelector(`[data-cash-received="${id}"]`)?.value || 0);
+      const gap = received - balance - Math.max(tip, 0);
+      line.textContent = gap >= -0.009
+        ? `Cambio ${money(Math.max(0, Math.round(gap * 100) / 100))}`
+        : `Faltan ${money(Math.round(-gap * 100) / 100)}`;
+    });
     document.addEventListener("submit", async (event) => {
       if (event.target.id === "employee-pin-form") {
         event.preventDefault();
@@ -2581,8 +2750,11 @@
         const parts = Number(document.querySelector(`[data-pay-parts="${check.id}"]`)?.value);
         const balance = Math.max(0, checkTotal(check) - (check.paid || 0));
         if (!check || !(parts >= 2)) return;
-        const input = document.querySelector(`[data-pay-amount="${check.id}"]`);
-        if (input) input.value = (Math.round((balance / parts) * 100) / 100).toFixed(2);
+        const input = document.querySelector(`[data-clip-amount="${check.id}"]`);
+        const cash = document.querySelector(`[data-cash-received="${check.id}"]`);
+        const part = (Math.round((balance / parts) * 100) / 100).toFixed(2);
+        if (input) input.value = part;
+        if (cash) cash.value = part;
       } else if (target.dataset.splitItems) {
         splitItems(target.dataset.splitItems);
       } else if (target.dataset.moveCheck) {
@@ -2593,18 +2765,19 @@
       } else if (target.dataset.printKitchen) {
         const ticket = findKitchenTicket(target.dataset.printKitchen, target.dataset.fromHistory);
         if (ticket) printKitchenTicket(ticket);
+      } else if (target.dataset.openDiscount) {
+        openDiscountDialog(target.dataset.openDiscount);
+      } else if (target.dataset.confirmDiscount) {
+        await applyCashierDiscount(target.dataset.confirmDiscount);
+      } else if (target.dataset.refund) {
+        await refundCheck(target.dataset.refund);
+      } else if (target.dataset.togglePaid !== undefined) {
+        state.showPaid = !state.showPaid;
+        render();
       } else if (target.dataset.printCheck) {
         const check = state.data.checks.find((item) => item.id === target.dataset.printCheck);
-        const table = state.data.tables.find((item) => item.id === check?.tableId);
-        if (check && table) {
-          const root = document.getElementById("ticket-print");
-          root.innerHTML = `<h2>${escapeHtml(table.name)}</h2><p>Cuenta</p><ul>${
-            check.tickets.flatMap((ticket) => ticket.items).map((item) =>
-              `<li>${item.quantity}× ${escapeHtml(item.name)} · ${money(itemNet(item))}</li>`).join("")
-          }</ul><p><strong>Saldo ${money(Math.max(0, checkTotal(check) - (check.paid || 0)))}</strong></p>`;
-          window.print();
-          root.innerHTML = "";
-        }
+        const table = state.data.tables.find((item) => item.id === check?.tableId) || { name: check?.tableName };
+        if (check) printCustomerReceipt(check, table, state.lastPayments[check.id]);
       } else if (target.dataset.pay) {
         const check = state.data.checks.find((item) => item.id === target.dataset.pay &&
           ["abierta", "por_cobrar"].includes(item.status));
