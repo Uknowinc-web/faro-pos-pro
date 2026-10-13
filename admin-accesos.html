@@ -635,7 +635,7 @@
     let adminNameChangesLeft = null;
     let latestProducts = [];
     const OPCIONES_PRODUCTO = {
-      "agua-sabor": [["Sabor", ["Jamaica", "Limón", "Pepino limón", "Tamarindo", "Piña", "Mango", "Sandía"]]],
+      "agua-sabor": [["Sabor", ["Limón", "Pepino/limón", "Jamaica", "Tamarindo", "Mango", "Piña", "Sandía"]]],
       "horchata": [["Bebida", ["Horchata", "Cebada"]], ["Tamaño", ["1 L", "1/2 L"]]],
       "toni-col": [["Bebida", ["ToniCol", "Titan"]]]
     };
@@ -1040,13 +1040,23 @@
       document.getElementById("management-test-mode").checked = testMode;
       const inventoryRoot = document.getElementById("inventory-list");
       if (inventoryRoot) {
-        const pieceProducts = (data.inventory || []).filter((item) => !(data.recipes || []).some((recipe) => recipe.producto_id === item.producto_id));
-        inventoryRoot.innerHTML = pieceProducts.map((item) =>
+        const variantParents = new Set((data.variants || []).map((item) => item.producto_id));
+        const variantOrder = ["Limón", "Pepino/limón", "Jamaica", "Tamarindo", "Mango", "Piña", "Sandía", "Horchata", "Cebada", "ToniCol", "Titan"];
+        const variantCards = [...(data.variants || [])].sort((a, b) =>
+          a.nombre.localeCompare(b.nombre, "es") || variantOrder.indexOf(a.variante) - variantOrder.indexOf(b.variante)
+        ).map((item) =>
+          `<article class="tile"><strong>${escapeHtml(item.variante)}</strong>
+            <span class="muted">${escapeHtml(item.nombre)} · ${item.existencia == null ? "Sin control" : `${item.existencia} pza`}</span>
+            <div class="tile-actions"><input aria-label="Existencia de ${escapeHtml(item.variante)}" data-variant-qty="${escapeHtml(item.producto_id)}::${escapeHtml(item.variante)}" type="number" min="0" step="1" value="${item.existencia == null ? "" : escapeHtml(item.existencia)}">
+            <button type="button" data-save-variant="${escapeHtml(item.producto_id)}" data-variant-name="${escapeHtml(item.variante)}">Guardar</button></div></article>`
+        ).join("");
+        const pieceProducts = (data.inventory || []).filter((item) => !variantParents.has(item.producto_id) && !(data.recipes || []).some((recipe) => recipe.producto_id === item.producto_id));
+        inventoryRoot.innerHTML = (variantCards + pieceProducts.map((item) =>
           `<article class="tile"><strong>${escapeHtml(item.nombre)}</strong>
             <span class="muted">${item.existencia == null ? "Sin control" : `${item.existencia} ${escapeHtml(item.unidad || "pza")}`}</span>
             <div class="tile-actions"><input aria-label="Existencia de ${escapeHtml(item.nombre)}" data-stock="${escapeHtml(item.producto_id)}" type="number" min="0" step="1" value="${item.existencia == null ? "" : escapeHtml(item.existencia)}">
             <button type="button" data-save-stock="${escapeHtml(item.producto_id)}">Guardar</button></div></article>`
-        ).join("") || `<p class="muted">Los platillos con receta no aparecen aquí.</p>`;
+        ).join("")) || `<p class="muted">Los platillos con receta no aparecen aquí.</p>`;
       }
       const insumoRoot = document.getElementById("insumo-list");
       if (insumoRoot) {
@@ -1133,6 +1143,7 @@
           if (result.error) throw result.error;
         }
         const inventoryResult = await supabaseClient.rpc("listar_inventario");
+        const variantResult = await supabaseClient.rpc("listar_inventario_variantes");
         const [insumosResult, recipesResult, movementsResult] = await Promise.all([
           supabaseClient.rpc("listar_insumos"),
           supabaseClient.rpc("listar_recetas"),
@@ -1146,6 +1157,7 @@
           accounts: accountsResult.data || [],
           tables: tablesResult.data || [],
           inventory: inventoryResult.error ? [] : (inventoryResult.data || []),
+          variants: variantResult.error ? [] : (variantResult.data || []),
           insumos: Array.isArray(insumosResult.data) ? insumosResult.data : [],
           recipes: Array.isArray(recipesResult.data) ? recipesResult.data : [],
           movements: Array.isArray(movementsResult.data) ? movementsResult.data : []
@@ -2041,6 +2053,20 @@
           p_producto: producto, p_insumo: insumo, p_cantidad: cantidad
         });
         document.getElementById("management-message").textContent = error ? error.message : "Receta actualizada.";
+        if (!error) await loadManagement();
+      } else if (button.dataset.saveVariant) {
+        const input = document.querySelector(`[data-variant-qty="${CSS.escape(button.dataset.saveVariant)}::${CSS.escape(button.dataset.variantName)}"]`);
+        const raw = input?.value.trim();
+        if (raw === "" || Number(raw) < 0) {
+          document.getElementById("management-message").textContent = "Escribe las piezas de ese sabor, cero o más.";
+          return;
+        }
+        const { error } = await supabaseClient.rpc("admin_guardar_inventario_variante", {
+          p_producto: button.dataset.saveVariant,
+          p_variante: button.dataset.variantName,
+          p_existencia: Number(raw)
+        });
+        document.getElementById("management-message").textContent = error ? error.message : "Existencia guardada.";
         if (!error) await loadManagement();
       } else if (button.dataset.saveStock) {
         const input = document.querySelector(`[data-stock="${button.dataset.saveStock}"]`);
