@@ -1,7 +1,7 @@
 # Plan de mejoras por prioridad — Faro POS Pro
 
 Fecha de auditoría: 13 de octubre de 2026.
-Alcance: revisión estática del repositorio. La base Supabase y el despliegue Vercel no fueron inspeccionados directamente; probar cada migración en staging antes de producción.
+Alcance: revisión del repositorio y consultas de solo lectura al esquema/privilegios del proyecto Supabase conectado. No se aplicaron migraciones ni se modificaron datos operativos. Validar cada migración en staging antes de producción.
 
 ## Estado de esta entrega
 
@@ -10,12 +10,22 @@ Alcance: revisión estática del repositorio. La base Supabase y el despliegue V
 - [x] Añadir prueba SQL de permisos en drizzle/tests/0039_rpc_permissions.sql.
 - [x] Actualizar README, manual técnico, guía de acción y checklist.
 - [ ] Probar la migración en staging.
+- [x] Comparar las definiciones actuales de RPC y privilegios efectivos en Supabase (solo lectura).
 - [ ] Verificar privilegios efectivos en Supabase después de aplicarla.
 - [ ] Confirmar que el trigger de inventario sigue descontando existencias correctamente.
 
 Riesgo abordado: varias RPC SECURITY DEFINER permitían invocaciones por el rol SQL authenticated sin validar dentro de la función el rol operativo de Faro. Los usuarios anónimos de Supabase Auth también usan authenticated. Además, el auxiliar descontar_producto tenía EXECUTE concedido a authenticated.
 
 La migración 0039 protege las consultas de inventario del POS para puestos autorizados; restringe fondo, empleados, préstamos y gastos de caja a caja/admin; restringe insumos, recetas y movimientos a admin; y revoca la ejecución directa de descontar_producto a anon y authenticated.
+
+### P0/P1 — Reducir funciones internas expuestas (migración 0040 preparada)
+- [x] Retirar EXECUTE público/anon de admin_listar_catalogo; conservar authenticated con validación interna de admin.
+- [x] Retirar EXECUTE a clientes de aplicar_consumo_receta (trigger interno).
+- [x] Retirar EXECUTE a clientes de rls_auto_enable (función de evento DDL).
+- [x] Fijar search_path de calcular_descuento a pg_catalog.
+- [x] Retirar privilegios API directos de anon/authenticated sobre la foreign table usersSegur, sin referencias halladas en el código del POS.
+- [x] Añadir smoke tests para verificar los grants y search_path.
+- [ ] Ejecutar migración 0040 primero en staging y comprobar el trigger de inventario y los flujos administrativos.
 
 ## Siguientes prioridades
 
