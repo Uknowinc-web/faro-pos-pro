@@ -303,7 +303,7 @@ begin
   select coalesce(sum(monto), 0) into v_cobrados
   from public.caja_prestamos
   where liquidado_fecha = p_fecha and es_prueba = coalesce(p_es_prueba, false);
-  v_esperado := p_fondo + v_efectivo + v_propina - v_gastos - v_prestamos + v_cobrados;
+  v_esperado := p_fondo + v_efectivo - v_gastos - v_prestamos + v_cobrados;
   v_diff := p_contado - v_esperado;
   insert into public.cortes_caja(
     fecha, fondo, efectivo_sistema, clip_sistema, propinas, efectivo_contado, diferencia, notas, es_prueba,
