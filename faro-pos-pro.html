@@ -587,10 +587,11 @@
         <h2>Vincular dispositivo</h2>
         <p class="muted">${boundMessage}</p>
         <form id="station-form">
-          <label class="field">Tu nombre
-            <input name="employee-name" maxlength="80" value="${escapeHtml(state.deviceLabel)}"
-              placeholder="Solo tu nombre" autocomplete="given-name" required>
+          <label class="field">Nombre del aparato
+            <input name="device-label" maxlength="80" value="${escapeHtml(state.deviceLabel)}"
+              placeholder="Celular mesero 1" autocomplete="off" required>
           </label>
+          <p class="field-help">Este nombre identifica el teléfono o tablet, no a la persona. El empleado entra después con su PIN.</p>
           <label class="field">Código del puesto
             <input class="station-code" name="station-code" type="password" inputmode="text"
               autocapitalize="characters" pattern="[A-Fa-f0-9]{8}" minlength="8" maxlength="8"
@@ -900,8 +901,7 @@
         if (!data && user.is_anonymous) {
           const { data: requestStatus, error: requestError } = await supabaseClient.rpc("solicitar_acceso_puesto", {
             p_role: requestedRole,
-            p_device_label: state.deviceLabel,
-            p_empleado_nombre: state.pendingEmployee?.name ?? null
+            p_device_label: state.deviceLabel
           });
           state.pendingEmployee = null;
           if (requestError) throw requestError;
@@ -1820,14 +1820,13 @@
           render();
           return;
         }
-        const employeeName = form.elements["employee-name"].value.trim();
-        if (!employeeName || employeeName.length > 80) {
-          state.authMessage = "Escribe tu nombre (máximo 80 caracteres).";
+        const deviceLabel = form.elements["device-label"].value.trim();
+        if (!deviceLabel || deviceLabel.length > 80) {
+          state.authMessage = "Escribe un nombre de aparato de 1 a 80 caracteres.";
           render();
           return;
         }
-        const deviceLabel = employeeName;
-        state.pendingEmployee = { name: employeeName };
+        state.pendingEmployee = null;
         if (!state.user) {
           try {
             const { data, error } = await supabaseClient.auth.signInAnonymously();
