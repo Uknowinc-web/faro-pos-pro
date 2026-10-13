@@ -1804,6 +1804,8 @@
           <div class="stat"><span>Gastos</span><strong>${money(drawer.expenses)}</strong></div>
           <div class="stat"><span>Préstamos</span><strong>${money(drawer.lent)}</strong></div>
           <div class="stat"><span>Préstamos cobrados</span><strong>${money(drawer.repaid)}</strong></div>
+          <div class="stat"><span>Propinas en efectivo</span><strong>${money(cut.cashTips || 0)}</strong></div>
+          <div class="stat"><span>Propinas en Clip</span><strong>${money(Math.max(0, (cut.tips || 0) - (cut.cashTips || 0)))}</strong></div>
           <div class="stat"><span>Efectivo esperado</span><strong>${money(drawer.expected)}</strong></div>
           <div class="stat"><span>Diferencia</span><strong>${state.cutCounted === "" || state.cutCounted == null ? "—" : money(Number(state.cutCounted) - drawer.expected)}</strong></div>
           <div class="stat"><span>Descuentos</span><strong>${money(cut.discounts)}</strong></div>
@@ -1841,6 +1843,7 @@
         sales: paid.reduce((sum, check) => sum + check.total, 0),
         cash: byMethod("efectivo"), clip: byMethod("clip"),
         cashTips: paid.reduce((sum, check) => sum + (check.cashTip || 0), 0),
+        tips: paid.reduce((sum, check) => sum + (check.tip || 0), 0),
         discounts: paid.reduce((sum, check) => sum + check.discountTotal, 0),
         top: [...ranking.entries()].sort((a, b) => b[1].quantity - a[1].quantity).slice(0, 10)
       };
@@ -1855,14 +1858,14 @@
       const floatValue = state.cutFloat ?? 2000;
       return {
         expenses, lent, repaid, floatValue,
-        expected: floatValue + cut.cash + (cut.cashTips || 0) - expenses - lent + repaid
+        expected: floatValue + cut.cash - expenses - lent + repaid
       };
     }
     function cashDeskHtml(date) {
       const book = state.cashbook || { loans: [], expenses: [], employees: [] };
       const employees = book.employees || [];
       return `<section class="panel"><h3>Movimientos de caja</h3>
-        <p class="muted">El fondo estándar es $2,000. Cámbialo solo si hoy abriste con otra cantidad. Los préstamos y gastos salen del efectivo esperado.</p>
+        <p class="muted">El fondo estándar es $2,000. Cámbialo solo si hoy abriste con otra cantidad. Los préstamos y gastos salen del efectivo esperado. Las propinas se guardan aparte y no entran en la caja.</p>
         <div class="toolbar">
           <label>Fondo inicial<input id="desk-float" type="number" min="0" step="0.01" value="${escapeHtml(String(state.cutFloat ?? 2000))}"></label>
           <button class="button" type="button" data-save-float>Guardar fondo</button>
@@ -1910,7 +1913,8 @@
         `Total vendido: ${money(cut.sales)}`,
         `Fondo inicial: ${money(drawer.floatValue)}`,
         `Efectivo vendido: ${money(cut.cash)}`,
-        `Propinas en efectivo: ${money(cut.cashTips || 0)}`,
+        `Propinas en efectivo (aparte, no van en caja): ${money(cut.cashTips || 0)}`,
+        `Propinas en Clip (aparte, no van en caja): ${money(Math.max(0, (cut.tips || 0) - (cut.cashTips || 0)))}`,
         `Gastos: ${money(drawer.expenses)}`,
         `Préstamos del día: ${money(drawer.lent)}`,
         `Préstamos cobrados: ${money(drawer.repaid)}`,
