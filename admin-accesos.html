@@ -884,7 +884,7 @@
 
       const roleOrder = ["mesero", "cocina", "caja"];
       const extraPeople = latestEmployees.filter((employee) => !roleOrder.includes(employee.puesto));
-      document.getElementById("employees-list").innerHTML = (roleOrder.map((role) => {
+      const grouped = roleOrder.map((role) => {
         const people = latestEmployees.filter((employee) => employee.puesto === role);
         if (!people.length) return "";
         return `<section class="menu-group"><h4>${escapeHtml(roleLabel(role))}</h4><div class="tile-grid">${people.map((employee) => {
@@ -898,7 +898,7 @@
       const extras = extraPeople.length ? `<section class="menu-group"><h4>Otros</h4><div class="tile-grid">${extraPeople.map((employee) =>
         `<article class="tile"><strong>${escapeHtml(employee.nombre)}</strong><span class="muted">${escapeHtml(roleLabel(employee.puesto))}</span></article>`
       ).join("")}</div></section>` : "";
-      document.getElementById("employees-list").innerHTML = (document.getElementById("employees-list").innerHTML + extras) || `<p class="muted">Aún no hay empleados registrados.</p>`;
+      document.getElementById("employees-list").innerHTML = (grouped + extras) || `<p class="muted">Aún no hay empleados registrados.</p>`;
 
       const attendanceDate = document.getElementById("attendance-date").value;
       document.getElementById("attendance-list").className = "tile-grid";
