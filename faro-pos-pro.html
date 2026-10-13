@@ -1043,6 +1043,31 @@
       }
     }
     let approvalPollTimer = null;
+    async function resumeApprovedDevice() {
+      if (!state.user) return false;
+      const { data, error } = await supabaseClient.from("staff_roles")
+        .select("role").eq("user_id", state.user.id).maybeSingle();
+      if (error || !data || !["mesero", "cocina", "caja"].includes(data.role)) return false;
+      if (state.stationBoundRole && state.stationBoundRole !== data.role) return false;
+      if (!state.stationBoundRole) localStorage.setItem(STATION_STORAGE_KEY, data.role);
+      state.stationBoundRole = data.role;
+      state.role = data.role;
+      state.stationRole = data.role;
+      state.view = data.role;
+      state.awaitingApproval = false;
+      state.pendingStationRole = null;
+      const { data: shift, error: shiftError } = await supabaseClient.rpc("turno_empleado_actual");
+      if (shiftError) return false;
+      state.employee = shift;
+      if (!state.employee) {
+        await loadPinStatus().catch(() => { state.hasPin = true; });
+        state.authMessage = "";
+        return true;
+      }
+      if (await refreshRemoteData()) subscribeToChanges();
+      state.authMessage = "";
+      return true;
+    }
     async function initializeAuth() {
       try {
         const { data, error } = await supabaseClient.auth.getSession();
@@ -1050,8 +1075,13 @@
         state.user = data.session?.user ?? null;
         state.stationBoundRole = localStorage.getItem(STATION_STORAGE_KEY);
         state.testMode = localStorage.getItem("faro-pos-test-mode-v1") !== "false";
-        state.authReady = true;
+        state.authReady = !state.user;
         render();
+        if (state.user) {
+          await resumeApprovedDevice();
+          state.authReady = true;
+          render();
+        }
         supabaseClient.auth.onAuthStateChange((event, session) => {
           if (event === "SIGNED_OUT" || !session) {
             state.user = null;
