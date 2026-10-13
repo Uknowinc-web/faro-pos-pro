@@ -589,8 +589,11 @@
     }
     function tableStatus(tableId) {
       const table = state.data.tables.find((item) => item.id === tableId);
-      if (table?.status === "ocupada") return "abierta";
-      if (table?.status === "por_cobrar") return "por_cobrar";
+      if (state.stationRole !== "caja") {
+        if (table?.status === "ocupada") return "abierta";
+        if (table?.status === "por_cobrar") return "por_cobrar";
+        return "disponible";
+      }
       const check = activeCheck(tableId);
       return check?.status ?? table?.status ?? "disponible";
     }
