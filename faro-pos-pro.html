@@ -479,7 +479,11 @@
     function productAllowsNotes(product) {
       return !["Postres", "Bebidas"].includes(product.categoria) && !PRODUCTOS_SIN_NOTAS.includes(product.id);
     }
+    function isSimpleProduct(product) {
+      return ["Postres", "Bebidas", "Promociones"].includes(product.categoria);
+    }
     function productNeedsDialog(product) {
+      if (isSimpleProduct(product)) return productOptionGroups(product).length > 0;
       return Boolean(product.mezcla) || productAllowsNotes(product) || productOptionGroups(product).length > 0
         || Boolean(EXTRAS_OPCIONALES[product.id]);
     }
@@ -487,7 +491,7 @@
       return selections.map((name) => ({ name, extra: name === "1/2 L" ? -product.precio / 2 : 0 }));
     }
     function mixModifiers(product, principal, extras, cheese) {
-      if (!product.mezcla) return [];
+      if (!product.mezcla || isSimpleProduct(product)) return [];
       const uniqueExtras = [...new Set(extras)].filter((meat) => meat !== principal);
       return [
         { name: principal, extra: principal === "Tripa" ? product.tripa : 0 },
@@ -1468,7 +1472,7 @@
     }
 
     function openProductDialog(product) {
-      const hasMix = Boolean(product.mezcla);
+      const hasMix = Boolean(product.mezcla) && !isSimpleProduct(product);
       const meatOptions = CARNES.map((meat, index) =>
         `<label class="choice"><input type="${index === 0 ? "radio" : "radio"}" name="main-meat" value="${meat}" ${index === 0 ? "checked" : ""}>${meat}${meat === "Tripa" ? ` (+${money(product.tripa)})` : ""}</label>`
       ).join("");
