@@ -2008,12 +2008,17 @@
       let serverSaved = false;
       let serverError = "";
       if (navigator.onLine && countedValue !== null) {
-        const { error } = await supabaseClient.rpc("registrar_corte", {
-          p_fecha: date, p_fondo: floatValue, p_contado: countedValue,
-          p_notas: null, p_es_prueba: state.testMode
-        });
-        serverSaved = !error;
-        serverError = error?.message || "";
+        try {
+          const { error } = await supabaseClient.rpc("registrar_corte", {
+            p_fecha: date, p_fondo: floatValue, p_contado: countedValue,
+            p_notas: null, p_es_prueba: state.testMode
+          });
+          serverSaved = !error;
+          serverError = error?.message || "";
+        } catch (err) {
+          // El reporte local debe descargarse aunque la llamada al servidor falle por red.
+          serverError = err?.message || "Error de conexión al registrar el corte";
+        }
       }
       const cut = cutData(date);
       const drawer = drawerParts(cut, date);
