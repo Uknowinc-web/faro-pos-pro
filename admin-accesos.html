@@ -1790,6 +1790,7 @@
       const form = document.getElementById("employee-form");
       if (!employee) {
         clearManagementForm(form);
+        form.elements.pin.required = true;
         form.elements.role.value = "mesero";
       } else {
         form.elements.id.value = employee.id;
