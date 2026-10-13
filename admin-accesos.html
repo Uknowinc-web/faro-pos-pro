@@ -80,9 +80,9 @@
     .management-row p { margin: .15rem 0; }
     .management-row .actions { margin: 0; }
     .management-row button { min-height: 38px; }
-    .management-form { display: grid; grid-template-columns: 1fr; gap: .55rem; }
-    .management-form .actions { display: flex; justify-content: flex-start; align-items: center; gap: .5rem; margin: .4rem 0 .2rem; }
-    .management-form .actions button { min-width: 0; }
+    .management-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .6rem .75rem; align-items: end; }
+    .management-form .actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; align-items: center; gap: .5rem; margin: .25rem 0 0; }
+    .management-form .actions button { flex: 0 0 auto; min-width: 132px; }
     .management-row { align-items: center; }
     .management-row .row-actions { display: flex; gap: .4rem; flex-shrink: 0; }
     .management-row .row-actions button { min-width: 88px; }
@@ -310,7 +310,7 @@
               <label class="check-label"><input name="mix" type="checkbox"> Personalizable (elige carne)</label>
               <label class="check-label"><input name="active" type="checkbox" checked> Disponible</label>
               <p class="muted">Bebidas y postres no aceptan personalización. Si lo marcas, el mesero elige carne como en un taco.</p>
-              <div class="actions"><button class="primary" type="submit">Guardar</button><button type="button" data-clear-form hidden>Cancelar</button><button class="danger" type="button" id="product-delete" hidden>Eliminar</button></div>
+              <div class="actions"><button class="primary" type="submit">Guardar producto</button><button type="button" data-clear-form>Limpiar</button></div>
             </form>
             <div id="products-list" class="management-list"></div>
           </section>
@@ -323,10 +323,8 @@
               <label>Nombre<input name="name" maxlength="100" required placeholder="Ej. Combo 3 tacos + agua"></label>
               <label>Precio (MXN)<input name="price" type="number" min="0" max="100000" step="0.01" required></label>
               <label>Descripción<input name="description" maxlength="300" placeholder="Qué incluye"></label>
-              <label>Vigente desde<input name="from" type="date"></label>
-              <label>Vigente hasta<input name="to" type="date"></label>
-              <label class="check-label"><input name="active" type="checkbox" checked> Activa</label>
-              <div class="actions"><button class="primary" type="submit">Guardar</button><button type="button" data-clear-form hidden>Cancelar</button></div>
+              <label class="check-label"><input name="active" type="checkbox" checked> Vigente</label>
+              <div class="actions"><button class="primary" type="submit">Guardar promoción</button><button type="button" data-clear-form>Limpiar</button></div>
             </form>
             <div id="promos-list" class="management-list"></div>
           </section>
@@ -338,7 +336,7 @@
               <input name="id" type="hidden">
               <label>Nombre<input name="name" maxlength="80" required></label>
               <label class="check-label"><input name="active" type="checkbox" checked> Activa</label>
-              <div class="actions"><button class="primary" type="submit">Guardar</button><button type="button" data-clear-form hidden>Cancelar</button></div>
+              <div class="actions"><button class="primary" type="submit">Guardar mesa</button><button type="button" data-clear-form>Limpiar</button></div>
             </form>
             <div id="tables-list" class="management-list"></div>
           </section>
@@ -407,7 +405,8 @@
         <div class="section-head">
           <div>
             <p class="eyebrow">Seguimiento</p>
-            <h3>Registro de acciones</h3>
+            <h3>Qué pasó y qué puedes corregir</h3>
+            <p class="muted">Toca a la persona o el tipo para filtrar. Si una mesa quedó sin pedido, suéltala desde aquí o desde Piso.</p>
           </div>
           <div class="toolbar audit-filters">
             <label>Periodo
@@ -477,6 +476,7 @@
     let refreshTimer = null;
     let realtimeChannel = null;
     let latestAudit = [];
+    let stuckMesas = [];
     let adminName = "";
     let latestProducts = [];
     const OPCIONES_PRODUCTO = {
@@ -507,7 +507,7 @@
       })[status] ?? status;
     }
     const AUDIT_TYPES = {
-      comandas: ["enviar_comanda", "reclamar_mesa", "actualizar_comanda", "editar_comanda"],
+      comandas: ["enviar_comanda", "reclamar_mesa", "actualizar_comanda", "editar_comanda", "soltar_mesa"],
       cobros: ["cobrar_cuenta", "anular_cuenta", "aplicar_descuento", "quitar_descuento"],
       turnos: ["entrada_empleado", "salida_empleado"],
       cambios: ["editar_producto", "editar_mesa", "editar_empleado", "cambio_nombre_admin", "baja_empleado", "eliminar_producto"]
@@ -515,7 +515,8 @@
     function actionLabel(accion) {
       return ({
         enviar_comanda: "envió comanda",
-        reclamar_mesa: "reclamó mesa",
+        reclamar_mesa: "abrió una mesa",
+        soltar_mesa: "soltó una mesa sin pedido",
         actualizar_comanda: "actualizó comanda",
         cobrar_cuenta: "cobró",
         anular_cuenta: "anuló",
@@ -652,7 +653,8 @@
           </div>
           <p><strong>Mesero:</strong> ${escapeHtml(mesa.responsable || "Sin asignar")}</p>
           <p><strong>Cuenta:</strong> ${escapeHtml(mesa.cuenta_estado || "—")} · ${escapeHtml(money(mesa.subtotal))}</p>
-          <ul>${items || "<li class='muted'>Sin orden todavía</li>"}</ul>
+          <ul>${items || "<li class='muted'>Sin pedido</li>"}</ul>
+          ${mesa.responsable && !items ? `<div class="actions"><button class="danger" type="button" data-release-mesa="${escapeHtml(mesa.mesa_id)}" data-release-name="${escapeHtml(mesa.nombre)}">Quitar del piso</button></div>` : ""}
         </article>`;
       }).join("") : `<article class="card muted">No hay mesas activas en este momento.</article>`;
 
@@ -682,16 +684,27 @@
         (!typeFilter || AUDIT_TYPES[typeFilter].includes(item.accion)) &&
         (!search || responsible(item).toLowerCase().includes(search)));
       document.getElementById("audit-summary").innerHTML = [
-        ["Acciones", filtered.length],
-        ["Responsables", new Set(filtered.map(responsible)).size],
-        ["Cobros", filtered.filter((item) => item.accion === "cobrar_cuenta").length],
-        ["Anulaciones", filtered.filter((item) => item.accion === "anular_cuenta").length]
-      ].map(([label, value]) => `<div class="stat"><span>${label}</span><strong>${value}</strong></div>`).join("");
+        ["Todo", filtered.length, ""],
+        ["Cobros", filtered.filter((item) => item.accion === "cobrar_cuenta").length, "cobros"],
+        ["Anulaciones", filtered.filter((item) => item.accion === "anular_cuenta").length, "cobros"],
+        ["Mesas abiertas", filtered.filter((item) => item.accion === "reclamar_mesa").length, "comandas"]
+      ].map(([label, value, type]) => `<button type="button" class="stat" data-audit-quick="${type}"><span>${label}</span><strong>${value}</strong></button>`).join("");
+      const stuckIds = new Set(stuckMesas.map((mesa) => mesa.mesa_id));
       const root = document.getElementById("audit-list");
       if (!filtered.length) {
-        root.innerHTML = `<article class="muted">No hay acciones registradas para este filtro.</article>`;
+        root.innerHTML = `<article class="muted">No hay acciones para este filtro.</article>`;
         return;
       }
+      const detailLine = (item) => {
+        const detalle = item.detalle || {};
+        const bits = [];
+        if (detalle.motivo) bits.push(`Motivo: ${detalle.motivo}`);
+        if (detalle.metodo_pago) bits.push(`Pago: ${detalle.metodo_pago}`);
+        if (detalle.estado_anterior || detalle.estado_nuevo) bits.push(`${detalle.estado_anterior || "—"} → ${detalle.estado_nuevo || "—"}`);
+        if (detalle.articulo) bits.push(`Artículo: ${detalle.articulo}`);
+        if (detalle.empleado && detalle.empleado !== responsible(item)) bits.push(`Empleado: ${detalle.empleado}`);
+        return bits.length ? bits.map((bit) => escapeHtml(bit)).join(" · ") : "Sin detalle adicional.";
+      };
       root.innerHTML = filtered.map((item) => {
         const detalle = item.detalle || {};
         const discountNote = ["aplicar_descuento", "quitar_descuento"].includes(item.accion)
@@ -707,6 +720,8 @@
               ? ` · ${escapeHtml(detalle.estado_anterior)} → ${escapeHtml(detalle.estado_nuevo)}`
               : "");
         const device = item.role === "admin" ? "" : item.device_label;
+        const who = responsible(item);
+        const stuck = item.mesa_id && stuckIds.has(item.mesa_id);
         return `<article class="audit-row audit-${escapeHtml(item.role)}">
           <time class="audit-time">${escapeHtml(formatTime(item.created_at))}</time>
           <div class="audit-body">
@@ -714,8 +729,12 @@
               item.mesa_nombre ? ` · ${escapeHtml(item.mesa_nombre)}` : ""
             }${item.monto != null ? ` · ${escapeHtml(money(item.monto))}` : ""}${extra}</p>
             <p class="audit-who"><span class="status approved">${escapeHtml(roleLabel(item.role))}</span>
-              <strong>${escapeHtml(responsible(item))}</strong>${device ? `<span class="muted"> · ${escapeHtml(device)}</span>` : ""}${
-              item.comanda_id ? `<span class="muted"> · Comanda ${escapeHtml(String(item.comanda_id).slice(0, 8))}</span>` : ""}</p>
+              <button type="button" data-audit-person="${escapeHtml(who)}">${escapeHtml(who)}</button>${device ? `<span class="muted"> · ${escapeHtml(device)}</span>` : ""}</p>
+            <div class="actions">
+              <button type="button" data-audit-toggle="${escapeHtml(item.id)}">Ver detalle</button>
+              ${stuck ? `<button class="danger" type="button" data-release-mesa="${escapeHtml(item.mesa_id)}" data-release-name="${escapeHtml(item.mesa_nombre || "la mesa")}">Quitar ${escapeHtml(item.mesa_nombre || "mesa")} del piso</button>` : ""}
+            </div>
+            <p class="audit-detail muted" id="audit-detail-${escapeHtml(item.id)}" hidden>${detailLine(item)}</p>
           </div>
         </article>`;
       }).join("");
@@ -746,7 +765,7 @@
       document.getElementById("tables-list").innerHTML = latestTables.map((table) =>
         `<article class="management-row">
           <div><strong>${escapeHtml(table.nombre)}</strong><p class="muted">${escapeHtml(mesaEstadoLabel(table.estado))} · ${table.activa ? "Activa" : "Inactiva"}${table.es_prueba ? " · Prueba" : ""}</p></div>
-          <div class="row-actions"><button type="button" data-table-edit="${escapeHtml(table.id)}">Editar</button><button class="danger" type="button" data-table-delete="${escapeHtml(table.id)}">Eliminar</button></div>
+          <button type="button" data-table-edit="${escapeHtml(table.id)}">Editar</button>
         </article>`
       ).join("") || `<p class="muted">No hay mesas en este modo.</p>`;
 
@@ -799,7 +818,7 @@
             <div class="row-main"><strong>${escapeHtml(account.mesa)}</strong>
               <p class="muted">${accountItems.length} artículos · ${escapeHtml(money(accountTotal))}${account.descuento_tipo ? ` · descuento ${escapeHtml(account.descuento_tipo === "porcentaje" ? `${account.descuento_valor}%` : money(account.descuento_valor))}` : ""}${waiters ? ` · ${escapeHtml(waiters)}` : ""}</p></div>
             <span class="status ${escapeHtml(account.estado)}">${statusText}</span>
-            <button type="button" data-account-toggle="${escapeHtml(account.id)}" aria-expanded="${isOpen}">${isOpen ? "Ocultar" : "Modificar"}</button><button class="danger" type="button" data-account-close="${escapeHtml(account.id)}">Cerrar cuenta</button>
+            <button type="button" data-account-toggle="${escapeHtml(account.id)}" aria-expanded="${isOpen}">${isOpen ? "Cerrar" : "Modificar"}</button>
           </div>
           <div class="account-editor" ${isOpen ? "" : "hidden"}>${lines || `<p class="muted">Sin artículos.</p>`}
             <div class="toolbar" style="margin-top:.65rem">
@@ -973,6 +992,8 @@
         return;
       }
       latestAudit = data?.acciones || [];
+      const stuck = await supabaseClient.rpc("admin_mesas_sin_orden", { p_es_prueba: testMode });
+      stuckMesas = stuck.error ? [] : (stuck.data || []);
       const first = data?.primera_fecha;
       const note = first ? ` Registro desde ${formatDay(first)}.` : "";
       if (first) {
@@ -1254,10 +1275,6 @@
       form.elements.id.value = "";
       if (form.elements.active) form.elements.active.checked = true;
       if (form.id === "employee-form") form.elements.pin.required = true;
-      form.querySelectorAll("button.danger, [data-clear-form]").forEach((del) => { del.hidden = true; });
-    }
-    function showFormActions(form) {
-      form.querySelectorAll("[data-clear-form], button.danger").forEach((button) => { button.hidden = false; });
     }
     function slugify(value) {
       return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
@@ -1309,8 +1326,7 @@
       await saveManagementForm(form, "admin_guardar_promocion", {
         p_id: form.elements.id.value || null, p_nombre: form.elements.name.value.trim(),
         p_precio: Number(form.elements.price.value), p_descripcion: form.elements.description.value.trim(),
-        p_activo: form.elements.active.checked,
-        p_desde: form.elements.from.value || null, p_hasta: form.elements.to.value || null
+        p_activo: form.elements.active.checked
       }, "Promoción guardada.");
     });
     document.getElementById("table-form").addEventListener("submit", async (event) => {
@@ -1337,6 +1353,32 @@
     document.getElementById("dashboard").addEventListener("click", async (event) => {
       const button = event.target.closest("button");
       if (!button) return;
+      if (button.dataset.releaseMesa) {
+        const nombre = button.dataset.releaseName || "esta mesa";
+        if (!window.confirm(`Quitar ${nombre} del piso. Solo se suelta si nadie mandó un pedido.`)) return;
+        const { error } = await supabaseClient.rpc("soltar_mesa_sin_orden", {
+          p_mesa: button.dataset.releaseMesa, p_es_prueba: testMode
+        });
+        opsMessage.textContent = error ? error.message : `${nombre} quedó libre.`;
+        await loadOperacion();
+        if (activeTab === "bitacora") await loadAudit();
+        return;
+      }
+      if (button.dataset.auditQuick !== undefined) {
+        document.getElementById("audit-type-filter").value = button.dataset.auditQuick;
+        renderAudit(latestAudit);
+        return;
+      }
+      if (button.dataset.auditPerson) {
+        document.getElementById("audit-search").value = button.dataset.auditPerson;
+        renderAudit(latestAudit);
+        return;
+      }
+      if (button.dataset.auditToggle) {
+        const detail = document.getElementById(`audit-detail-${button.dataset.auditToggle}`);
+        if (detail) detail.hidden = !detail.hidden;
+        return;
+      }
       if (button.dataset.accountToggle) {
         const id = button.dataset.accountToggle;
         if (openAccounts.has(id)) openAccounts.delete(id); else openAccounts.add(id);
@@ -1354,9 +1396,6 @@
         form.elements.price.value = product.precio;
         form.elements.active.checked = product.activo;
         if (form.elements.mix) form.elements.mix.checked = Boolean(product.permite_mezcla);
-        const del = document.getElementById("product-delete");
-        if (del) { del.hidden = false; del.dataset.id = product.id; del.dataset.name = product.nombre; }
-        showFormActions(form);
       } else if (button.dataset.tableEdit) {
         const table = latestTables.find((item) => item.id === button.dataset.tableEdit);
         if (!table) return;
@@ -1364,18 +1403,6 @@
         form.elements.id.value = table.id;
         form.elements.name.value = table.nombre;
         form.elements.active.checked = table.activa;
-        showFormActions(form);
-      } else if (button.id === "product-delete") {
-        const id = button.dataset.id;
-        const product = latestProducts.find((item) => item.id === id);
-        if (!product) return;
-        if (!window.confirm(`Eliminar «${product.nombre}» del menú. Si ya se vendió, solo se oculta. Si nunca se usó, se borra.`)) return;
-        const { error } = await supabaseClient.rpc("admin_eliminar_producto", { p_id: product.id });
-        if (error) { document.getElementById("management-message").textContent = error.message; return; }
-        document.getElementById("management-message").textContent = "Producto eliminado del menú.";
-        document.getElementById("product-form").reset();
-        button.hidden = true;
-        await loadManagement();
       } else if (button.dataset.productDelete) {
         const product = latestProducts.find((item) => item.id === button.dataset.productDelete);
         if (!product) return;
@@ -1448,25 +1475,6 @@
         } finally {
           button.disabled = false;
         }
-      } else if (button.dataset.accountClose) {
-        const account = latestAccounts.find((item) => item.id === button.dataset.accountClose);
-        if (!account) return;
-        const reason = window.prompt(`Motivo para cerrar ${account.mesa}. La mesa queda libre.`);
-        if (!reason || !reason.trim()) return;
-        const { error } = await supabaseClient.rpc("anular_cuenta", {
-          p_cuenta: account.id, p_motivo: reason.trim(), p_es_prueba: testMode
-        });
-        if (error) { document.getElementById("management-message").textContent = error.message; return; }
-        document.getElementById("management-message").textContent = `${account.mesa} cerrada.`;
-        await loadManagement();
-      } else if (button.dataset.tableDelete) {
-        const table = latestTables.find((item) => item.id === button.dataset.tableDelete);
-        if (!table) return;
-        if (!window.confirm(`Eliminar «${table.nombre}». Si ya tuvo ventas, solo se oculta.`)) return;
-        const { error } = await supabaseClient.rpc("admin_eliminar_mesa", { p_id: table.id });
-        if (error) { document.getElementById("management-message").textContent = error.message; return; }
-        document.getElementById("management-message").textContent = "Mesa eliminada.";
-        await loadManagement();
       } else if (button.dataset.promoEdit) {
         const promo = latestProducts.find((item) => item.id === button.dataset.promoEdit);
         if (!promo) return;
@@ -1476,9 +1484,6 @@
         form.elements.price.value = promo.precio;
         form.elements.description.value = promo.descripcion ?? "";
         form.elements.active.checked = promo.activo;
-        form.elements.from.value = promo.vigente_desde ?? "";
-        form.elements.to.value = promo.vigente_hasta ?? "";
-        showFormActions(form);
       } else if (button.dataset.itemAdd) {
         const accountId = button.dataset.itemAdd;
         const productId = document.querySelector(`[data-add-product="${CSS.escape(accountId)}"]`)?.value;
