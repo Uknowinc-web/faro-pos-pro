@@ -15,8 +15,7 @@ archivo de TypeScript.
 ## 2. Esquema y seguridad
 
 Las migraciones vigentes están en `drizzle/migrations`. En una base nueva,
-ejecutar **0000 a 0022 en orden**. En una base ya migrada, ejecutar solo las
-pendientes, en orden.
+ejecutar las migraciones disponibles **0000 a 0039 en orden**. En una base ya migrada, identificar primero las migraciones aplicadas y ejecutar solo las pendientes.
 
 Resumen:
 
@@ -38,8 +37,12 @@ Resumen:
 - **0021** torta y hamburguesa en Especiales; papa especial sin mezcla; costra
   de queso (+$15) solo en Gaonera.
 - **0022** separa aparato y empleado. Aprobar un aparato no crea persona.
-  El PIN abre turno en cualquier aparato del mismo puesto. Rechazar o limpiar
-  borra usuarios anónimos huérfanos.
+- **0023–0029** añaden administración de catálogo/empleados y operaciones de mesas/cuentas.
+- **0030** añade referencias de Clip, pagos parciales, descuentos y devoluciones.
+- **0031–0033** añaden operaciones de servicio, inventario de ingredientes y ajustes de caja/propinas.
+- **0034–0037** añaden horario, controles administrativos y asistencia diaria.
+- **0038** agrega inventario por variante/sabor.
+- **0039** endurece las RPC de caja e inventario y elimina la ejecución directa del auxiliar de descuento.
 
 **No uses fragmentos SQL sueltos para desplegar.** La fuente es cada archivo de
 migración. Pasos detallados en [SUPABASE_ACCESO.md](./SUPABASE_ACCESO.md).
@@ -83,3 +86,11 @@ Definidas en `validar_item_comanda` (actualizada en 0021):
 
 Si el precio que envía el navegador no coincide con el calculado, el servidor
 rechaza la comanda.
+
+## 6. Endurecimiento de permisos RPC
+
+La migración `0039_restringir_rpc_inventario_y_caja.sql` corrige un riesgo: un usuario anónimo de Supabase Auth usa el rol SQL `authenticated`, por lo que conceder EXECUTE a ese rol no demuestra que sea un empleado autorizado. Las RPC protegidas por 0039 comprueban `tiene_rol(...)` antes de consultar datos sensibles.
+
+La función `descontar_producto` es un auxiliar interno del trigger de consumo de inventario. La migración 0039 revoca su ejecución directa a `anon` y `authenticated`; el trigger debe seguir siendo el camino previsto para el descuento. Ejecuta `drizzle/tests/0039_rpc_permissions.sql` en una base de pruebas y comprueba que el trigger siga funcionando tras la corrección.
+
+Esto no reemplaza una auditoría completa de todas las funciones `SECURITY DEFINER`. Toda función privilegiada nueva debe validar su rol de negocio dentro de la función y fijar un `search_path` seguro.
