@@ -260,10 +260,17 @@
     .badge { font-weight: 600; }
     .modal { border-radius: 16px; }
     .modal-backdrop { backdrop-filter: blur(4px); }
+    #ticket-print { display: none; }
+    .pay-box { display: grid; gap: .45rem; margin-top: .8rem; }
+    .pay-box .row { display: flex; gap: .4rem; flex-wrap: wrap; align-items: end; }
+    .pay-box label { display: grid; gap: .2rem; font-size: .82rem; color: var(--muted); }
+    .pay-box input, .pay-box select { min-height: 40px; }
     @media print {
-      .topbar, .notice, .nav, .no-print { display: none !important; }
-      body, .container { background: #fff; padding: 0; }
-      .panel { border: 0; }
+      body * { visibility: hidden !important; }
+      #ticket-print, #ticket-print * { visibility: visible !important; }
+      #ticket-print { display: block !important; position: absolute; inset: 0; padding: 12px; background: #fff; color: #000; }
+      #ticket-print h2 { margin: 0 0 4px; font-size: 22px; }
+      #ticket-print li { margin: 6px 0; font-size: 16px; }
     }
   </style>
 </head>
@@ -290,6 +297,7 @@
     </div>
     <section id="app" aria-live="polite"></section>
   </main>
+  <div id="ticket-print"></div>
   <div id="modal-root"></div>
   <div id="toast-root" aria-live="polite"></div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -559,10 +567,25 @@
       }
       return true;
     }
-    function activeCheck(tableId) {
-      return state.data.checks.find((check) =>
+    function openChecks(tableId) {
+      return state.data.checks.filter((check) =>
         check.tableId === tableId && ["abierta", "por_cobrar"].includes(check.status)
       );
+    }
+    function activeCheck(tableId) {
+      return openChecks(tableId)[0];
+    }
+    const OFFLINE_KEY = "faro-offline-comandas-v1";
+    function offlineQueue() {
+      try { return JSON.parse(localStorage.getItem(OFFLINE_KEY) || "[]"); }
+      catch { return []; }
+    }
+    function saveOfflineQueue(queue) {
+      localStorage.setItem(OFFLINE_KEY, JSON.stringify(queue));
+    }
+    function isNetworkError(error) {
+      const message = String(error?.message || error || "");
+      return !navigator.onLine || /fetch|network|Failed to fetch|Load failed/i.test(message);
     }
     function tableStatus(tableId) {
       const table = state.data.tables.find((item) => item.id === tableId);
@@ -665,7 +688,10 @@
         const success = await loadRemoteData(showError);
         state.syncing = false;
         state.dataFresh = success;
-        if (success) state.lastSyncedAt = Date.now();
+        if (success) {
+          state.lastSyncedAt = Date.now();
+          void flushOffline();
+        }
         render();
         remoteRefreshPromise = null;
         return success;
@@ -695,16 +721,21 @@
         }
         const tablesQuery = supabaseClient.from("mesas").select("id,nombre,orden,estado,es_prueba")
           .eq("es_prueba", state.testMode).eq("activa", true).order("orden").order("nombre");
-        const [tablesResult, accountsResult, ownersResult, suggestionsResult] = await Promise.all([
+        const [tablesResult, accountsLoaded, ownersResult, suggestionsResult] = await Promise.all([
           tablesQuery,
           state.role !== "caja" ? Promise.resolve({ data: null, error: null }) :
-            supabaseClient.from("cuentas").select("id,mesa_id,estado,metodo_pago,total,descuento_tipo,descuento_valor,descuento_total,motivo_anulacion,fecha_operativa,mesas!inner(nombre,es_prueba),comandas(id,numero,estado,created_at,comanda_items(id,producto_id,nombre,cantidad,precio_unitario,descuento_tipo,descuento_valor,modificadores,notas))")
+            supabaseClient.from("cuentas").select("id,mesa_id,estado,metodo_pago,total,pagado,propina,efectivo,clip,propina_efectivo,descuento_tipo,descuento_valor,descuento_total,motivo_anulacion,fecha_operativa,mesas!inner(nombre,es_prueba),comandas(id,numero,estado,created_at,comanda_items(id,producto_id,nombre,cantidad,precio_unitario,descuento_tipo,descuento_valor,modificadores,notas))")
               .eq("mesas.es_prueba", state.testMode).order("abierta_at", { ascending: false }),
           state.role !== "mesero" ? Promise.resolve({ data: [], error: null }) :
             supabaseClient.rpc("listar_responsables_mesa", { p_es_prueba: state.testMode }),
           state.role !== "mesero" ? Promise.resolve({ data: [], error: null }) :
             supabaseClient.rpc("listar_sugerencias_comanda", { p_es_prueba: state.testMode })
         ]);
+        let accountsResult = accountsLoaded;
+        if (accountsResult.error && /column|schema cache|pagado/i.test(accountsResult.error.message || "")) {
+          accountsResult = await supabaseClient.from("cuentas").select("id,mesa_id,estado,metodo_pago,total,descuento_tipo,descuento_valor,descuento_total,motivo_anulacion,fecha_operativa,mesas!inner(nombre,es_prueba),comandas(id,numero,estado,created_at,comanda_items(id,producto_id,nombre,cantidad,precio_unitario,descuento_tipo,descuento_valor,modificadores,notas))")
+            .eq("mesas.es_prueba", state.testMode).order("abierta_at", { ascending: false });
+        }
         const { data: tables, error: tableError } = tablesResult;
         const { data: accounts, error: accountError } = accountsResult;
         const { data: owners, error: ownersError } = ownersResult;
@@ -720,6 +751,11 @@
           status: account.estado,
           paymentMethod: account.metodo_pago,
           total: account.total == null ? 0 : Number(account.total),
+          paid: Number(account.pagado ?? 0),
+          tip: Number(account.propina ?? 0),
+          cash: Number(account.efectivo ?? 0),
+          clipAmount: Number(account.clip ?? 0),
+          cashTip: Number(account.propina_efectivo ?? 0),
           discountType: account.descuento_tipo,
           discountValue: Number(account.descuento_valor ?? 0),
           discountTotal: Number(account.descuento_total ?? 0),
@@ -1173,6 +1209,7 @@
           <span class="muted">desde ${timeMty(state.employee.entrada_at)}</span>
           <span class="status-chip">${state.testMode ? "Prueba" : "Operación"}</span>
           ${connectionChip}
+          ${offlineQueue().length ? `<span class="status-chip warn">${offlineQueue().length} sin enviar</span>` : ""}
           <button class="button" type="button" data-action="clock-out">Registrar salida</button>
         </div>`;
         const testBanner = "";
@@ -1292,8 +1329,8 @@
           ).join("")}</div>` : `<p class="empty">Agrega productos para iniciar.</p>`}
           <div class="receipt-total"><span>Total estimado</span><strong>${money(state.draft.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0))}</strong></div>
           <button class="button primary full" data-action="send-order"
-            ${state.draft.length && state.dataFresh && !state.syncing ? "" : "disabled"}>
-            ${state.syncing ? "Sincronizando…" : `${state.suggestionMode ? "Enviar sugerencia" : "Enviar comanda"} (${totalPieces})`}
+            ${state.draft.length && !state.syncing && (state.dataFresh || !navigator.onLine) ? "" : "disabled"}>
+            ${state.syncing ? "Sincronizando…" : !navigator.onLine ? `Guardar sin conexión (${totalPieces})` : `${state.suggestionMode ? "Enviar sugerencia" : "Enviar comanda"} (${totalPieces})`}
           </button>
         </aside></div>`;
     }
@@ -1315,7 +1352,9 @@
             `<div><p><strong>${item.quantity}× ${escapeHtml(item.name)}</strong></p>
               ${item.modifiers.length ? `<p class="detail">${escapeHtml(item.modifiers.map((modifier) => modifier.name).join(" · "))}</p>` : ""}
               ${item.notes ? `<p class="detail"><strong>Nota:</strong> ${escapeHtml(item.notes)}</p>` : ""}</div>`
-          ).join("")}</div></article>`).join("")}</div>`
+          ).join("")}</div>
+          <button class="button no-print" data-print-kitchen="${ticket.id}" data-from-history="1">Reimprimir</button>
+        </article>`).join("")}</div>`
           : `<div class="panel empty"><strong>Aún no hay pedidos terminados</strong><br>Las comandas marcadas como listas aparecerán aquí.</div>`}`;
     }
     function kitchenTabs() {
@@ -1363,7 +1402,8 @@
                 ${item.notes ? `<p class="detail"><strong>Nota:</strong> ${escapeHtml(item.notes)}</p>` : ""}
               </div>`
             ).join("")}</div>
-            <button class="button ${next === "listo" ? "primary" : "warning"} full" data-ticket-status="${ticket.id}" data-next-status="${next}">${label}</button></article>`;
+            <div class="actions no-print"><button class="button ${next === "listo" ? "primary" : "warning"}" data-ticket-status="${ticket.id}" data-next-status="${next}">${label}</button>
+              <button class="button" data-print-kitchen="${ticket.id}">Imprimir</button></div></article>`;
         }).join("")}</div>` : `<div class="panel empty"><strong>No hay comandas pendientes</strong><br>Los nuevos pedidos aparecerán aquí automáticamente.</div>`}`;
     }
     function renderCashier() {
@@ -1398,20 +1438,28 @@
           return `<button class="table-card ${status === "abierta" ? "occupied" : status === "por_cobrar" ? "due" : ""} ${state.cashierTable === table.id ? "selected" : ""}"
             data-cashier-table="${escapeHtml(table.id)}"><strong>${escapeHtml(table.name)}</strong>
             <span class="table-status ${status === "por_cobrar" ? "due" : status === "abierta" ? "occupied" : ""}">${status === "disponible" ? "Disponible" : status === "por_cobrar" ? "Por cobrar" : "Cuenta abierta"}</span>
-            ${check ? `<span><strong>${money(total)}</strong></span><span>Comanda #${check.tickets.at(-1)?.number ?? "—"}</span>` : ""}</button>`;
+            ${check ? `<span><strong>${money(total)}</strong></span><span>${openChecks(table.id).length > 1 ? `${openChecks(table.id).length} cuentas` : `Comanda #${check.tickets.at(-1)?.number ?? "—"}`}</span>` : ""}</button>`;
         }).join("")}</div></div>
-        <aside class="panel cashier-receipt">${selected?.check ? renderReceipt(selected.table, selected.check) :
-          `<p class="empty">${selected ? `${escapeHtml(selected.table.name)} no tiene cuenta activa.` : "Selecciona una mesa con cuenta activa."}</p>`}</aside></div>
+        <aside class="panel cashier-receipt">${(() => {
+          const checks = selected ? openChecks(selected.table.id) : [];
+          const current = checks.find((check) => check.id === state.cashierCheck) || checks[0];
+          if (!current) return `<p class="empty">${selected ? `${escapeHtml(selected.table.name)} no tiene cuenta activa.` : "Selecciona una mesa con cuenta activa."}</p>`;
+          return renderReceipt(selected.table, current, checks);
+        })()}</aside></div>
         ${state.cutOpen ? `<div class="section-heading"><h3>Corte de caja</h3><div class="toolbar no-print">
-          <label for="close-date" class="muted">Fecha (Monterrey)</label>
+          <label for="close-date" class="muted">Fecha</label>
           <input id="close-date" type="date" value="${escapeHtml(date)}">
-          <button class="button primary" data-save-cut>Guardar en el dispositivo</button>
+          <label class="muted">Fondo<input id="cut-float" type="number" min="0" step="0.01" value="${escapeHtml(String(state.cutFloat ?? 0))}"></label>
+          <label class="muted">Efectivo contado<input id="cut-counted" type="number" min="0" step="0.01" value="${escapeHtml(String(state.cutCounted ?? ""))}"></label>
+          <button class="button primary" data-save-cut>Guardar corte</button>
           <button class="button" data-print>Imprimir</button>
           <button class="button" data-close-cut>Cerrar</button></div></div>
         <div class="stats">
           <div class="stat"><span>Total vendido</span><strong>${money(sales)}</strong></div>
           <div class="stat"><span>Efectivo</span><strong>${money(cash)}</strong></div>
           <div class="stat"><span>Clip registrado</span><strong>${money(clip)}</strong></div>
+          <div class="stat"><span>Efectivo esperado</span><strong>${money((state.cutFloat || 0) + cash + (cut.cashTips || 0))}</strong></div>
+          <div class="stat"><span>Diferencia</span><strong>${state.cutCounted === "" || state.cutCounted == null ? "—" : money(Number(state.cutCounted) - ((state.cutFloat || 0) + cash + (cut.cashTips || 0)))}</strong></div>
           <div class="stat"><span>Descuentos</span><strong>${money(cut.discounts)}</strong></div>
           <div class="stat"><span>Ticket promedio</span><strong>${money(paid.length ? sales / paid.length : 0)}</strong></div>
           <div class="stat"><span>Cuentas cobradas</span><strong>${paid.length}</strong></div>
@@ -1427,7 +1475,15 @@
       const settled = state.data.checks.filter((check) => check.operatingDate === date && ["pagada", "anulada"].includes(check.status));
       const paid = settled.filter((check) => check.status === "pagada");
       const voided = settled.filter((check) => check.status === "anulada");
-      const byMethod = (method) => paid.filter((check) => check.paymentMethod === method).reduce((sum, check) => sum + check.total, 0);
+      const cashOf = (check) => (check.cash || check.clipAmount)
+        ? check.cash
+        : (check.paymentMethod === "efectivo" ? check.total : 0);
+      const clipOf = (check) => (check.cash || check.clipAmount)
+        ? check.clipAmount
+        : (check.paymentMethod === "clip" ? check.total : 0);
+      const byMethod = (method) => method === "efectivo"
+        ? paid.reduce((sum, check) => sum + cashOf(check), 0)
+        : paid.reduce((sum, check) => sum + clipOf(check), 0);
       const ranking = new Map();
       paid.flatMap((check) => check.tickets.flatMap((ticket) => ticket.items)).forEach((item) => {
         const entry = ranking.get(item.name) ?? { quantity: 0, amount: 0 };
@@ -1439,11 +1495,24 @@
         paid, voided,
         sales: paid.reduce((sum, check) => sum + check.total, 0),
         cash: byMethod("efectivo"), clip: byMethod("clip"),
+        cashTips: paid.reduce((sum, check) => sum + (check.cashTip || 0), 0),
         discounts: paid.reduce((sum, check) => sum + check.discountTotal, 0),
         top: [...ranking.entries()].sort((a, b) => b[1].quantity - a[1].quantity).slice(0, 10)
       };
     }
-    function saveCutToDevice() {
+    async function saveCutToDevice() {
+      const floatValue = Number(document.getElementById("cut-float")?.value || 0);
+      const countedRaw = document.getElementById("cut-counted")?.value;
+      state.cutFloat = floatValue;
+      state.cutCounted = countedRaw === "" ? "" : Number(countedRaw);
+      if (navigator.onLine && countedRaw !== "" && countedRaw != null) {
+        const { error } = await supabaseClient.rpc("registrar_corte", {
+          p_fecha: state.closeDate, p_fondo: floatValue, p_contado: Number(countedRaw),
+          p_notas: null, p_es_prueba: state.testMode
+        });
+        if (error) toast(error.message || "No se pudo guardar el corte en el servidor.", true);
+        else toast("Corte registrado.");
+      }
       const date = state.closeDate;
       const cut = cutData(date);
       const lines = [
@@ -1452,7 +1521,12 @@
         state.employee ? `Cajero: ${state.employee.nombre}` : "",
         "",
         `Total vendido: ${money(cut.sales)}`,
-        `Efectivo: ${money(cut.cash)}`,
+        `Fondo: ${money(state.cutFloat || 0)}`,
+        `Efectivo vendido: ${money(cut.cash)}`,
+        `Propinas en efectivo: ${money(cut.cashTips || 0)}`,
+        `Efectivo esperado en caja: ${money((state.cutFloat || 0) + cut.cash + (cut.cashTips || 0))}`,
+        `Efectivo contado: ${state.cutCounted === "" || state.cutCounted == null ? "—" : money(Number(state.cutCounted))}`,
+        `Diferencia: ${state.cutCounted === "" || state.cutCounted == null ? "—" : money(Number(state.cutCounted) - ((state.cutFloat || 0) + cut.cash + (cut.cashTips || 0)))}`,
         `Clip: ${money(cut.clip)}`,
         `Descuentos: ${money(cut.discounts)}`,
         `Cuentas cobradas: ${cut.paid.length}`,
@@ -1475,9 +1549,15 @@
       URL.revokeObjectURL(url);
       toast("Corte guardado en el dispositivo.");
     }
-    function renderReceipt(table, check) {
+    function renderReceipt(table, check, siblings = []) {
       const items = check.tickets.flatMap((ticket) => ticket.items);
       const total = checkTotal(check);
+      const paid = check.paid || 0;
+      const balance = Math.max(0, total - paid);
+      const switcher = siblings.length > 1 ? `<div class="actions no-print">${siblings.map((item, index) =>
+        `<button class="button ${item.id === check.id ? "primary" : ""}" data-cashier-check="${item.id}">Cuenta ${index + 1} · ${money(Math.max(0, checkTotal(item) - (item.paid || 0)))}</button>`
+      ).join("")}</div>` : "";
+      const freeTables = state.data.tables.filter((item) => item.id !== table.id && !openChecks(item.id).length);
       const gross = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
       return `<div class="ticket-head"><div><h3>${escapeHtml(table.name)}</h3><span class="badge ${check.status}">${statusLabel(check.status)}</span></div>
         <span class="muted">${check.tickets.length} comandas</span></div>
@@ -1486,19 +1566,32 @@
             ${item.modifiers.length ? `<small class="detail" style="display:block">${escapeHtml(item.modifiers.map((modifier) => modifier.name).join(" · "))}</small>` : ""}</span>
             <strong>${money(itemNet(item))}</strong></div>
             ${item.discountType ? `<div class="receipt-row"><small class="detail">Descuento ${item.discountType === "porcentaje" ? `${item.discountValue}%` : money(item.discountValue)}</small><small class="detail">−${money(item.quantity * item.unitPrice - itemNet(item))}</small></div>` : ""}
-            <div class="actions no-print"><button class="small-button" aria-label="Quitar uno" data-item-qty="${item.id}" data-check="${check.id}" data-qty="${item.quantity - 1}">−</button>
+            <div class="actions no-print"><label class="choice"><input type="checkbox" data-split-item="${item.id}">Separar</label>
+              <button class="small-button" aria-label="Quitar uno" data-item-qty="${item.id}" data-check="${check.id}" data-qty="${item.quantity - 1}">−</button>
               <button class="small-button" aria-label="Agregar uno" data-item-qty="${item.id}" data-check="${check.id}" data-qty="${Math.min(99, item.quantity + 1)}">+</button>
               <button class="small-button" data-item-qty="${item.id}" data-check="${check.id}" data-qty="0">Quitar</button></div>`).join("")}`).join("")}
           ${check.discountType ? `<div class="receipt-row"><span>Descuento de la cuenta ${check.discountType === "porcentaje" ? `${check.discountValue}%` : money(check.discountValue)}</span><strong>−${money(checkNet(check) - total)}</strong></div>` : ""}
-          <div class="receipt-total"><span>Total</span><span>${money(total)}</span></div></div>
-        <p class="payment-note">${state.testMode
-          ? "Modo de prueba: los botones simulan el pago y no registran una venta real."
-          : "Antes de cobrar, confirma el total con el cliente. Para Clip, realiza primero el cobro en la terminal y regístralo aquí después."}</p>
-        <div class="actions no-print">
-          <button class="button primary" data-pay="${check.id}" data-method="efectivo">${state.testMode ? "Simular efectivo" : "Cobrar efectivo"}</button>
-          <button class="button primary" data-pay="${check.id}" data-method="clip">${state.testMode ? "Simular Clip" : "Registrar Clip"}</button>
-          <button class="button danger" data-void="${check.id}">Anular cuenta</button>
-          <button class="button" data-print>Imprimir</button>
+          ${paid > 0 ? `<div class="receipt-row"><span>Abonado</span><strong>${money(paid)}</strong></div>` : ""}
+          ${check.tip ? `<div class="receipt-row"><span>Propina</span><strong>${money(check.tip)}</strong></div>` : ""}
+          <div class="receipt-total"><span>Saldo</span><span>${money(balance)}</span></div></div>
+        ${switcher}
+        <div class="pay-box no-print">
+          <div class="row">
+            <label>Monto<input name="pay-amount" data-pay-amount="${check.id}" type="number" min="0.01" step="0.01" value="${balance.toFixed(2)}"></label>
+            <label>Propina<input name="pay-tip" data-pay-tip="${check.id}" type="number" min="0" step="0.01" value="0"></label>
+            <label>Dividir entre<input name="pay-parts" data-pay-parts="${check.id}" type="number" min="2" max="20" step="1" value="2"></label>
+            <button class="button" type="button" data-split-equal="${check.id}">Poner parte</button>
+          </div>
+          <div class="actions">
+            <button class="button primary" data-pay-part="${check.id}" data-method="efectivo">${state.testMode ? "Simular efectivo" : "Efectivo"}</button>
+            <button class="button primary" data-pay-part="${check.id}" data-method="clip">${state.testMode ? "Simular Clip" : "Clip"}</button>
+            <button class="button" data-split-items="${check.id}">Separar marcados</button>
+            <button class="button" data-move-check="${check.id}">Mover mesa</button>
+            <button class="button danger" data-void="${check.id}">Cerrar cuenta</button>
+            <button class="button" data-print-check="${check.id}">Imprimir</button>
+          </div>
+          ${freeTables.length ? `<label>Mesa destino<select data-move-target="${check.id}">${freeTables.map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join("")}</select></label>` : `<p class="muted">No hay otra mesa libre para mover esta cuenta.</p>`}
+          <p class="muted">Marca artículos para separarlos en otra cuenta. Dividir entre solo calcula la parte; el cobro es el monto de arriba.</p>
         </div>`;
     }
 
@@ -1683,9 +1776,61 @@
       toast(`${product.nombre} agregado.`);
       return true;
     }
+    function queueOrder(payload) {
+      const queue = offlineQueue();
+      if (!queue.some((job) => job.p_token === payload.p_token)) queue.push(payload);
+      saveOfflineQueue(queue);
+      const tableId = payload.p_mesa;
+      delete state.data.drafts[tableId];
+      saveDrafts();
+      rotateOrderToken(tableId);
+      state.selectedTable = null;
+      state.draft = [];
+      toast(`Comanda guardada en el aparato. Se envía al volver la conexión.`);
+      render();
+    }
+    async function flushOffline() {
+      if (flushOffline.running || !navigator.onLine || !state.user) return;
+      const queue = offlineQueue();
+      if (!queue.length) return;
+      flushOffline.running = true;
+      const left = [];
+      try {
+        for (const job of queue) {
+          const { error } = await supabaseClient.rpc("enviar_comanda", {
+            p_mesa: job.p_mesa, p_token: job.p_token, p_items: job.p_items,
+            p_mesero: job.p_mesero, p_es_prueba: job.p_es_prueba
+          });
+          if (error && !/ya se usó/i.test(error.message || "")) left.push(job);
+        }
+        saveOfflineQueue(left);
+        if (left.length < queue.length) {
+          toast(left.length ? `Se enviaron ${queue.length - left.length} comandas. Quedan ${left.length}.` : "Comandas pendientes enviadas.");
+          await refreshRemoteData(false);
+        }
+      } finally {
+        flushOffline.running = false;
+      }
+    }
     async function sendOrder() {
-      if (!await ensureFreshData()) return;
       if (!state.selectedTable || !state.draft.length) return;
+      if (!navigator.onLine) {
+        const table = state.data.tables.find((item) => item.id === state.selectedTable);
+        if (!table) return;
+        if (state.orderTokenTable !== table.id || !state.orderToken) {
+          if (!prepareOrderToken(table.id)) return;
+        }
+        const items = state.draft.map((item) => ({
+          producto_id: item.productId, nombre: item.name, cantidad: item.quantity,
+          precio_unitario: item.unitPrice, modificadores: item.modifiers.map((modifier) => modifier.name), notas: item.notes
+        }));
+        queueOrder({
+          p_mesa: table.id, p_token: state.orderToken, p_items: items,
+          p_mesero: state.user.email ?? null, p_es_prueba: state.testMode, tableName: table.name
+        });
+        return;
+      }
+      if (!await ensureFreshData()) return;
       const table = state.data.tables.find((item) => item.id === state.selectedTable);
       if (!table) {
         toast("No se encontró la mesa seleccionada.", true);
@@ -1725,14 +1870,27 @@
         await refreshRemoteData();
         return;
       }
-      const { error } = await supabaseClient.rpc("enviar_comanda", {
+      const payload = {
         p_mesa: table.id,
         p_token: state.orderToken,
         p_items: items,
         p_mesero: state.user.email ?? null,
-        p_es_prueba: state.testMode
+        p_es_prueba: state.testMode,
+        tableName: table.name
+      };
+      if (!navigator.onLine) {
+        queueOrder(payload);
+        return;
+      }
+      const { error } = await supabaseClient.rpc("enviar_comanda", {
+        p_mesa: payload.p_mesa, p_token: payload.p_token, p_items: payload.p_items,
+        p_mesero: payload.p_mesero, p_es_prueba: payload.p_es_prueba
       });
       if (error) {
+        if (isNetworkError(error)) {
+          queueOrder(payload);
+          return;
+        }
         console.error("No se pudo enviar la comanda.", error);
         toast(`No se pudo enviar la comanda: ${error.message}`, true);
         return;
@@ -1788,6 +1946,79 @@
       }
       toast("Cuenta actualizada.");
       await refreshRemoteData();
+    }
+    function payFields(checkId) {
+      const amount = Number(document.querySelector(`[data-pay-amount="${checkId}"]`)?.value);
+      const tip = Number(document.querySelector(`[data-pay-tip="${checkId}"]`)?.value || 0);
+      return { amount, tip };
+    }
+    async function payPart(checkId, method) {
+      if (!await ensureFreshData()) return;
+      const { amount, tip } = payFields(checkId);
+      if (!(amount > 0) || tip < 0) {
+        toast("Escribe un monto válido.", true);
+        return;
+      }
+      const { error } = await supabaseClient.rpc("pago_cuenta", {
+        p_cuenta: checkId, p_metodo: method, p_monto: amount, p_propina: tip, p_es_prueba: state.testMode
+      });
+      if (error) {
+        toast(error.message || "No se pudo registrar el pago.", true);
+        return;
+      }
+      toast(method === "clip" ? "Abono Clip registrado." : "Abono en efectivo registrado.");
+      await refreshRemoteData();
+    }
+    async function splitItems(checkId) {
+      const ids = [...document.querySelectorAll("[data-split-item]:checked")].map((input) => input.dataset.splitItem);
+      if (!ids.length) {
+        toast("Marca los artículos que se van a otra cuenta.", true);
+        return;
+      }
+      if (!await ensureFreshData()) return;
+      const { error } = await supabaseClient.rpc("dividir_cuenta", {
+        p_cuenta: checkId, p_items: ids, p_es_prueba: state.testMode
+      });
+      if (error) {
+        toast(error.message || "No se pudo separar la cuenta.", true);
+        return;
+      }
+      toast("Artículos separados en otra cuenta de la misma mesa.");
+      await refreshRemoteData();
+    }
+    async function moveCheck(checkId) {
+      const mesa = document.querySelector(`[data-move-target="${checkId}"]`)?.value;
+      if (!mesa) {
+        toast("No hay una mesa libre.", true);
+        return;
+      }
+      if (!await ensureFreshData()) return;
+      const { error } = await supabaseClient.rpc("mover_cuenta", {
+        p_cuenta: checkId, p_mesa: mesa, p_es_prueba: state.testMode
+      });
+      if (error) {
+        toast(error.message || "No se pudo mover la cuenta.", true);
+        return;
+      }
+      state.cashierTable = mesa;
+      state.cashierCheck = checkId;
+      toast("Cuenta movida.");
+      await refreshRemoteData();
+    }
+    function printKitchenTicket(ticket) {
+      const root = document.getElementById("ticket-print");
+      root.innerHTML = `<h2>${escapeHtml(ticket.tableName)}</h2>
+        <p>Comanda #${ticket.number} · ${timeMty(ticket.createdAt)}</p>
+        <ul>${ticket.items.map((item) => `<li><strong>${item.quantity}× ${escapeHtml(item.name)}</strong>
+          ${item.modifiers?.length ? `<div>${escapeHtml(item.modifiers.map((modifier) => modifier.name).join(" · "))}</div>` : ""}
+          ${item.notes ? `<div>Nota: ${escapeHtml(item.notes)}</div>` : ""}</li>`).join("")}</ul>`;
+      window.print();
+      root.innerHTML = "";
+    }
+    function findKitchenTicket(id, fromHistory) {
+      if (fromHistory) return state.kitchenHistory.find((ticket) => ticket.id === id);
+      return state.data.checks.flatMap((check) => check.tickets.map((ticket) => ({ ...ticket, tableName: check.tableName })))
+        .find((ticket) => ticket.id === id);
     }
     async function payCheck(checkId, method) {
       if (!await ensureFreshData()) return;
@@ -2076,7 +2307,7 @@
       } else if (target.dataset.itemQty) {
         editCheckItem(target.dataset.check, target.dataset.itemQty, Number(target.dataset.qty));
       } else if (target.dataset.openCut !== undefined) {
-        if (window.confirm("¿Terminar la jornada y generar el corte de caja?")) {
+        if (window.confirm("¿Abrir el corte de caja?")) {
           state.cutOpen = true;
           state.closeDate = todayMty();
           render();
@@ -2086,6 +2317,37 @@
         render();
       } else if (target.dataset.saveCut !== undefined) {
         saveCutToDevice();
+      } else if (target.dataset.payPart) {
+        payPart(target.dataset.payPart, target.dataset.method);
+      } else if (target.dataset.splitEqual) {
+        const check = state.data.checks.find((item) => item.id === target.dataset.splitEqual);
+        const parts = Number(document.querySelector(`[data-pay-parts="${check.id}"]`)?.value);
+        const balance = Math.max(0, checkTotal(check) - (check.paid || 0));
+        if (!check || !(parts >= 2)) return;
+        const input = document.querySelector(`[data-pay-amount="${check.id}"]`);
+        if (input) input.value = (Math.round((balance / parts) * 100) / 100).toFixed(2);
+      } else if (target.dataset.splitItems) {
+        splitItems(target.dataset.splitItems);
+      } else if (target.dataset.moveCheck) {
+        moveCheck(target.dataset.moveCheck);
+      } else if (target.dataset.cashierCheck) {
+        state.cashierCheck = target.dataset.cashierCheck;
+        render();
+      } else if (target.dataset.printKitchen) {
+        const ticket = findKitchenTicket(target.dataset.printKitchen, target.dataset.fromHistory);
+        if (ticket) printKitchenTicket(ticket);
+      } else if (target.dataset.printCheck) {
+        const check = state.data.checks.find((item) => item.id === target.dataset.printCheck);
+        const table = state.data.tables.find((item) => item.id === check?.tableId);
+        if (check && table) {
+          const root = document.getElementById("ticket-print");
+          root.innerHTML = `<h2>${escapeHtml(table.name)}</h2><p>Cuenta</p><ul>${
+            check.tickets.flatMap((ticket) => ticket.items).map((item) =>
+              `<li>${item.quantity}× ${escapeHtml(item.name)} · ${money(itemNet(item))}</li>`).join("")
+          }</ul><p><strong>Saldo ${money(Math.max(0, checkTotal(check) - (check.paid || 0)))}</strong></p>`;
+          window.print();
+          root.innerHTML = "";
+        }
       } else if (target.dataset.pay) {
         const check = state.data.checks.find((item) => item.id === target.dataset.pay &&
           ["abierta", "por_cobrar"].includes(item.status));
@@ -2113,6 +2375,8 @@
       }
     });
     document.addEventListener("input", (event) => {
+      if (event.target.id === "cut-float") state.cutFloat = Number(event.target.value || 0);
+      if (event.target.id === "cut-counted") state.cutCounted = event.target.value;
       if (event.target.id === "cashier-search") {
         const cursor = event.target.selectionStart;
         state.cashierSearch = event.target.value;
@@ -2149,7 +2413,7 @@
     window.addEventListener("pageshow", syncAfterResume);
     window.addEventListener("offline", () => {
       state.dataFresh = false;
-      state.syncError = "Sin conexión a internet. Las operaciones están temporalmente bloqueadas.";
+      state.syncError = "Sin conexión. Las comandas nuevas se guardan en el aparato.";
       setRealtimeConnection(false);
     });
     window.addEventListener("online", () => {
@@ -2157,6 +2421,7 @@
       setRealtimeConnection(false);
       state.dataFresh = false;
       state.syncError = "";
+      void flushOffline();
       subscribeToChanges();
       void refreshRemoteData();
     });
