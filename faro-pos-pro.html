@@ -1414,6 +1414,41 @@
       state.authMessage = "";
       return true;
     }
+    async function prepareEmployeeReauthentication() {
+      if (!state.user) return false;
+      // A persisted Supabase session identifies the device account, not the employee
+      // currently holding the POS. Never restore an employee shift automatically.
+      state.employee = null;
+      state.stationRole = null;
+      state.role = null;
+      state.dataFresh = false;
+      state.offlineMode = !navigator.onLine;
+      state.data = { tables: [], checks: [], nextTicket: 1, drafts: loadDrafts(), owners: [], suggestions: [] };
+      if (!navigator.onLine) {
+        state.authMessage = "Conéctate a internet y vuelve a ingresar tu PIN para abrir el POS.";
+        return false;
+      }
+      const { data, error } = await supabaseClient.from("staff_roles")
+        .select("role").eq("user_id", state.user.id).maybeSingle();
+      if (error) throw error;
+      if (!data || !["mesero", "cocina", "caja"].includes(data.role)) {
+        state.authMessage = "Este dispositivo no tiene un puesto autorizado. Solicita acceso a administración.";
+        return false;
+      }
+      if (state.stationBoundRole && state.stationBoundRole !== data.role) {
+        state.authMessage = "El puesto autorizado no coincide con el asignado a este dispositivo.";
+        return false;
+      }
+      state.role = data.role;
+      state.stationRole = data.role;
+      state.stationBoundRole = data.role;
+      state.view = data.role;
+      state.awaitingApproval = false;
+      state.pendingStationRole = null;
+      await loadPinStatus().catch(() => { state.hasPin = true; });
+      state.authMessage = "Por seguridad, ingresa tu PIN para continuar.";
+      return true;
+    }
     async function initializeAuth() {
       try {
         const { data, error } = await supabaseClient.auth.getSession();
@@ -1424,7 +1459,7 @@
         state.authReady = !state.user;
         render();
         if (state.user) {
-          await resumeApprovedDevice();
+          await prepareEmployeeReauthentication();
           state.authReady = true;
           render();
         }
