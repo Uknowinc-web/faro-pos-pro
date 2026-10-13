@@ -411,6 +411,7 @@
       dataFresh: false,
       syncing: false,
       syncError: "",
+      offlineMode: false,
       realtimeConnected: false,
       lastSyncedAt: null,
       orderToken: null,
@@ -660,6 +661,62 @@
     }
     function activeCheck(tableId) {
       return openChecks(tableId)[0];
+    }
+    const SNAPSHOT_KEY = "faro-pos-snapshot-v1";
+    function saveWorkSnapshot() {
+      if (!state.user || !state.employee || !state.stationRole) return;
+      try {
+        localStorage.setItem(SNAPSHOT_KEY, JSON.stringify({
+          userId: state.user.id,
+          role: state.stationRole,
+          testMode: state.testMode,
+          employee: state.employee,
+          tables: state.data.tables,
+          checks: state.data.checks,
+          owners: state.data.owners,
+          suggestions: state.data.suggestions,
+          kitchenHistory: state.kitchenHistory,
+          catalog: PRODUCTOS,
+          catalogStamp: catalogFingerprint,
+          savedAt: Date.now()
+        }));
+      } catch {
+        /* la copia local es una ayuda, no el registro oficial */
+      }
+    }
+    function restoreWorkSnapshot() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(SNAPSHOT_KEY) || "null");
+        if (!saved || saved.userId !== state.user?.id || !saved.employee || !saved.role) return false;
+        if (state.stationBoundRole && saved.role !== state.stationBoundRole) return false;
+        state.role = saved.role;
+        state.stationRole = saved.role;
+        state.stationBoundRole = saved.role;
+        state.view = saved.role;
+        state.employee = saved.employee;
+        state.testMode = Boolean(saved.testMode);
+        state.data.tables = saved.tables || [];
+        state.data.checks = saved.checks || [];
+        state.data.owners = saved.owners || [];
+        state.data.suggestions = saved.suggestions || [];
+        state.data.drafts = loadDrafts();
+        state.kitchenHistory = saved.kitchenHistory || [];
+        if (Array.isArray(saved.catalog) && saved.catalog.length) {
+          rememberCatalog(saved.catalog, saved.catalogStamp || catalogStamp(saved.catalog));
+          catalogLoadedAt = saved.savedAt || Date.now();
+        }
+        state.offlineMode = true;
+        state.dataFresh = false;
+        state.syncError = "Sin conexión. Menú y mesas son la última copia de este aparato.";
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    function needsNetwork(message) {
+      if (navigator.onLine && !state.offlineMode) return true;
+      toast(message, true);
+      return false;
     }
     const OFFLINE_KEY = "faro-offline-comandas-v1";
     function offlineQueue() {
@@ -992,6 +1049,8 @@
           owners: owners ?? [],
           suggestions: suggestions ?? []
         };
+        state.offlineMode = false;
+        saveWorkSnapshot();
         return true;
       } catch (error) {
         console.error("No se pudieron sincronizar los datos con Supabase.", error);
@@ -1197,6 +1256,7 @@
     }
     async function endEmployeeShift() {
       if (!state.employee) return;
+      if (!needsNetwork("La salida se registra cuando vuelva la conexión.")) return;
       try {
         const { error } = await supabaseClient.rpc("soltar_mesas_sin_orden", { p_es_prueba: state.testMode });
         if (error) console.error("No se pudieron soltar las mesas sin pedido.", error);
@@ -1222,7 +1282,10 @@
       if (!state.user) return false;
       const { data, error } = await supabaseClient.from("staff_roles")
         .select("role").eq("user_id", state.user.id).maybeSingle();
-      if (error || !data || !["mesero", "cocina", "caja"].includes(data.role)) return false;
+      if (error || !data || !["mesero", "cocina", "caja"].includes(data.role)) {
+        if (!navigator.onLine || isNetworkError(error)) return restoreWorkSnapshot();
+        return false;
+      }
       if (state.stationBoundRole && state.stationBoundRole !== data.role) return false;
       if (!state.stationBoundRole) localStorage.setItem(STATION_STORAGE_KEY, data.role);
       state.stationBoundRole = data.role;
@@ -1232,7 +1295,10 @@
       state.awaitingApproval = false;
       state.pendingStationRole = null;
       const { data: shift, error: shiftError } = await supabaseClient.rpc("turno_empleado_actual");
-      if (shiftError) return false;
+      if (shiftError) {
+        if (!navigator.onLine || isNetworkError(shiftError)) return restoreWorkSnapshot();
+        return false;
+      }
       state.employee = shift;
       if (!state.employee) {
         await loadPinStatus().catch(() => { state.hasPin = true; });
@@ -1240,6 +1306,12 @@
         return true;
       }
       if (await refreshRemoteData()) subscribeToChanges();
+      else if (!state.data.tables.length && !restoreWorkSnapshot()) {
+        state.authMessage = "No se pudo actualizar la información. Revisa tu conexión e inténtalo de nuevo.";
+      } else if (!state.realtimeConnected) {
+        state.offlineMode = true;
+        state.syncError = state.syncError || "Sin conexión. Las comandas nuevas se guardan en este aparato.";
+      }
       state.authMessage = "";
       return true;
     }
@@ -1439,6 +1511,7 @@
             <div class="summary-item"><span>En servicio</span><strong>${occupiedTables}</strong></div>
             <div class="summary-item"><span>A tu cargo</span><strong>${myTables}</strong></div>
           </div>
+          ${pendingOrdersHtml()}
           ${suggestionInbox}${suggestionUpdates}
           <div class="section-heading"><div><h3>Mesas</h3>
             <p class="section-description">El nombre queda solo si hay un pedido o un borrador en curso.</p></div>
@@ -1488,8 +1561,8 @@
           ).join("")}</div>` : `<p class="empty">Agrega productos para iniciar.</p>`}
           <div class="receipt-total"><span>Total estimado</span><strong>${money(state.draft.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0))}</strong></div>
           <button class="button primary full" data-action="send-order"
-            ${state.draft.length && !state.syncing && (state.dataFresh || !navigator.onLine) ? "" : "disabled"}>
-            ${state.syncing ? "Sincronizando…" : !navigator.onLine ? `Guardar sin conexión (${totalPieces})` : `${state.suggestionMode ? "Enviar sugerencia" : "Enviar comanda"} (${totalPieces})`}
+            ${state.draft.length && !state.syncing && (state.dataFresh || !navigator.onLine || state.offlineMode) ? "" : "disabled"}>
+            ${state.syncing ? "Sincronizando…" : (!navigator.onLine || state.offlineMode) ? `Guardar sin conexión (${totalPieces})` : `${state.suggestionMode ? "Enviar sugerencia" : "Enviar comanda"} (${totalPieces})`}
           </button>
         </aside></div>`;
     }
@@ -1935,6 +2008,15 @@
       toast(`${product.nombre} agregado.`);
       return true;
     }
+    function pendingOrdersHtml() {
+      const pending = offlineQueue().filter((job) => job.p_es_prueba === state.testMode);
+      if (!pending.length) return "";
+      return `<section class="panel">
+        <h3>Sin enviar · ${pending.length}</h3>
+        <p class="muted">Quedan en este aparato y se mandan solas al volver la conexión.</p>
+        ${pending.map((job) => `<p><strong>${escapeHtml(job.tableName || "Mesa")}</strong> · ${(job.p_items || []).length} artículos</p>`).join("")}
+      </section>`;
+    }
     function queueOrder(payload) {
       const queue = offlineQueue();
       if (!queue.some((job) => job.p_token === payload.p_token)) queue.push(payload);
@@ -1973,7 +2055,7 @@
     }
     async function sendOrder() {
       if (!state.selectedTable || !state.draft.length) return;
-      if (!navigator.onLine) {
+      if (!navigator.onLine || state.offlineMode) {
         const table = state.data.tables.find((item) => item.id === state.selectedTable);
         if (!table) return;
         if (state.orderTokenTable !== table.id || !state.orderToken) {
@@ -2065,6 +2147,7 @@
       await refreshRemoteData();
     }
     async function respondToSuggestion(suggestionId, accept) {
+      if (!needsNetwork("Las sugerencias se envían cuando vuelva la conexión.")) return;
       if (!await ensureFreshData()) return;
       const { error } = await supabaseClient.rpc("responder_sugerencia_comanda", {
         p_sugerencia: suggestionId,
@@ -2079,6 +2162,7 @@
       await refreshRemoteData();
     }
     async function changeTicketStatus(ticketId, nextStatus) {
+      if (!needsNetwork("Cocina retoma el pedido cuando vuelva la conexión.")) return;
       if (!await ensureFreshData()) return;
       const { error } = await supabaseClient.rpc("actualizar_estado_comanda", {
         p_comanda: ticketId,
@@ -2180,6 +2264,7 @@
         .find((ticket) => ticket.id === id);
     }
     async function payCheck(checkId, method) {
+      if (!needsNetwork("El cobro necesita conexión. La cuenta sigue abierta.")) return;
       if (!await ensureFreshData()) return;
       const { error } = await supabaseClient.rpc("cobrar_cuenta", {
         p_cuenta: checkId,
@@ -2584,8 +2669,10 @@
     window.addEventListener("focus", syncAfterResume);
     window.addEventListener("pageshow", syncAfterResume);
     window.addEventListener("offline", () => {
+      state.offlineMode = true;
       state.dataFresh = false;
       state.syncError = "Sin conexión. Las comandas nuevas se guardan en el aparato.";
+      saveWorkSnapshot();
       setRealtimeConnection(false);
     });
     window.addEventListener("visibilitychange", () => {
@@ -2594,6 +2681,7 @@
       }
     });
     window.addEventListener("online", () => {
+      state.offlineMode = false;
       if (!state.user || !state.role || state.stationRole !== state.role) return;
       setRealtimeConnection(false);
       state.dataFresh = false;
@@ -2610,6 +2698,9 @@
     }, 30_000);
     render();
     initializeAuth();
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("./sw.js").catch(() => {});
+    }
   </script>
 </body>
 </html>
