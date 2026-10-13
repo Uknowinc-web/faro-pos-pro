@@ -323,7 +323,9 @@
               <label>Nombre<input name="name" maxlength="100" required placeholder="Ej. Combo 3 tacos + agua"></label>
               <label>Precio (MXN)<input name="price" type="number" min="0" max="100000" step="0.01" required></label>
               <label>Descripción<input name="description" maxlength="300" placeholder="Qué incluye"></label>
-              <label class="check-label"><input name="active" type="checkbox" checked> Vigente</label>
+              <label>Vigente desde<input name="from" type="date"></label>
+              <label>Vigente hasta<input name="to" type="date"></label>
+              <label class="check-label"><input name="active" type="checkbox" checked> Activa</label>
               <div class="actions"><button class="primary" type="submit">Guardar</button><button type="button" data-clear-form hidden>Cancelar</button></div>
             </form>
             <div id="promos-list" class="management-list"></div>
@@ -744,7 +746,7 @@
       document.getElementById("tables-list").innerHTML = latestTables.map((table) =>
         `<article class="management-row">
           <div><strong>${escapeHtml(table.nombre)}</strong><p class="muted">${escapeHtml(mesaEstadoLabel(table.estado))} · ${table.activa ? "Activa" : "Inactiva"}${table.es_prueba ? " · Prueba" : ""}</p></div>
-          <button type="button" data-table-edit="${escapeHtml(table.id)}">Editar</button>
+          <div class="row-actions"><button type="button" data-table-edit="${escapeHtml(table.id)}">Editar</button><button class="danger" type="button" data-table-delete="${escapeHtml(table.id)}">Eliminar</button></div>
         </article>`
       ).join("") || `<p class="muted">No hay mesas en este modo.</p>`;
 
@@ -797,7 +799,7 @@
             <div class="row-main"><strong>${escapeHtml(account.mesa)}</strong>
               <p class="muted">${accountItems.length} artículos · ${escapeHtml(money(accountTotal))}${account.descuento_tipo ? ` · descuento ${escapeHtml(account.descuento_tipo === "porcentaje" ? `${account.descuento_valor}%` : money(account.descuento_valor))}` : ""}${waiters ? ` · ${escapeHtml(waiters)}` : ""}</p></div>
             <span class="status ${escapeHtml(account.estado)}">${statusText}</span>
-            <button type="button" data-account-toggle="${escapeHtml(account.id)}" aria-expanded="${isOpen}">${isOpen ? "Cerrar" : "Modificar"}</button>
+            <button type="button" data-account-toggle="${escapeHtml(account.id)}" aria-expanded="${isOpen}">${isOpen ? "Ocultar" : "Modificar"}</button><button class="danger" type="button" data-account-close="${escapeHtml(account.id)}">Cerrar cuenta</button>
           </div>
           <div class="account-editor" ${isOpen ? "" : "hidden"}>${lines || `<p class="muted">Sin artículos.</p>`}
             <div class="toolbar" style="margin-top:.65rem">
@@ -1307,7 +1309,8 @@
       await saveManagementForm(form, "admin_guardar_promocion", {
         p_id: form.elements.id.value || null, p_nombre: form.elements.name.value.trim(),
         p_precio: Number(form.elements.price.value), p_descripcion: form.elements.description.value.trim(),
-        p_activo: form.elements.active.checked
+        p_activo: form.elements.active.checked,
+        p_desde: form.elements.from.value || null, p_hasta: form.elements.to.value || null
       }, "Promoción guardada.");
     });
     document.getElementById("table-form").addEventListener("submit", async (event) => {
@@ -1445,6 +1448,25 @@
         } finally {
           button.disabled = false;
         }
+      } else if (button.dataset.accountClose) {
+        const account = latestAccounts.find((item) => item.id === button.dataset.accountClose);
+        if (!account) return;
+        const reason = window.prompt(`Motivo para cerrar ${account.mesa}. La mesa queda libre.`);
+        if (!reason || !reason.trim()) return;
+        const { error } = await supabaseClient.rpc("anular_cuenta", {
+          p_cuenta: account.id, p_motivo: reason.trim(), p_es_prueba: testMode
+        });
+        if (error) { document.getElementById("management-message").textContent = error.message; return; }
+        document.getElementById("management-message").textContent = `${account.mesa} cerrada.`;
+        await loadManagement();
+      } else if (button.dataset.tableDelete) {
+        const table = latestTables.find((item) => item.id === button.dataset.tableDelete);
+        if (!table) return;
+        if (!window.confirm(`Eliminar «${table.nombre}». Si ya tuvo ventas, solo se oculta.`)) return;
+        const { error } = await supabaseClient.rpc("admin_eliminar_mesa", { p_id: table.id });
+        if (error) { document.getElementById("management-message").textContent = error.message; return; }
+        document.getElementById("management-message").textContent = "Mesa eliminada.";
+        await loadManagement();
       } else if (button.dataset.promoEdit) {
         const promo = latestProducts.find((item) => item.id === button.dataset.promoEdit);
         if (!promo) return;
@@ -1454,6 +1476,9 @@
         form.elements.price.value = promo.precio;
         form.elements.description.value = promo.descripcion ?? "";
         form.elements.active.checked = promo.activo;
+        form.elements.from.value = promo.vigente_desde ?? "";
+        form.elements.to.value = promo.vigente_hasta ?? "";
+        showFormActions(form);
       } else if (button.dataset.itemAdd) {
         const accountId = button.dataset.itemAdd;
         const productId = document.querySelector(`[data-add-product="${CSS.escape(accountId)}"]`)?.value;
