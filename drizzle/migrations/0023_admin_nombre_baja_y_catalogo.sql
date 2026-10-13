@@ -4,15 +4,30 @@ begin;
 -- Nombre de admin: queda registro del cambio (antes / después).
 -- ---------------------------------------------------------------------------
 alter table public.audit_acciones drop constraint if exists audit_acciones_accion_check;
-alter table public.audit_acciones add constraint audit_acciones_accion_check
-  check (accion in (
-    'enviar_comanda', 'reclamar_mesa', 'actualizar_comanda',
-    'cobrar_cuenta', 'anular_cuenta',
-    'entrada_empleado', 'salida_empleado',
-    'editar_producto', 'editar_mesa', 'editar_comanda', 'editar_empleado',
-    'aplicar_descuento', 'quitar_descuento',
-    'cambio_nombre_admin', 'baja_empleado', 'eliminar_producto'
-  ));
+
+do $$
+declare
+  v_list text;
+begin
+  select string_agg(quote_literal(accion), ', ' order by accion)
+  into v_list
+  from (
+    select distinct accion from public.audit_acciones
+    union
+    select unnest(array[
+      'enviar_comanda', 'reclamar_mesa', 'actualizar_comanda',
+      'cobrar_cuenta', 'anular_cuenta',
+      'entrada_empleado', 'salida_empleado',
+      'editar_producto', 'editar_mesa', 'editar_comanda', 'editar_empleado',
+      'aplicar_descuento', 'quitar_descuento',
+      'cambio_nombre_admin', 'baja_empleado', 'eliminar_producto'
+    ])
+  ) acciones;
+  execute format(
+    'alter table public.audit_acciones add constraint audit_acciones_accion_check check (accion in (%s))',
+    v_list
+  );
+end $$;
 
 create or replace function public.guardar_perfil_admin(p_nombre text)
 returns text
