@@ -17,7 +17,7 @@ Una sola aplicación:
 | `faro-pos-pro.html` | App de mesero, cocina y caja. Habla con Supabase. |
 | `admin-accesos.html` | Panel: aprobar aparatos, catálogo, mesas, empleados, PIN, bitácora. |
 | `index.html` | Redirige a `faro-pos-pro.html`. |
-| `drizzle/migrations/` | Esquema de la base (0000 a 0022). Aplicar en orden. |
+| `drizzle/migrations/` | Esquema de la base (0000 a 0039). Aplicar solo las pendientes y en orden. |
 | `QR_PUESTOS.html` + `QR_*.svg` | Accesos imprimibles. Los tres QR abren la misma liga viva. |
 
 La fuente de verdad de precios y reglas es la tabla `catalogo_productos` en Supabase, validada por las migraciones (sobre todo 0004, 0014 y 0021). El HTML no calcula precios de forma definitiva: el servidor los verifica.
@@ -46,7 +46,17 @@ La fuente de verdad de precios y reglas es la tabla `catalogo_productos` en Supa
 - `0019` descuentos, promociones y productos más vendidos.
 - `0020` eliminar dispositivo desde Accesos.
 - `0021` torta y hamburguesa en Especiales; papa especial sin mezcla; costra de queso (+15) solo en Gaonera.
-- `0022` el aparato y el empleado son cosas distintas. Aprobar un aparato no crea empleado. El PIN abre turno en cualquier aparato del mismo puesto.
+- `0022` separa aparato y empleado; aprobar un aparato no crea un empleado.
+- `0023` administración de productos, nombre y baja de empleado.
+- `0024` cierre de mesa y vigencia de promociones.
+- `0025` operaciones de servicio, turnos y cuentas.
+- `0026` liberar mesas sin comanda.
+- `0027–0029` operaciones administrativas sobre comandas, cuentas y mesas.
+- `0030` referencias de Clip, cobros parciales, descuentos y devoluciones.
+- `0031–0033` servicio, inventario de ingredientes y ajustes de caja/propinas.
+- `0034–0037` horario, controles administrativos y asistencia diaria.
+- `0038` inventario por variante/sabor.
+- `0039` controles de rol para RPC de caja/inventario y revocación de ejecución directa de la función interna de descuento.
 
 Detalle de cómo aplicarlas: [SUPABASE_ACCESO.md](./SUPABASE_ACCESO.md).
 
@@ -68,6 +78,7 @@ Los pagos con Clip se registran en el POS y deben cobrarse también en la termin
 - [GUIA_DE_ACCION.md](./GUIA_DE_ACCION.md) — pendientes para salir a producción.
 - [MANUAL_TECNICO.md](./MANUAL_TECNICO.md) — arquitectura y esquema.
 - [SECURITY.md](./SECURITY.md) — qué no subir y cómo reportar.
+- [PLAN_MEJORAS_PRIORIDAD.md](./PLAN_MEJORAS_PRIORIDAD.md) — plan de endurecimiento y secuencia de mejoras.
 
 ## Flujo de cambios
 
