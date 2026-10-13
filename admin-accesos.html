@@ -821,6 +821,7 @@
               <p class="muted">${accountItems.length} artículos · ${escapeHtml(money(accountTotal))}${account.descuento_tipo ? ` · descuento ${escapeHtml(account.descuento_tipo === "porcentaje" ? `${account.descuento_valor}%` : money(account.descuento_valor))}` : ""}${waiters ? ` · ${escapeHtml(waiters)}` : ""}</p></div>
             <span class="status ${escapeHtml(account.estado)}">${statusText}</span>
             <button type="button" data-account-toggle="${escapeHtml(account.id)}" aria-expanded="${isOpen}">${isOpen ? "Cerrar" : "Modificar"}</button>
+            <button class="danger" type="button" data-account-delete="${escapeHtml(account.id)}" data-account-name="${escapeHtml(account.mesa)}">Eliminar cuenta</button>
           </div>
           <div class="account-editor" ${isOpen ? "" : "hidden"}>${lines || `<p class="muted">Sin artículos.</p>`}
             <div class="toolbar" style="margin-top:.65rem">
@@ -1408,7 +1409,7 @@
       } else if (button.dataset.tableDelete) {
         const table = latestTables.find((item) => item.id === button.dataset.tableDelete);
         if (!table) return;
-        if (!window.confirm(`Eliminar «${table.nombre}». Si nunca se usó, se borra. Si ya tuvo cuentas, solo se oculta.`)) return;
+        if (!window.confirm(`Eliminar «${table.nombre}» y todas sus cuentas. No se puede deshacer.`)) return;
         const { error } = await supabaseClient.rpc("admin_eliminar_mesa", { p_id: table.id });
         document.getElementById("management-message").textContent = error ? error.message : `${table.nombre} eliminada.`;
         if (!error) {
@@ -1428,6 +1429,15 @@
         if (error) { document.getElementById("management-message").textContent = error.message; return; }
         document.getElementById("management-message").textContent = "Producto eliminado del menú.";
         await loadManagement();
+      } else if (button.dataset.accountDelete) {
+        const nombre = button.dataset.accountName || "esta mesa";
+        if (!window.confirm(`Eliminar la cuenta de ${nombre}. Se borra el pedido y la mesa queda libre.`)) return;
+        const { error } = await supabaseClient.rpc("admin_eliminar_cuenta", { p_id: button.dataset.accountDelete });
+        document.getElementById("management-message").textContent = error ? error.message : `Cuenta de ${nombre} eliminada.`;
+        if (!error) {
+          await loadManagement();
+          await loadOperacion();
+        }
       } else if (button.dataset.employeeOffboard) {
         const employee = latestEmployees.find((item) => item.id === button.dataset.employeeOffboard);
         if (!employee) return;
