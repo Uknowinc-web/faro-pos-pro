@@ -21,7 +21,7 @@ La liga `faro-pos-pro.vercel.app` no existe. No usarla.
 ## Qué ya está hecho
 
 - HTML conectado a Supabase Auth, con aprobación de aparatos y PIN.
-- Migraciones 0000–0021 en el repositorio (aplicar las pendientes en Supabase).
+- Migraciones 0000–0039 en el repositorio; confirmar cuáles están aplicadas en Supabase antes de actualizar.
 - Modo de prueba aislado: las mesas `PRUEBA · ...` no entran al corte real.
 - Validación de precios en el servidor (0004, 0014, 0021).
 - Panel de administración con operación, catálogo, empleados y bitácora.
@@ -29,6 +29,10 @@ La liga `faro-pos-pro.vercel.app` no existe. No usarla.
 ## Pendientes antes de ventas reales
 
 ### P0 — no operar sin esto
+
+- [ ] Probar la migración 0039 en staging antes de desplegarla.
+- [ ] Ejecutar `drizzle/tests/0039_rpc_permissions.sql` y confirmar que las RPC sensibles rechazan identidades `authenticated` sin fila autorizada en `staff_roles`.
+- [ ] Confirmar que `anon` y `authenticated` no puedan ejecutar directamente `descontar_producto`, y que el trigger de consumo de inventario siga funcionando.
 
 - [ ] Confirmar que las migraciones 0012–0021 están aplicadas en Supabase.
 - [ ] Entrar al panel y ver la lista de solicitudes sin errores.

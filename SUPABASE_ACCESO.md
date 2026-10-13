@@ -64,8 +64,7 @@ Publications → supabase_realtime** que la tabla aparezca.
 
 La migración **0013** agrega la pestaña **Gestión**: catálogo, mesas, edición de
 artículos en cuentas abiertas, empleados/PIN, asistencia y ventas por mesero.
-El PIN se almacena como hash. Ejecuta 0013 después de 0012 y antes de usar el
-HTML que pide PIN.
+El PIN de autenticación se valida con hash; las migraciones anteriores también conservan un campo `pin_texto` para administración. Eliminarlo requiere una actualización coordinada del panel y queda como mejora pendiente. Ejecuta 0013 después de 0012 y antes de usar el HTML que pide PIN.
 
 La migración **0014** separa Postres y Bebidas y exige sabor de agua, tamaño de
 horchata/cebada y ToniCol o Titan.
@@ -163,3 +162,35 @@ Los tres deben ser `false`.
 | `cocina` | Mesas, comandas y artículos | Avanzar comandas pendiente → preparación → listo |
 | `caja` | Mesas, cuentas, comandas y artículos | Solicitar cuenta, cobrar y anular |
 | `admin` | Todas las lecturas | Todas las operaciones y administrar aparatos |
+
+
+## Migraciones posteriores a 0021
+
+El repositorio contiene migraciones hasta `0039`. Si Supabase no está actualizado, revisa y aplica, en orden, solo las que falten:
+
+- `0022_aparato_y_empleado_separados.sql`
+- `0023_admin_nombre_baja_y_catalogo.sql`
+- `0024_cerrar_mesa_y_vigencia.sql`
+- `0025_servicio_turno.sql`
+- `0026_soltar_mesa_sin_orden.sql`
+- `0027_quitar_comanda_y_mesa.sql`
+- `0028_borrar_mesa_y_cuentas.sql`
+- `0029_borrar_mesa_sin_bloqueo.sql`
+- `0030_caja_cambio_descuento_devolucion.sql`
+- `0031_servicio_inventario_factura.sql`
+- `0032_caja_inventario_real.sql`
+- `0033_propinas_fuera_de_caja.sql`
+- `0034_horario_ingreso_empleados.sql`
+- `0035_limite_nombre_admin.sql`
+- `0036_quitar_categoria_tortas.sql`
+- `0037_asistencia_por_dia.sql`
+- `0038_inventario_por_sabor.sql`
+- `0039_restringir_rpc_inventario_y_caja.sql`
+
+**No ejecutes de nuevo una migración ya aplicada.** La 0039 cambia permisos de funciones existentes; pruébala primero en staging o en una copia de la base.
+
+### Verificar la corrección 0039
+
+Después de aplicar 0039 en una base de pruebas, ejecuta `drizzle/tests/0039_rpc_permissions.sql`. La prueba usa un UID ficticio sin rol de Faro, comprueba que las RPC sensibles devuelvan error de autorización y valida que `authenticated` y `anon` no puedan ejecutar directamente `descontar_producto`. Termina con `ROLLBACK`.
+
+En la consulta de privilegios, es esperado que `authenticated_puede_ejecutar` siga en `true` para las RPC protegidas internamente por rol, pero estas deben rechazar identidades sin autorización de Faro. Para `descontar_producto`, tanto `anon_puede_ejecutar` como `authenticated_puede_ejecutar` deben ser `false`.

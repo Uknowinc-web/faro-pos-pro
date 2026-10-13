@@ -27,8 +27,7 @@ Panel: https://tacos-el-faro.vercel.app/admin-accesos.html
   directamente con cada integrante del equipo.
 - [ ] En cada dispositivo, confirmar fecha/hora correctas, Wi-Fi estable y que
   el navegador no está en modo incógnito.
-- [ ] Confirmar que las migraciones 0012–0021 están aplicadas en Supabase
-  antes de probar el panel y el menú actual (ver [SUPABASE_ACCESO.md](./SUPABASE_ACCESO.md)).
+- [ ] Confirmar cuáles migraciones están aplicadas y ejecutar solo las pendientes hasta la 0039 antes de probar el panel y el menú actual (ver [SUPABASE_ACCESO.md](./SUPABASE_ACCESO.md)). Probar primero las migraciones nuevas en staging.
 
 No probar con cobros reales ni elegir **Modo operación** para generar pedidos
 durante este recorrido. La banda amarilla de **Modo de prueba** debe verse
