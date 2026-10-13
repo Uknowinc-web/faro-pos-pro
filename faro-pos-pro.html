@@ -63,6 +63,13 @@
     .connection-detail { font-size: .82rem; font-weight: 400; }
     .field-help { margin: -.2rem 0 0; color: var(--muted); font-size: .82rem; line-height: 1.4; }
     .nav { display: flex; gap: .5rem; margin-bottom: .75rem; overflow-x: auto; }
+    .nav.solo { display: none; }
+    .status-bar { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; margin: 0 0 .85rem; padding: .45rem .7rem; border: 1px solid var(--line); border-radius: 999px; background: #fff; }
+    .status-bar .who { font-weight: 700; }
+    .status-chip { display: inline-flex; align-items: center; gap: .35rem; padding: .2rem .6rem; border-radius: 999px; background: #fff0c8; color: #5a3b00; font-size: .78rem; font-weight: 700; }
+    .status-chip.ok { background: #e7f3ec; color: #245b36; }
+    .status-chip.warn { background: #fff0ed; color: #8a3028; }
+    .status-bar .button { min-height: 32px; padding: .25rem .7rem; margin-left: auto; }
     .nav button {
       flex: 1; min-width: 110px; min-height: 44px; padding: .65rem 1rem; border: 1px solid var(--line);
       border-radius: 12px; background: var(--card); color: #38423c; font-weight: 700;
@@ -1101,6 +1108,7 @@
       const operating = authorized && Boolean(state.employee);
       const nav = document.getElementById("module-nav");
       nav.classList.toggle("hidden", !operating);
+      nav.classList.toggle("solo", operating);
       document.getElementById("sign-out").classList.toggle("hidden", !state.user || state.user.is_anonymous);
       document.getElementById("user-label").textContent = state.user
         ? (operating ? `${state.employee.nombre} · ${stationRoleLabel(state.stationRole)}`
@@ -1124,34 +1132,22 @@
       } else if (!operating) {
         app.innerHTML = renderEmployeeLogin();
       } else {
-        const employeeBanner = `<div class="notice employee-banner">
-          <span>Turno de <strong>${escapeHtml(state.employee.nombre)}</strong> · Entrada ${timeMty(state.employee.entrada_at)}</span>
-          <button class="button" type="button" data-action="clock-out">Registrar salida</button>
-        </div>`;
-        const testBanner = `<div class="notice test-banner">
-          ${state.testMode
-            ? "Modo de prueba: los pedidos y las cuentas se mantienen separados de las ventas reales."
-            : "Modo operación: los pedidos y cobros se registran en las ventas reales. Activa el modo de prueba antes de practicar."}
-          <button class="button ${state.testMode ? "warning" : ""}" type="button" data-action="toggle-test-mode">
-            ${state.testMode ? "Cambiar a operación" : "Activar modo de prueba"}
-          </button>
-        </div>`;
         const connectionState = !navigator.onLine ? "offline" :
           state.realtimeConnected ? "connected" : "polling";
-        const connectionLabel = {
-          connected: "Conectado · actualización en tiempo real activa",
-          polling: "Conexión parcial · actualización automática cada 15 segundos",
-          offline: "Sin conexión a internet"
-        }[connectionState];
-        const lastSyncLabel = state.lastSyncedAt
-          ? `Última actualización: ${new Intl.DateTimeFormat("es-MX", { hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(state.lastSyncedAt)}`
-          : "Aún no hay una actualización confirmada.";
-        const connectionBanner = `<div class="notice connection-banner ${connectionState}" role="status" aria-live="polite">
-          <div class="connection-copy"><strong>${connectionLabel}</strong>
-            <span class="connection-detail">${state.syncing ? "Actualizando información…" : lastSyncLabel}</span>
-          </div>
-          <button class="button" type="button" data-action="retry-sync" ${state.syncing ? "disabled" : ""}>Reintentar</button>
+        const connectionChip = connectionState === "connected"
+          ? `<span class="status-chip ok">En línea</span>`
+          : `<span class="status-chip warn">${connectionState === "offline" ? "Sin internet" : "Conexión lenta"}</span>
+             <button class="button" type="button" data-action="retry-sync" ${state.syncing ? "disabled" : ""}>Reintentar</button>`;
+        const employeeBanner = `<div class="status-bar" role="status">
+          <span class="who">${escapeHtml(state.employee.nombre)}</span>
+          <span class="muted">desde ${timeMty(state.employee.entrada_at)}</span>
+          <span class="status-chip">${state.testMode ? "Prueba" : "Operación"}</span>
+          ${connectionChip}
+          <button class="button" type="button" data-action="toggle-test-mode">${state.testMode ? "A operación" : "A prueba"}</button>
+          <button class="button" type="button" data-action="clock-out">Salir</button>
         </div>`;
+        const testBanner = "";
+        const connectionBanner = "";
         const syncStatus = state.dataFresh ? "" : `<div class="notice" role="status">${
           state.syncing ? "Actualizando información…" :
             escapeHtml(state.syncError || "No se pudieron actualizar los datos. Las operaciones están temporalmente bloqueadas.")
@@ -1204,9 +1200,9 @@
           ...ticket, tableName: check.tableName
         }))).filter((ticket) => Date.now() - Date.parse(ticket.createdAt) < 12 * 60 * 60 * 1000)
           .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
-        return `<header class="page-heading"><div><p class="eyebrow">${escapeHtml(stationHeading("mesero"))}</p>
-          <h2>Hola, ${escapeHtml(state.deviceLabel || "equipo de servicio")}</h2>
-          <p>Elige una mesa para comenzar o continuar una comanda.</p></div>
+        return `<header class="page-heading"><div>
+          <h2>Mesas</h2>
+          <p>Toca una mesa para tomar la orden.</p></div>
           <button class="button primary" type="button" data-action="add-table">＋ Agregar mesa</button></header>
           <div class="summary-strip" aria-label="Resumen de mesas">
             <div class="summary-item"><span>Mesas disponibles</span><strong>${tables.length - occupiedTables - dueTables}</strong></div>
