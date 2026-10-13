@@ -1,21 +1,23 @@
-# Security Policy
+# Security
 
-## Supported Versions
+## Versión vigente
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
+La aplicación en uso es el HTML estático publicado en:
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
+- https://tacos-el-faro.vercel.app/
+- https://tacos-el-faro.vercel.app/admin-accesos.html
 
-## Reporting a Vulnerability
+La liga `faro-pos-pro.vercel.app` no está activa.
 
-Use this section to tell people how to report a vulnerability.
+## Reportar un problema
 
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+Avísalo en privado al dueño del repositorio. No abras un issue público que contenga contraseñas, PIN, códigos de puesto, claves de Supabase o datos de clientes.
+
+## Qué no debe estar en el repositorio
+
+- La clave `service_role` de Supabase.
+- La contraseña de PostgreSQL.
+- Códigos de recuperación de GitHub.
+- PIN de empleados o códigos de puesto.
+
+La clave pública (publishable / anon) sí puede ir en el HTML. No concede acceso a datos: el acceso lo dan la aprobación del aparato, el rol y el PIN, validados en Supabase con RLS.
