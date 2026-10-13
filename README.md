@@ -1,54 +1,81 @@
 # Tacos El Faro
-Sistema POS y KDS para taquería El Faro (Monterrey, N.L.).
 
-## Contenido del Repositorio
-- `src/routes/mesero.tsx`: Terminal móvil para meseros (toma rápida de comandas, sin precios en pantalla, modificadores dinámicos).
-- `src/routes/cocina.tsx`: KDS en tiempo real para todas las comandas, incluidas bebidas, con alertas sonoras y estados (Pendiente, En preparación, Listo).
-- `src/routes/caja.tsx`: Panel de cobro (Efectivo / Clip), anulación con motivo y corte de caja diario en zona horaria Monterrey.
-- `src/lib/catalogo.ts`: Catálogo de productos, modificadores de carne y cálculo de precios con los cargos documentados.
-- `src/test/catalogo.test.ts`: Pruebas unitarias de integridad del catálogo y cálculo de precios.
-- `drizzle/migrations/0000_migration.sql`: Esquema inicial PostgreSQL / Supabase, sin acceso concedido a usuarios anónimos.
-- `drizzle/migrations/0001_desactivar_mesa_barra.sql`: Agrega el indicador de mesa activa y desactiva el registro anterior sin borrar historial.
-- `drizzle/migrations/0002_unificar_estacion_cocina.sql`: Mueve las comandas históricas a Cocina, elimina el campo de estación y archiva la mesa anterior.
-- `drizzle/migrations/0003_restringir_acceso_a_personal.sql`: Cierra permisos anónimos, aplica RLS por rol y protege operaciones con RPC autenticadas.
-- `drizzle/migrations/0004_validar_precios_en_servidor.sql`: Verifica catálogo, modificadores y precios antes de aceptar una comanda.
-- `drizzle/migrations/0005_restringir_consulta_de_caja.sql`: Evita que mesero y cocina lean cuentas o datos de caja.
-- `drizzle/migrations/0006_aprobar_puestos_sin_correo.sql`: Añade solicitudes de aparato y aprobación/revocación administrativa por rol.
-- `drizzle/migrations/0007_modo_prueba_aislado.sql`: Separa las mesas y comandas de ensayo de las mesas/ventas reales.
-- `drizzle/migrations/0008_validar_modo_en_operaciones.sql`: Valida el modo también en operaciones de cocina y caja en el servidor.
-- `drizzle/migrations/0009_responsable_de_mesa_y_sugerencias.sql`: Asigna cada mesa al primer mesero que la abre; protege el envío y añade sugerencias con aceptación/rechazo en tiempo real.
-- `drizzle/migrations/0010_crear_mesas_desde_servicio.sql`: Permite al personal de servicio agregar mesas mediante una operación validada por el servidor.
-- `drizzle/migrations/0011_codigos_puesto_solo_administracion.sql`: Genera códigos aleatorios de puesto, los valida en Supabase y limita su consulta a administración.
-- `drizzle/migrations/0012_panel_admin_operacion.sql`: Añade operación en vivo y bitácora de acciones.
-- `drizzle/migrations/0013_admin_jornada_y_empleados.sql`: Añade catálogo editable, gestión de mesas/cuentas, PIN por empleado, asistencia y ventas por mesero.
-- `drizzle/migrations/0014_bebidas_postres_y_opciones.sql`: Separa Postres y Bebidas, y valida en el servidor los sabores de agua, el tamaño de horchata/cebada y ToniCol/Titan.
-- `drizzle/migrations/0015_orden_automatico_de_mesas.sql`: El orden de las mesas se asigna solo (al final de su modo) y se conserva al editar.
-- `drizzle/migrations/0016_registro_empleado_con_pin.sql`: El empleado elige nombre y PIN al solicitar acceso; el administrador ve el PIN; Caja puede modificar cuentas abiertas.
-- `drizzle/migrations/0019_descuentos_promociones_y_ventas.sql`: Descuentos por artículo o cuenta (monto o %) solo para administración y registrados en la bitácora; promociones y combos como categoría «Promociones»; productos más vendidos en el panel; el cobro descuenta automáticamente.
-- `drizzle/migrations/0018_pin_por_admin_y_bitacora.sql`: El PIN lo asigna solo el administrador (la solicitud ya no lo envía; sin PIN el POS espera); el nombre no puede repetirse en la misma área; los administradores eligen su nombre de bitácora; la bitácora guarda el responsable y se consulta por día, mes o año. Los dispositivos activos son los empleados con asistencia abierta.
-- `drizzle/migrations/0017_pin_por_area_y_responsables.sql`: Nombre y PIN únicos solo dentro de cada área; cada administrador queda identificado por correo en la bitácora.
-- `CHECKLIST_PILOTO_HOY.md`: Recorrido de pruebas por puesto, casos de aceptación y registro de incidencias.
-- `QR_PUESTOS.html` y `QR_MESERO.svg`, `QR_COCINA.svg`, `QR_CAJA.svg`: Hoja imprimible y QR por aparato; los tres abren el mismo enlace.
-- `admin-accesos.html`: Panel autenticado con operación en vivo, gestión de productos, precios, mesas, cuentas y empleados, asistencia, ventas por mesero, bitácora y aprobación de aparatos.
-- `SUPABASE_ACCESO.md`: Pasos para configurar el administrador, aprobar aparatos y verificar el acceso privado.
-- `MANUAL_TECNICO.md`: Documentación técnica detallada de la arquitectura, configuración de base de datos y despliegue.
-- `GUIA_DE_ACCION.md`: Plan priorizado para pasar del prototipo local a una aplicación segura y lista para operar.
+Sistema POS y KDS para la taquería El Faro (Monterrey, N.L.).
 
-## Estado del código
+**Liga viva:** https://tacos-el-faro.vercel.app/
 
-Este clon no incluye el manifiesto de dependencias ni toda la configuración y los módulos de arranque de la aplicación React. Esa parte no puede instalarse ni compilarse tal como está; el HTML estático sí puede servirse directamente en Vercel.
+Panel de administración: https://tacos-el-faro.vercel.app/admin-accesos.html
 
-El HTML independiente usa Supabase Auth, valida el rol y ejecuta las operaciones mediante RPC protegidas. Los aparatos solicitan acceso sin correo y el administrador lo aprueba explícitamente; la solicitud pendiente no puede leer ni operar el POS. Las pantallas React del clon siguen sin inicio de sesión. Consulta [SUPABASE_ACCESO.md](./SUPABASE_ACCESO.md).
+> La liga antigua `faro-pos-pro.vercel.app` no existe (404). No usarla.
 
-## Aplicación HTML conectada
+## Qué es este repositorio
 
-Abre `https://faro-pos-pro.vercel.app/` en los dispositivos (redirige a `faro-pos-pro.html`). Cada QR contiene ese mismo enlace. Para la primera vinculación, el equipo indica un nombre y solicita a administración el código de su puesto. La persona administradora revisa y autoriza cada dispositivo desde `https://faro-pos-pro.vercel.app/admin-accesos.html`; en ese panel también puede consultar los códigos, el corte en vivo, el piso, la cocina y la bitácora (migración 0012), así como configurar productos y mesas, gestionar cuentas y personal, y consultar asistencia y ventas por mesero (migración 0013). Una vez autorizado el aparato, cada empleado inicia su turno con su PIN personal. La identidad del dispositivo no obtiene permisos hasta que se autoriza; las operaciones siguen protegidas por Supabase Auth y RLS.
+Una sola aplicación:
 
-Al volver a la aplicación desde otra pantalla, los datos se actualizan y las operaciones se bloquean mientras estén desactualizados o no haya conexión. El personal de servicio puede consultar mesas, comandas y artículos, y agregar mesas; no puede consultar cuentas. Cocina consulta comandas y artículos, mientras que caja consulta las cuentas. Los borradores de servicio se conservan en el navegador. Los pagos con Clip se registran en el POS y también deben cobrarse en la terminal.
+| Archivo | Qué hace |
+|---|---|
+| `faro-pos-pro.html` | App de mesero, cocina y caja. Habla con Supabase. |
+| `admin-accesos.html` | Panel: aprobar aparatos, catálogo, mesas, empleados, PIN, bitácora. |
+| `index.html` | Redirige a `faro-pos-pro.html`. |
+| `drizzle/migrations/` | Esquema de la base (0000 a 0021). Aplicar en orden. |
+| `QR_PUESTOS.html` + `QR_*.svg` | Accesos imprimibles. Los tres QR abren la misma liga viva. |
 
-Las migraciones 0006–0008 ya se aplicaron en Supabase y Anonymous Sign-Ins está habilitado. Supabase también requiere habilitar el registro de usuarios para crear identidades anónimas; esto permite registros por correo, pero no concede acceso al POS sin autorización y rol. La aplicación y el panel de administración están publicados en `faro-pos-pro.vercel.app`. Antes de empezar, confirma que la cuenta administradora tiene el rol `admin` y completa las pruebas de aceptación de [CHECKLIST_PILOTO_HOY.md](./CHECKLIST_PILOTO_HOY.md). El HTML inicia en modo de prueba y el servidor separa las mesas de ensayo de las reales.
+La fuente de verdad de precios y reglas es la tabla `catalogo_productos` en Supabase, validada por las migraciones (sobre todo 0004, 0014 y 0021). El HTML no calcula precios de forma definitiva: el servidor los verifica.
 
-Las migraciones 0009 y 0010 ya se aplicaron en el proyecto Faro de Supabase y se verificaron sus tablas, RPC, RLS, permisos y suscripciones Realtime. La 0009 asigna cada mesa al primer mesero que la abre y permite sugerencias con aprobación del responsable. La 0010 permite agregar mesas desde el área de servicio y bloquea las inserciones directas en la tabla. La versión actualizada del HTML ya se desplegó en Vercel; falta probar la operación con los aparatos autorizados antes de usar ventas reales. Consulta [SUPABASE_ACCESO.md](./SUPABASE_ACCESO.md) y [CHECKLIST_PILOTO_HOY.md](./CHECKLIST_PILOTO_HOY.md).
+## Migraciones (en orden)
 
-## Descarga como ZIP
-Puedes descargar este repositorio completo en archivo ZIP haciendo clic en el botón verde **Code -> Download ZIP** en GitHub.
+- `0000` esquema inicial.
+- `0001` indicador de mesa activa.
+- `0002` unificar estación de cocina.
+- `0003` cerrar acceso anónimo, RLS por rol, RPC autenticadas.
+- `0004` validar catálogo, modificadores y precio en el servidor.
+- `0005` mesero y cocina no leen cuentas.
+- `0006` solicitudes de aparato y aprobación sin correo.
+- `0007` modo de prueba aislado.
+- `0008` validar modo en operaciones de cocina y caja.
+- `0009` responsable de mesa y sugerencias.
+- `0010` crear mesas desde servicio.
+- `0011` códigos de puesto solo visibles por administración.
+- `0012` operación en vivo y bitácora.
+- `0013` catálogo editable, PIN, asistencia, ventas por mesero.
+- `0014` Postres y Bebidas separados; sabores, tamaño, ToniCol/Titan.
+- `0015` orden automático de mesas.
+- `0016` registro de empleado con PIN; caja puede editar cuentas abiertas.
+- `0017` nombre y PIN únicos por área.
+- `0018` el PIN lo asigna solo administración; bitácora con responsable.
+- `0019` descuentos, promociones y productos más vendidos.
+- `0020` eliminar dispositivo desde Accesos.
+- `0021` torta y hamburguesa en Especiales; papa especial sin mezcla; costra de queso (+15) solo en Gaonera.
+
+Detalle de cómo aplicarlas: [SUPABASE_ACCESO.md](./SUPABASE_ACCESO.md).
+
+## Cómo se usa
+
+1. En el aparato, abre https://tacos-el-faro.vercel.app/ (o escanea un QR de `QR_PUESTOS.html`).
+2. Indica el nombre del aparato y el código de puesto que te da administración.
+3. Administración aprueba el aparato en el panel.
+4. El empleado inicia turno con su PIN.
+
+La app abre en **modo de prueba**. Las mesas de ensayo se llaman `PRUEBA · ...` y no entran al corte real. No pases a modo operación hasta completar [CHECKLIST_PILOTO_HOY.md](./CHECKLIST_PILOTO_HOY.md).
+
+Los pagos con Clip se registran en el POS y deben cobrarse también en la terminal.
+
+## Documentación
+
+- [SUPABASE_ACCESO.md](./SUPABASE_ACCESO.md) — migraciones, cuenta admin, aprobación de aparatos.
+- [CHECKLIST_PILOTO_HOY.md](./CHECKLIST_PILOTO_HOY.md) — pruebas por puesto antes de ventas reales.
+- [GUIA_DE_ACCION.md](./GUIA_DE_ACCION.md) — pendientes para salir a producción.
+- [MANUAL_TECNICO.md](./MANUAL_TECNICO.md) — arquitectura y esquema.
+- [SECURITY.md](./SECURITY.md) — qué no subir y cómo reportar.
+
+## Flujo de cambios
+
+```
+editas en la carpeta local faro-pos-pro
+  → git commit
+  → git push
+  → Vercel publica en tacos-el-faro.vercel.app
+  → pruebas en esa liga
+```
+
+Una sola carpeta. Una sola liga. No editar el HTML dentro de Vercel a mano.
