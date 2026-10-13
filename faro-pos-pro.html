@@ -427,6 +427,8 @@
       cashierFilter: "todas",
       showPaid: false,
       lastPayments: {},
+      shiftWaiters: [],
+      addToCheck: null,
       closeDate: todayMty(),
       cutOpen: false,
       data: { tables: [], checks: [], nextTicket: 1, drafts: {}, owners: [], suggestions: [] }
@@ -572,8 +574,9 @@
         descripcion: product.descripcion ?? "",
         mezcla: product.permite_mezcla,
         tripa: Number(product.extra_tripa_principal),
-        queso: product.permite_queso ? Number(product.extra_queso) : 0
-      }));
+        queso: product.permite_queso ? Number(product.extra_queso) : 0,
+        existencia: null
+      })).filter((product) => !/barra|barista/i.test(`${product.categoria} ${product.nombre}`));
       const stamp = catalogStamp(rows);
       rememberCatalog(rows, stamp);
       try {
@@ -581,6 +584,21 @@
       } catch {
         /* el menú sigue en memoria */
       }
+    }
+    async function loadShiftAndStock() {
+      if (state.role === "mesero") {
+        const { data, error } = await supabaseClient.rpc("listar_meseros_turno");
+        state.shiftWaiters = error || !Array.isArray(data) ? [] : data;
+      }
+      const { data, error } = await supabaseClient.rpc("listar_inventario");
+      if (error || !Array.isArray(data)) return;
+      const stock = new Map(data.map((row) => [row.producto_id, row]));
+      PRODUCTOS.forEach((product) => {
+        const row = stock.get(product.id);
+        product.existencia = row && row.existencia != null ? Number(row.existencia) : null;
+        if (row && row.activo === false) product.activo = false;
+      });
+      productGridCache.clear();
     }
     function productPrice(product, modifiers) {
       return product.precio + modifiers.reduce((sum, modifier) => sum + modifier.extra, 0);
@@ -1055,6 +1073,7 @@
           suggestions: suggestions ?? []
         };
         state.offlineMode = false;
+        await loadShiftAndStock();
         saveWorkSnapshot();
         return true;
       } catch (error) {
@@ -1441,6 +1460,7 @@
         app.innerHTML = employeeBanner + testBanner + connectionBanner + syncStatus + view;
         if (viewKey === render.viewKey) window.scrollTo(0, scrollY);
         render.viewKey = viewKey;
+        watchKitchenTickets();
       }
     }
 
@@ -1448,9 +1468,10 @@
       const key = catalogFingerprint + "|grid|" + category;
       const cached = productGridCache.get(key);
       if (cached) return cached;
-      const html = PRODUCTOS.filter((product) => product.categoria === category).map((product) =>
-        `<button class="product-card" data-product="${product.id}" aria-label="Agregar ${escapeHtml(product.nombre)}, ${money(product.precio)}"><strong>${escapeHtml(product.nombre)}</strong><span>${money(product.precio)}${product.mezcla ? " · Personalizable" : ""}</span>${product.descripcion ? `<small class="detail">${escapeHtml(product.descripcion)}</small>` : ""}</button>`
-      ).join("");
+      const html = PRODUCTOS.filter((product) => product.categoria === category).map((product) => {
+        const soldOut = product.existencia === 0 || product.activo === false;
+        return `<button class="product-card" ${soldOut ? "disabled" : `data-product="${product.id}"`} aria-label="${soldOut ? "Agotado" : "Agregar"} ${escapeHtml(product.nombre)}, ${money(product.precio)}"><strong>${escapeHtml(product.nombre)}</strong><span>${money(product.precio)}${soldOut ? " · Se acabó" : product.mezcla ? " · Personalizable" : ""}</span>${product.descripcion ? `<small class="detail">${escapeHtml(product.descripcion)}</small>` : ""}</button>`;
+      }).join("");
       productGridCache.set(key, html);
       return html;
     }
@@ -1464,6 +1485,56 @@
       ).join("");
       productGridCache.set(key, html);
       return html;
+    }
+    function watchKitchenTickets() {
+      if (state.stationRole !== "cocina") return;
+      const ids = state.data.checks.flatMap((check) => check.tickets)
+        .filter((ticket) => ["pendiente", "preparacion"].includes(ticket.status))
+        .map((ticket) => ticket.id);
+      if (watchKitchenTickets.seen) {
+        const fresh = ids.filter((id) => !watchKitchenTickets.seen.has(id));
+        if (fresh.length) beepKitchen();
+      }
+      watchKitchenTickets.seen = new Set(ids);
+    }
+    function beepKitchen() {
+      try {
+        const context = beepKitchen.context || new AudioContext();
+        beepKitchen.context = context;
+        if (context.state === "suspended") void context.resume();
+        [0, 0.18].forEach((offset) => {
+          const tone = context.createOscillator();
+          const gain = context.createGain();
+          tone.frequency.value = 880;
+          tone.connect(gain);
+          gain.connect(context.destination);
+          const start = context.currentTime + offset;
+          gain.gain.setValueAtTime(0.0001, start);
+          gain.gain.exponentialRampToValueAtTime(0.18, start + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.16);
+          tone.start(start);
+          tone.stop(start + 0.17);
+        });
+      } catch {
+        /* el navegador puede bloquear el sonido hasta el primer toque */
+      }
+    }
+    function sentOrderHtml(table) {
+      if (!table || state.suggestionMode) return "";
+      const items = state.data.checks
+        .filter((check) => check.tableId === table.id)
+        .flatMap((check) => check.tickets.flatMap((ticket) => ticket.items));
+      const others = (state.shiftWaiters || []).filter((waiter) => waiter.user_id !== state.user?.id);
+      const pass = others.length
+        ? `<div class="actions"><label>Pasar a<select data-pass-target="${table.id}">${others.map((waiter) => `<option value="${escapeHtml(waiter.user_id)}">${escapeHtml(waiter.nombre)}</option>`).join("")}</select></label><button class="button" type="button" data-pass-table="${table.id}">Pasar mesa</button></div>`
+        : `<p class="muted">Para pasar la mesa, el otro mesero tiene que estar en turno en su propio aparato.</p>`;
+      if (!items.length) return `<section class="panel"><h3>Pasar mesa</h3>${pass}</section>`;
+      return `<section class="panel"><h3>Ya enviado</h3>
+        ${items.map((item) => `<div class="receipt-row"><span>${item.quantity}× ${escapeHtml(item.name)}</span>
+          <span class="actions"><button class="small-button" data-sent-item="${item.id}" data-sent-qty="${Math.max(0, item.quantity - 1)}">−</button>
+          <button class="small-button" data-sent-item="${item.id}" data-sent-qty="${Math.min(99, item.quantity + 1)}">+</button>
+          <button class="small-button" data-sent-item="${item.id}" data-sent-qty="0">Quitar</button></span></div>`).join("")}
+        ${pass}</section>`;
     }
     function renderWaiter() {
       const tables = [...state.data.tables].sort((a, b) => a.order - b.order);
@@ -1550,6 +1621,7 @@
           ? `Mesa a cargo de ${escapeHtml(ownerName)}. Tu comanda será una sugerencia y no se enviará a cocina hasta que la acepte.`
           : `Responsable: ${escapeHtml(ownerName)}. Puedes agregar artículos a la comanda.`}</p></div>
         <button class="button" data-action="back-tables">← Volver a mesas</button></header>
+        ${sentOrderHtml(table)}
         <div class="layout"><section class="panel">
           <p class="eyebrow">1 · Elige una categoría y un producto</p>
           <div class="categories">${categoryButtonsHtml()}</div>
@@ -1637,10 +1709,14 @@
               `<div><p><strong>${item.quantity}× ${escapeHtml(item.name)}</strong></p>
                 ${item.modifiers.length ? `<p class="detail">${escapeHtml(item.modifiers.map((modifier) => modifier.name).join(" · "))}</p>` : ""}
                 ${item.notes ? `<p class="detail"><strong>Nota:</strong> ${escapeHtml(item.notes)}</p>` : ""}
+                <div class="actions no-print">
+                  <button class="small-button" data-reject-item="${item.id}">Rechazar</button>
+                  ${item.productId ? `<button class="small-button" data-sold-out="${item.id}" data-product-id="${item.productId}">Se acabó</button>` : ""}
+                </div>
               </div>`
             ).join("")}</div>
             <div class="actions no-print"><button class="button ${next === "listo" ? "primary" : "warning"}" data-ticket-status="${ticket.id}" data-next-status="${next}">${label}</button>
-              <button class="button" data-print-kitchen="${ticket.id}">Imprimir</button></div></article>`;
+              <button class="button" data-print-kitchen="${ticket.id}">Reimprimir</button></div></article>`;
         }).join("")}</div>` : `<div class="panel empty"><strong>No hay comandas pendientes</strong><br>Los nuevos pedidos aparecerán aquí automáticamente.</div>`}`;
     }
     function renderCashier() {
@@ -1687,14 +1763,18 @@
           return renderReceipt(selected.table, current, checks);
         })()}</aside></div>
         ${state.showPaid ? paidTodayHtml() : ""}
-        ${state.cutOpen ? `<div class="section-heading"><h3>Corte de caja</h3><div class="toolbar no-print">
+        <div class="section-heading no-print"><h3>Corte a esta hora</h3>
+          <p class="section-description">No cierra el día. Sirve para contar a media jornada.</p>
+          ${state.cutOpen ? "" : `<button class="button primary" data-open-cut>Anotar conteo</button>`}
+        </div>
+        ${state.cutOpen ? `<div class="toolbar no-print">
           <label for="close-date" class="muted">Fecha</label>
           <input id="close-date" type="date" value="${escapeHtml(date)}">
           <label class="muted">Fondo<input id="cut-float" type="number" min="0" step="0.01" value="${escapeHtml(String(state.cutFloat ?? 0))}"></label>
           <label class="muted">Efectivo contado<input id="cut-counted" type="number" min="0" step="0.01" value="${escapeHtml(String(state.cutCounted ?? ""))}"></label>
-          <button class="button primary" data-save-cut>Guardar corte</button>
+          <button class="button primary" data-save-cut>Guardar conteo</button>
           <button class="button" data-print>Imprimir</button>
-          <button class="button" data-close-cut>Cerrar</button></div></div>
+          <button class="button" data-close-cut>Ocultar</button></div>` : ""}
         <div class="stats">
           <div class="stat"><span>Total vendido</span><strong>${money(sales)}</strong></div>
           <div class="stat"><span>Efectivo</span><strong>${money(cash)}</strong></div>
@@ -1709,8 +1789,7 @@
         <section class="panel"><h3>Productos más vendidos</h3>
           ${top.length ? `<div>${top.map(([name, item]) => `<div class="receipt-row"><span>${escapeHtml(name)} · ${item.quantity} pzas.</span><strong>${money(item.amount)}</strong></div>`).join("")}</div>` :
             `<p class="muted">Sin ventas registradas en esta fecha.</p>`}
-        </section>` : `<div class="section-heading no-print"><h3>Corte de caja</h3>
-          <button class="button primary" data-open-cut>Terminar jornada y hacer corte</button></div>`}`;
+        </section>`;
     }
     function cutData(date) {
       const settled = state.data.checks.filter((check) => check.operatingDate === date && ["pagada", "anulada"].includes(check.status));
@@ -1835,6 +1914,8 @@
             <button class="button" data-split-items="${check.id}">Separar marcados</button>
             <button class="button" data-move-check="${check.id}">Mover mesa</button>
             <button class="button" data-open-discount="${check.id}">Descuento</button>
+            <button class="button" data-add-forgotten="${check.id}">Agregar producto</button>
+            <button class="button" data-invoice="${check.id}">Nota</button>
             <button class="button" data-print-check="${check.id}">Imprimir ticket</button>
           </div>
           ${freeTables.length ? `<label>Mesa destino<select data-move-target="${check.id}">${freeTables.map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join("")}</select></label>` : `<p class="muted">No hay otra mesa libre para mover esta cuenta.</p>`}
@@ -2004,6 +2085,13 @@
         ...[...modal.querySelectorAll("[name='quick-note']:checked")].map((input) => input.value),
         modal.querySelector("[name='free-note']")?.value.trim() ?? ""
       ].filter(Boolean).join(", ") : "";
+      if (state.addToCheck) {
+        const checkId = state.addToCheck;
+        state.addToCheck = null;
+        closeModal();
+        void saveForgotten(checkId, product, quantity, modifiers, notes);
+        return;
+      }
       if (!addProductToDraft(product, quantity, modifiers, notes)) return;
       closeModal();
     }
@@ -2574,6 +2662,123 @@
         return;
       }
     });
+    async function correctSentItem(itemId, quantity) {
+      if (quantity === 0 && !window.confirm("¿Quitar este artículo ya enviado?")) return;
+      const { error } = await supabaseClient.rpc("mesero_corregir_articulo", {
+        p_item: itemId, p_cantidad: quantity, p_es_prueba: state.testMode
+      });
+      if (error) {
+        toast(error.message || "No se pudo corregir. Falta pegar la migración 0031.", true);
+        return;
+      }
+      toast(quantity === 0 ? "Artículo quitado de la comanda." : "Cantidad corregida.");
+      await refreshRemoteData();
+    }
+    async function passTable(tableId) {
+      const destino = document.querySelector(`[data-pass-target="${tableId}"]`)?.value;
+      if (!destino) {
+        toast("No hay otro mesero en turno.", true);
+        return;
+      }
+      const { error } = await supabaseClient.rpc("pasar_mesa", {
+        p_mesa: tableId, p_destino: destino, p_es_prueba: state.testMode
+      });
+      if (error) {
+        toast(error.message || "No se pudo pasar la mesa.", true);
+        return;
+      }
+      state.selectedTable = null;
+      state.draft = [];
+      toast("Mesa pasada al otro mesero.");
+      await refreshRemoteData();
+    }
+    async function rejectKitchenItem(itemId, soldOut) {
+      const reason = soldOut ? "Se acabó" : window.prompt("Motivo del rechazo");
+      if (!reason || !reason.trim()) return;
+      if (soldOut && !window.confirm("Se quita de la comanda y el producto queda agotado.")) return;
+      const { error } = await supabaseClient.rpc("cocina_rechazar_articulo", {
+        p_item: itemId, p_motivo: reason.trim(), p_agotar: soldOut
+      });
+      if (error) {
+        toast(error.message || "No se pudo rechazar. Falta pegar la migración 0031.", true);
+        return;
+      }
+      toast(soldOut ? "Producto marcado como agotado." : "Platillo rechazado.");
+      await refreshRemoteData();
+    }
+    function openForgottenPicker(checkId) {
+      const products = PRODUCTOS.filter((product) => product.existencia !== 0 && product.activo !== false);
+      document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop" data-dismiss-modal>
+        <section class="modal" role="dialog" aria-modal="true" aria-labelledby="forget-title">
+          <div class="modal-header"><h2 id="forget-title">Agregar a la cuenta</h2>
+            <button class="small-button" type="button" data-close-modal aria-label="Cerrar">✕</button></div>
+          <div class="product-grid">${products.map((product) =>
+            `<button class="product-card" type="button" data-forget-product="${product.id}" data-forget-check="${checkId}"><strong>${escapeHtml(product.nombre)}</strong><span>${money(product.precio)}</span></button>`
+          ).join("")}</div>
+        </section></div>`;
+      document.querySelector(".modal-backdrop").addEventListener("click", (event) => {
+        if (event.target.matches("[data-dismiss-modal]")) closeModal();
+      });
+    }
+    async function saveForgotten(checkId, product, quantity, modifiers, notes) {
+      const { error } = await supabaseClient.rpc("caja_agregar_articulo", {
+        p_cuenta: checkId,
+        p_producto: product.id,
+        p_cantidad: quantity,
+        p_notas: notes,
+        p_modificadores: modifiers.map((modifier) => modifier.name),
+        p_es_prueba: state.testMode
+      });
+      if (error) {
+        toast(error.message || "No se pudo agregar. Falta pegar la migración 0031.", true);
+        return;
+      }
+      closeModal();
+      toast(`${product.nombre} enviado a cocina.`);
+      await refreshRemoteData();
+    }
+    function openInvoiceDialog(checkId) {
+      const check = state.data.checks.find((item) => item.id === checkId);
+      document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop" data-dismiss-modal>
+        <section class="modal" role="dialog" aria-modal="true" aria-labelledby="invoice-title">
+          <div class="modal-header"><h2 id="invoice-title">Nota de ${escapeHtml(check?.tableName || "cuenta")}</h2>
+            <button class="small-button" type="button" data-close-modal aria-label="Cerrar">✕</button></div>
+          <p class="muted">Es una nota del local con folio. No es una factura del SAT.</p>
+          <label class="field">Nombre<input name="invoice-name" maxlength="120" required autocomplete="name"></label>
+          <label class="field">RFC (opcional)<input name="invoice-rfc" maxlength="13" autocomplete="off"></label>
+          <div class="modal-footer"><button class="button" type="button" data-close-modal>Cancelar</button>
+            <button class="button primary" type="button" data-confirm-invoice="${checkId}">Emitir e imprimir</button></div>
+        </section></div>`;
+      document.querySelector(".modal-backdrop").addEventListener("click", (event) => {
+        if (event.target.matches("[data-dismiss-modal]")) closeModal();
+      });
+    }
+    async function createInvoice(checkId) {
+      const name = document.querySelector("[name='invoice-name']")?.value.trim();
+      const rfc = document.querySelector("[name='invoice-rfc']")?.value.trim();
+      if (!name) {
+        toast("Escribe el nombre.", true);
+        return;
+      }
+      const { data, error } = await supabaseClient.rpc("crear_factura", {
+        p_cuenta: checkId, p_receptor: name, p_rfc: rfc || null
+      });
+      if (error) {
+        toast(error.message || "No se pudo emitir la nota. Falta pegar la migración 0031.", true);
+        return;
+      }
+      closeModal();
+      const items = Array.isArray(data?.items) ? data.items : [];
+      const root = document.getElementById("ticket-print");
+      root.innerHTML = `<h2>Tacos El Faro</h2><p>Nota ${escapeHtml(data.folio)}</p>
+        <p>${escapeHtml(data.mesa || "")} · ${escapeHtml(name)}${rfc ? ` · ${escapeHtml(rfc)}` : ""}</p>
+        <ul>${items.map((item) => `<li>${item.cantidad}× ${escapeHtml(item.nombre)} · ${money(Number(item.cantidad) * Number(item.precio))}</li>`).join("")}</ul>
+        <p><strong>Total ${money(Number(data.total || 0))}</strong></p>
+        <p>Esta nota no sustituye una factura fiscal.</p>`;
+      window.print();
+      root.innerHTML = "";
+      toast(`Nota ${data.folio} lista.`);
+    }
     document.addEventListener("click", async (event) => {
       const target = event.target.closest("button");
       if (!target) return;
@@ -2733,11 +2938,9 @@
       } else if (target.dataset.itemQty) {
         editCheckItem(target.dataset.check, target.dataset.itemQty, Number(target.dataset.qty));
       } else if (target.dataset.openCut !== undefined) {
-        if (window.confirm("¿Abrir el corte de caja?")) {
-          state.cutOpen = true;
-          state.closeDate = todayMty();
-          render();
-        }
+        state.cutOpen = true;
+        state.closeDate = todayMty();
+        render();
       } else if (target.dataset.closeCut !== undefined) {
         state.cutOpen = false;
         render();
@@ -2765,6 +2968,31 @@
       } else if (target.dataset.printKitchen) {
         const ticket = findKitchenTicket(target.dataset.printKitchen, target.dataset.fromHistory);
         if (ticket) printKitchenTicket(ticket);
+      } else if (target.dataset.sentItem) {
+        await correctSentItem(target.dataset.sentItem, Number(target.dataset.sentQty));
+      } else if (target.dataset.passTable) {
+        await passTable(target.dataset.passTable);
+      } else if (target.dataset.rejectItem) {
+        await rejectKitchenItem(target.dataset.rejectItem, false);
+      } else if (target.dataset.soldOut) {
+        await rejectKitchenItem(target.dataset.soldOut, true);
+      } else if (target.dataset.addForgotten) {
+        openForgottenPicker(target.dataset.addForgotten);
+      } else if (target.dataset.forgetProduct) {
+        const product = productById(target.dataset.forgetProduct);
+        const checkId = target.dataset.forgetCheck;
+        if (!product) return;
+        if (productNeedsDialog(product)) {
+          state.addToCheck = checkId;
+          closeModal();
+          openProductDialog(product);
+        } else {
+          await saveForgotten(checkId, product, 1, [], "");
+        }
+      } else if (target.dataset.invoice) {
+        openInvoiceDialog(target.dataset.invoice);
+      } else if (target.dataset.confirmInvoice) {
+        await createInvoice(target.dataset.confirmInvoice);
       } else if (target.dataset.openDiscount) {
         openDiscountDialog(target.dataset.openDiscount);
       } else if (target.dataset.confirmDiscount) {
