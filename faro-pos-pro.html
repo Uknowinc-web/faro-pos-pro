@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#17332b">
-  <title>Tacos El Faro — Servicio y Cocina</title>
+  <title>Tacos El Faro — Mesero, Cocina y Caja</title>
   <style>
     :root {
       color-scheme: light;
@@ -322,7 +322,7 @@
   <header class="topbar">
     <div class="brand">
       <img class="brand-mark" src="./logo-tacos-el-faro.svg" alt="">
-      <div><h1>Tacos El Faro</h1><p>Servicio · Cocina · Caja</p></div>
+      <div><h1>Tacos El Faro</h1><p>Mesero · Cocina · Caja</p></div>
     </div>
     <div class="clock" id="clock" aria-live="polite"></div>
   </header>
@@ -795,7 +795,7 @@
         }).format(new Date());
     }
     function stationRoleLabel(role) {
-      return ({ mesero: "servicio", cocina: "cocina", caja: "caja" })[role] ?? role;
+      return ({ mesero: "Mesero", cocina: "Cocina", caja: "Caja" })[role] ?? role;
     }
     function stationHeading(role) {
       return ({
@@ -807,7 +807,7 @@
     function renderStationCode() {
       const message = state.authMessage || (state.authReady ? "" : "Verificando acceso…");
       const boundMessage = state.stationBoundRole
-        ? `Este dispositivo está asignado al área de ${stationRoleLabel(state.stationBoundRole)}.`
+        ? `Este dispositivo está asignado al puesto de ${stationRoleLabel(state.stationBoundRole)}.`
         : "Al solicitar acceso, este dispositivo quedará asignado al área seleccionada.";
       return `<section class="panel access-card">
         <p class="eyebrow">Configuración inicial</p>
@@ -2926,7 +2926,7 @@
         }
       } else if (target.dataset.action === "add-table") {
         if (state.stationRole !== "mesero" || state.role !== "mesero") {
-          toast("Solo el área de servicio puede agregar mesas.", true);
+          toast("Solo un mesero puede agregar mesas.", true);
           return;
         }
         openCreateTableDialog();
