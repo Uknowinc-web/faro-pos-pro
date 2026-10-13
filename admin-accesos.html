@@ -80,7 +80,12 @@
     .management-row p { margin: .15rem 0; }
     .management-row .actions { margin: 0; }
     .management-row button { min-height: 38px; }
-    .management-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .5rem; align-items: end; }
+    .management-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .6rem .75rem; align-items: end; }
+    .management-form .actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; align-items: center; gap: .5rem; margin: .25rem 0 0; }
+    .management-form .actions button { flex: 0 0 auto; min-width: 132px; }
+    .management-row { align-items: center; }
+    .management-row .row-actions { display: flex; gap: .4rem; flex-shrink: 0; }
+    .management-row .row-actions button { min-width: 88px; }
     .management-form label { margin: .35rem 0; }
     .management-form .check-label { display: flex; align-items: center; gap: .5rem; min-height: 48px; }
     .management-form .check-label input { width: auto; min-height: auto; }
@@ -302,7 +307,9 @@
                 <option>Papas y Frijoles</option><option>Tortas</option><option>Postres</option><option>Bebidas</option>
               </select></label>
               <label>Precio (MXN)<input name="price" type="number" min="0" max="100000" step="0.01" required></label>
+              <label class="check-label"><input name="mix" type="checkbox"> Personalizable (elige carne)</label>
               <label class="check-label"><input name="active" type="checkbox" checked> Disponible</label>
+              <p class="muted">Bebidas y postres no aceptan personalización. Si lo marcas, el mesero elige carne como en un taco.</p>
               <div class="actions"><button class="primary" type="submit">Guardar producto</button><button type="button" data-clear-form>Limpiar</button></div>
             </form>
             <div id="products-list" class="management-list"></div>
@@ -501,7 +508,7 @@
       comandas: ["enviar_comanda", "reclamar_mesa", "actualizar_comanda", "editar_comanda"],
       cobros: ["cobrar_cuenta", "anular_cuenta", "aplicar_descuento", "quitar_descuento"],
       turnos: ["entrada_empleado", "salida_empleado"],
-      cambios: ["editar_producto", "editar_mesa", "editar_empleado"]
+      cambios: ["editar_producto", "editar_mesa", "editar_empleado", "cambio_nombre_admin", "baja_empleado", "eliminar_producto"]
     };
     function actionLabel(accion) {
       return ({
@@ -516,6 +523,9 @@
         editar_mesa: "editó mesa",
         editar_comanda: "editó comanda",
         editar_empleado: "editó empleado",
+        cambio_nombre_admin: "cambió su nombre de administrador",
+        baja_empleado: "dio de baja a un empleado",
+        eliminar_producto: "eliminó un producto del menú",
         aplicar_descuento: "aplicó descuento",
         quitar_descuento: "quitó descuento"
       })[accion] ?? accion;
@@ -719,7 +729,8 @@
       document.getElementById("products-list").innerHTML = latestProducts.filter((product) => product.categoria !== "Promociones").map((product) =>
         `<article class="management-row">
           <div><strong>${escapeHtml(product.nombre)}</strong><p class="muted">${escapeHtml(product.categoria)} · ${escapeHtml(money(product.precio))} · ${product.activo ? "Disponible" : "Pausado"}${product.permite_mezcla ? " · Personalizable" : ""}</p></div>
-          <button type="button" data-product-edit="${escapeHtml(product.id)}">Editar</button>
+          <div class="row-actions"><button type="button" data-product-edit="${escapeHtml(product.id)}">Editar</button>
+            <button class="danger" type="button" data-product-delete="${escapeHtml(product.id)}">Eliminar</button></div>
         </article>`
       ).join("") || `<p class="muted">No hay productos.</p>`;
 
@@ -744,7 +755,8 @@
             <p class="muted">${escapeHtml(roleLabel(employee.puesto))}${employee.aparato ? ` · ${escapeHtml(employee.aparato)}` : ""}</p>
             <p class="muted">${employee.entrada_at ? `<span class="status approved">En turno</span> desde ${escapeHtml(formatDate(employee.entrada_at))}` : `<span class="status">${employee.activo ? "Fuera de turno" : "Inactivo"}</span>${lastEntry ? ` · Última entrada ${escapeHtml(formatDate(lastEntry))}` : ""}`}</p>
             ${employee.pin ? `<details class="pin-chip"><summary>Ver PIN</summary><strong>${escapeHtml(employee.pin)}</strong></details>` : `<p class="muted pin-chip"><strong>Sin PIN asignado</strong> · edítalo para asignar uno.</p>`}</div>
-          <button type="button" data-employee-edit="${escapeHtml(employee.id)}">Editar</button>
+          <div class="row-actions"><button type="button" data-employee-edit="${escapeHtml(employee.id)}">Editar</button>
+            ${employee.activo ? `<button class="danger" type="button" data-employee-offboard="${escapeHtml(employee.id)}">Dar de baja</button>` : ""}</div>
         </article>`;
       }).join("") || `<p class="muted">Aún no hay empleados registrados.</p>`;
 
@@ -1126,7 +1138,12 @@
       const input = event.currentTarget.elements.nombre;
       const status = document.getElementById("admin-name-status");
       status.textContent = "Guardando…";
-      const { error } = await supabaseClient.rpc("guardar_perfil_admin", { p_nombre: input.value });
+      const nextName = input.value.trim();
+      if (adminName && nextName !== adminName && !window.confirm(`Cambiar tu nombre de «${adminName}» a «${nextName}». El cambio queda en la bitácora con el nombre anterior y el nuevo.`)) {
+        status.textContent = "";
+        return;
+      }
+      const { error } = await supabaseClient.rpc("guardar_perfil_admin", { p_nombre: nextName });
       if (error) { status.textContent = error.message; return; }
       status.textContent = "";
       await loadAdminProfile();
@@ -1272,9 +1289,12 @@
         document.getElementById("management-message").textContent = "Ya existe un producto con ese identificador. Selecciónalo para editarlo.";
         return;
       }
+      const category = form.elements.category.value;
+      const mix = Boolean(form.elements.mix?.checked) && !["Postres", "Bebidas"].includes(category);
       await saveManagementForm(form, "admin_guardar_producto", {
-        p_id: id, p_nombre: name, p_categoria: form.elements.category.value,
-        p_precio: Number(form.elements.price.value), p_activo: form.elements.active.checked
+        p_id: id, p_nombre: name, p_categoria: category,
+        p_precio: Number(form.elements.price.value), p_activo: form.elements.active.checked,
+        p_permite_mezcla: mix, p_permite_queso: false
       }, "Producto guardado.");
     });
     document.getElementById("promo-form").addEventListener("submit", async (event) => {
@@ -1326,6 +1346,7 @@
         form.elements.category.value = product.categoria;
         form.elements.price.value = product.precio;
         form.elements.active.checked = product.activo;
+        if (form.elements.mix) form.elements.mix.checked = Boolean(product.permite_mezcla);
       } else if (button.dataset.tableEdit) {
         const table = latestTables.find((item) => item.id === button.dataset.tableEdit);
         if (!table) return;
@@ -1333,6 +1354,22 @@
         form.elements.id.value = table.id;
         form.elements.name.value = table.nombre;
         form.elements.active.checked = table.activa;
+      } else if (button.dataset.productDelete) {
+        const product = latestProducts.find((item) => item.id === button.dataset.productDelete);
+        if (!product) return;
+        if (!window.confirm(`Eliminar «${product.nombre}» del menú. Si ya se vendió, solo se oculta. Si nunca se usó, se borra.`)) return;
+        const { error } = await supabaseClient.rpc("admin_eliminar_producto", { p_id: product.id });
+        if (error) { document.getElementById("management-message").textContent = error.message; return; }
+        document.getElementById("management-message").textContent = "Producto eliminado del menú.";
+        await loadManagement();
+      } else if (button.dataset.employeeOffboard) {
+        const employee = latestEmployees.find((item) => item.id === button.dataset.employeeOffboard);
+        if (!employee) return;
+        if (!window.confirm(`Dar de baja a ${employee.nombre}. Se cierra su turno, se liberan las mesas que tenía a cargo y ya no podrá entrar con su PIN.`)) return;
+        const { error } = await supabaseClient.rpc("admin_dar_baja_empleado", { p_id: employee.id });
+        if (error) { document.getElementById("management-message").textContent = error.message; return; }
+        document.getElementById("management-message").textContent = `${employee.nombre} dado de baja. Sus mesas quedaron libres.`;
+        await loadManagement();
       } else if (button.dataset.employeeEdit) {
         const employee = latestEmployees.find((item) => item.id === button.dataset.employeeEdit);
         if (!employee) return;
