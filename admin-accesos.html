@@ -415,6 +415,20 @@
       </section>
 
       <section id="panel-accesos" role="tabpanel" aria-labelledby="tab-accesos" hidden>
+        <section class="card section-block">
+          <h3>Ingreso de empleados</h3>
+          <p class="muted">Cierra mesero, cocina y caja. Administración entra a cualquier hora. El horario usa la hora de Monterrey. Si cierran después de medianoche, la hora de cierre puede ser menor que la de apertura, por ejemplo de 10:00 a 02:00.</p>
+          <p id="staff-access-status" class="message" role="status"></p>
+          <div class="actions">
+            <button id="staff-access-toggle" class="primary" type="button">Cerrar ingreso</button>
+          </div>
+          <div class="toolbar">
+            <label class="check-label"><input id="staff-access-schedule" type="checkbox"> Usar horario</label>
+            <label>Abre<input id="staff-access-open" type="time" value="10:00"></label>
+            <label>Cierra<input id="staff-access-close" type="time" value="23:00"></label>
+            <button id="staff-access-save" type="button">Guardar horario</button>
+          </div>
+        </section>
         <div class="actions" style="margin-top:0">
           <button id="toggle-codes" type="button" aria-expanded="false">Consultar códigos de puesto</button>
         </div>
@@ -1311,6 +1325,46 @@
     document.getElementById("audit-role-filter").addEventListener("change", () => {
       renderAudit(latestAudit);
     });
+
+    async function loadStaffGate() {
+      const status = document.getElementById("staff-access-status");
+      const { data, error } = await supabaseClient.rpc("ingreso_empleados_estado");
+      if (error || !data) {
+        if (status) status.textContent = "El control de horario aparece al pegar la migración 0034.";
+        return null;
+      }
+      document.getElementById("staff-access-schedule").checked = Boolean(data.usa_horario);
+      document.getElementById("staff-access-open").value = data.abre || "10:00";
+      document.getElementById("staff-access-close").value = data.cierra || "23:00";
+      const toggle = document.getElementById("staff-access-toggle");
+      toggle.textContent = data.interruptor ? "Cerrar ingreso" : "Abrir ingreso";
+      toggle.classList.toggle("danger", Boolean(data.interruptor));
+      if (status) status.textContent = data.abierto ? "Los empleados pueden entrar." : data.motivo;
+      return data;
+    }
+    async function saveStaffGate(forceOpen) {
+      const abierto = forceOpen == null
+        ? document.getElementById("staff-access-toggle").textContent.startsWith("Cerrar")
+        : forceOpen;
+      const { error } = await supabaseClient.rpc("admin_guardar_acceso_empleados", {
+        p_abierto: abierto,
+        p_usa_horario: document.getElementById("staff-access-schedule").checked,
+        p_abre: document.getElementById("staff-access-open").value,
+        p_cierra: document.getElementById("staff-access-close").value
+      });
+      const status = document.getElementById("staff-access-status");
+      if (error) {
+        status.textContent = error.message;
+        return;
+      }
+      await loadStaffGate();
+    }
+    document.getElementById("staff-access-toggle").addEventListener("click", () => {
+      const closing = document.getElementById("staff-access-toggle").textContent.startsWith("Cerrar");
+      void saveStaffGate(!closing);
+    });
+    document.getElementById("staff-access-save").addEventListener("click", () => void saveStaffGate(null));
+    void loadStaffGate();
 
     document.getElementById("toggle-codes").addEventListener("click", async (event) => {
       const button = event.currentTarget;
