@@ -80,9 +80,9 @@
     .management-row p { margin: .15rem 0; }
     .management-row .actions { margin: 0; }
     .management-row button { min-height: 38px; }
-    .management-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .6rem .75rem; align-items: end; }
-    .management-form .actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; align-items: center; gap: .5rem; margin: .25rem 0 0; }
-    .management-form .actions button { flex: 0 0 auto; min-width: 132px; }
+    .management-form { display: grid; grid-template-columns: 1fr; gap: .55rem; }
+    .management-form .actions { display: flex; justify-content: flex-start; align-items: center; gap: .5rem; margin: .4rem 0 .2rem; }
+    .management-form .actions button { min-width: 0; }
     .management-row { align-items: center; }
     .management-row .row-actions { display: flex; gap: .4rem; flex-shrink: 0; }
     .management-row .row-actions button { min-width: 88px; }
@@ -310,7 +310,7 @@
               <label class="check-label"><input name="mix" type="checkbox"> Personalizable (elige carne)</label>
               <label class="check-label"><input name="active" type="checkbox" checked> Disponible</label>
               <p class="muted">Bebidas y postres no aceptan personalización. Si lo marcas, el mesero elige carne como en un taco.</p>
-              <div class="actions"><button class="primary" type="submit">Guardar producto</button><button type="button" data-clear-form>Nueva ficha</button><button class="danger" type="button" id="product-delete" hidden>Eliminar del menú</button></div>
+              <div class="actions"><button class="primary" type="submit">Guardar</button><button type="button" data-clear-form hidden>Cancelar</button><button class="danger" type="button" id="product-delete" hidden>Eliminar</button></div>
             </form>
             <div id="products-list" class="management-list"></div>
           </section>
@@ -324,7 +324,7 @@
               <label>Precio (MXN)<input name="price" type="number" min="0" max="100000" step="0.01" required></label>
               <label>Descripción<input name="description" maxlength="300" placeholder="Qué incluye"></label>
               <label class="check-label"><input name="active" type="checkbox" checked> Vigente</label>
-              <div class="actions"><button class="primary" type="submit">Guardar promoción</button><button type="button" data-clear-form>Nueva ficha</button><button class="danger" type="button" id="promo-delete" hidden>Eliminar promoción</button></div>
+              <div class="actions"><button class="primary" type="submit">Guardar</button><button type="button" data-clear-form hidden>Cancelar</button></div>
             </form>
             <div id="promos-list" class="management-list"></div>
           </section>
@@ -336,7 +336,7 @@
               <input name="id" type="hidden">
               <label>Nombre<input name="name" maxlength="80" required></label>
               <label class="check-label"><input name="active" type="checkbox" checked> Activa</label>
-              <div class="actions"><button class="primary" type="submit">Guardar mesa</button><button type="button" data-clear-form>Limpiar</button></div>
+              <div class="actions"><button class="primary" type="submit">Guardar</button><button type="button" data-clear-form hidden>Cancelar</button></div>
             </form>
             <div id="tables-list" class="management-list"></div>
           </section>
@@ -1252,7 +1252,10 @@
       form.elements.id.value = "";
       if (form.elements.active) form.elements.active.checked = true;
       if (form.id === "employee-form") form.elements.pin.required = true;
-      form.querySelectorAll("button.danger").forEach((del) => { del.hidden = true; });
+      form.querySelectorAll("button.danger, [data-clear-form]").forEach((del) => { del.hidden = true; });
+    }
+    function showFormActions(form) {
+      form.querySelectorAll("[data-clear-form], button.danger").forEach((button) => { button.hidden = false; });
     }
     function slugify(value) {
       return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
@@ -1350,6 +1353,7 @@
         if (form.elements.mix) form.elements.mix.checked = Boolean(product.permite_mezcla);
         const del = document.getElementById("product-delete");
         if (del) { del.hidden = false; del.dataset.id = product.id; del.dataset.name = product.nombre; }
+        showFormActions(form);
       } else if (button.dataset.tableEdit) {
         const table = latestTables.find((item) => item.id === button.dataset.tableEdit);
         if (!table) return;
@@ -1357,6 +1361,7 @@
         form.elements.id.value = table.id;
         form.elements.name.value = table.nombre;
         form.elements.active.checked = table.activa;
+        showFormActions(form);
       } else if (button.id === "product-delete") {
         const id = button.dataset.id;
         const product = latestProducts.find((item) => item.id === id);
