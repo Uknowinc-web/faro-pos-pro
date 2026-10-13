@@ -523,7 +523,7 @@
               <label>Puesto<select name="role" required>
                 <option value="mesero">Mesero</option><option value="caja">Caja</option><option value="cocina">Cocina</option>
               </select></label>
-              <label>PIN (4–8 dígitos)<input name="pin" type="text" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" autocomplete="off" required></label>
+              <label>PIN nuevo (4–8 dígitos)<input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" autocomplete="new-password" required></label><p class="muted">Por seguridad, el PIN actual no se muestra. Al editar, deja el campo vacío para conservarlo o escribe uno nuevo para restablecerlo.</p>
               <label class="check-label"><input name="active" type="checkbox" checked> Activo</label>
               <div class="actions"><button class="primary" type="submit">Guardar</button><button type="button" data-close-employee>Cerrar</button></div>
               <div class="quiet-danger"><button class="danger" type="button" id="offboard-current-employee" hidden>Dar de baja</button></div>
@@ -1795,8 +1795,8 @@
         form.elements.id.value = employee.id;
         form.elements.name.value = employee.nombre;
         form.elements.role.value = employee.puesto;
-        form.elements.pin.value = employee.pin ?? "";
-        form.elements.pin.required = !employee.pin;
+        form.elements.pin.value = "";
+        form.elements.pin.required = false;
         form.elements.active.checked = employee.activo !== false;
         const remove = document.getElementById("offboard-current-employee");
         remove.hidden = employee.activo === false;
