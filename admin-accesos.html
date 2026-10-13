@@ -79,7 +79,7 @@
     .split-2 { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(280px, .85fr); gap: 1rem; align-items: start; }
     .tile-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: .55rem; }
     .tile { display: flex; flex-direction: column; gap: .3rem; padding: .7rem; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
-    .tile strong { line-height: 1.25; }
+    .tile.selected { outline: 2px solid var(--green); background: #e7f2ec; }
     .tile .muted { font-size: .82rem; }
     .tile-actions { display: flex; gap: .35rem; margin-top: auto; padding-top: .35rem; }
     .tile-actions button { flex: 1; min-height: 34px; padding: .25rem .4rem; font-size: .82rem; }
@@ -119,7 +119,24 @@
     .pin-chip { display: inline-block; margin-top: .25rem; font-size: .85rem; }
     .pin-chip summary { cursor: pointer; color: var(--green); font-weight: 650; }
     .pin-chip strong { letter-spacing: .12em; }
-    .account-editor[hidden] { display: none; }
+    .subnav { display: flex; gap: 1.1rem; margin: 0 0 .8rem; }
+    .subnav button { min-height: 36px; padding: .2rem .1rem; border: 0; border-bottom: 3px solid transparent; border-radius: 0; background: transparent; color: var(--muted); }
+    .subnav button[aria-pressed="true"] { color: var(--green); border-bottom-color: var(--green); }
+    .chip-row { display: flex; flex-wrap: wrap; gap: .4rem; flex: 1; }
+    .chip[aria-pressed="true"] { background: var(--green); color: white; border-color: var(--green); }
+    .catalog-toolbar { display: flex; justify-content: space-between; align-items: center; gap: .75rem; flex-wrap: wrap; margin-bottom: .35rem; }
+    .menu-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 1rem; align-items: start; }
+    .sheet-panel { position: sticky; top: 1rem; }
+    .person-columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .8rem; align-items: start; }
+    .gate-bar { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; padding: .9rem 1rem; border: 1px solid var(--green); border-radius: 16px; background: #e7f2ec; }
+    .gate-bar.closed { border-color: #e3b3ad; background: #fff0ed; }
+    .text-button { min-height: 0; padding: 0; border: 0; background: transparent; color: inherit; font-weight: 750; text-align: left; }
+    .stock-actions { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .35rem; }
+    .request-pending { background: #fff6e6; border-color: #e6c478; }
+    @media (max-width: 900px) {
+      .menu-layout, .person-columns { grid-template-columns: 1fr; }
+      .sheet-panel { position: static; }
+    }
     @media (max-width: 720px) {
       .grid-2 { grid-template-columns: 1fr; }
       .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: .25rem; scrollbar-width: none; }
@@ -131,6 +148,19 @@
     @media (min-width: 721px) and (max-width: 1100px) {
       main { padding: 1rem 1.25rem; }
       .management-grid { grid-template-columns: 1fr 1fr; }
+    }
+    .chip { min-height: 34px; padding: .25rem .75rem; border-radius: 999px; background: #fff; }
+    .chip[aria-pressed="true"], .chip[aria-pressed="true"]:hover { background: var(--green); color: white; border-color: var(--green); }
+    .subnav button:hover { background: transparent; }
+    .person-columns h4 { margin: 0; font-size: .95rem; }
+    .person-columns section { min-width: 0; }
+    #insumo-list { overflow-x: auto; }
+    .sheet tr.picked td { box-shadow: inset 3px 0 0 var(--green); }
+    .sheet-panel .management-form { grid-template-columns: 1fr; }
+    .stock-actions input { width: 7.2rem; min-width: 0; min-height: 36px; flex: 1 1 6.5rem; }
+    .stock-actions button { min-height: 36px; }
+    @media (max-width: 900px) {
+      #product-sheet { order: -1; }
     }
     @media (max-width: 480px) {
       .audit-row { grid-template-columns: 1fr; gap: .25rem; }
@@ -180,6 +210,7 @@
       #dashboard > .tabs { grid-column: 1; grid-row: 2 / span 20; position: sticky; top: 5rem; flex-direction: column; width: 100%; background: transparent; padding: 0; margin: 0; }
       #dashboard > .tabs .tab { text-align: left; justify-content: flex-start; padding: .6rem .9rem; }
       #dashboard > .tabs .tab[aria-selected="true"] { background: var(--accent-soft); color: var(--accent); box-shadow: none; }
+      #dashboard > #management-bar { grid-column: 2; }
       #dashboard > section:not(.dashboard-heading) { grid-column: 2; }
     }
     .top-row { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto auto; align-items: center; gap: .75rem; padding: .5rem 0; border-bottom: 1px solid var(--line); }
@@ -213,6 +244,7 @@
       .dashboard-heading .actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }
       .dashboard-heading .actions button { white-space: nowrap; padding: .5rem .35rem; }
     }
+    .subnav button:hover, .text-button:hover { background: transparent; }
   </style>
 </head>
 <body>
@@ -302,6 +334,18 @@
           <div id="floor-grid" class="floor-grid"></div>
         </div>
 
+        <section class="card section-block">
+          <h3>Mesas</h3>
+          <p class="muted">Las mesas nuevas quedan al final. Eliminar borra también su historial.</p>
+          <form id="table-form" class="management-form">
+            <input name="id" type="hidden">
+            <label>Nombre<input name="name" maxlength="80" required></label>
+            <label class="check-label"><input name="active" type="checkbox" checked> Activa</label>
+            <div class="actions"><button class="primary" type="submit">Guardar mesa</button><button type="button" data-clear-form>Limpiar</button></div>
+          </form>
+          <div id="tables-list" class="tile-grid"></div>
+        </section>
+
         <div class="section-block">
           <div class="section-head">
             <h3>Cocina</h3>
@@ -334,103 +378,73 @@
       </div>
 
       <section id="panel-catalogo" role="tabpanel" aria-labelledby="tab-catalogo" hidden>
-        <div class="catalog-forms">
-          <section class="card">
-            <h3>Producto</h3>
-            <form id="product-form" class="management-form">
-              <input name="id" type="hidden">
-              <label>Nombre<input name="name" maxlength="100" required></label>
-              <label>Categoría<select name="category" required>
-                <option>Tacos</option><option>Quesadillas</option><option>Especiales</option>
-                <option>Papas y Frijoles</option><option>Tortas</option><option>Postres</option><option>Bebidas</option>
-              </select></label>
-              <label>Precio (MXN)<input name="price" type="number" min="0" max="100000" step="0.01" required></label>
-              <label class="check-label"><input name="mix" type="checkbox"> Personalizable</label>
-              <label class="check-label"><input name="active" type="checkbox" checked> Disponible</label>
-              <div class="actions"><button class="primary" type="submit">Guardar</button><button type="button" data-clear-form>Limpiar</button></div>
-            </form>
-          </section>
-          <section class="card">
-            <h3>Promoción</h3>
-            <form id="promo-form" class="management-form">
-              <input name="id" type="hidden">
-              <label>Nombre<input name="name" maxlength="100" required placeholder="Combo 3 tacos + agua"></label>
-              <label>Precio (MXN)<input name="price" type="number" min="0" max="100000" step="0.01" required></label>
-              <label>Incluye<input name="description" maxlength="300" placeholder="Qué incluye"></label>
-              <label class="check-label"><input name="active" type="checkbox" checked> Vigente</label>
-              <div class="actions"><button class="primary" type="submit">Guardar</button><button type="button" data-clear-form>Limpiar</button></div>
-            </form>
-          </section>
-          <section class="card">
-            <h3>Mesa</h3>
-            <form id="table-form" class="management-form">
-              <input name="id" type="hidden">
-              <label>Nombre<input name="name" maxlength="80" required></label>
-              <label class="check-label"><input name="active" type="checkbox" checked> Activa</label>
-              <div class="actions"><button class="primary" type="submit">Guardar</button><button type="button" data-clear-form>Limpiar</button></div>
-            </form>
-          </section>
+        <div class="subnav" role="tablist" aria-label="Catálogo">
+          <button type="button" data-catalog-view="menu" aria-pressed="true">Menú</button>
+          <button type="button" data-catalog-view="almacen" aria-pressed="false">Almacén</button>
         </div>
-
-        <section class="card section-block">
-          <h3>Menú por categoría</h3>
-          <div id="products-list"></div>
-        </section>
-        <section class="card section-block">
-          <h3>Promociones</h3>
-          <div id="promos-list" class="tile-grid"></div>
-        </section>
-        <section class="card section-block">
-          <h3>Mesas</h3>
-          <div id="tables-list" class="tile-grid"></div>
-        </section>
-
-        <section class="card section-block">
-          <h3>Inventario</h3>
-          <p class="muted">Los insumos se agrupan en una tabla. La venta descuenta la receta. Lo que no tiene receta se controla por piezas.</p>
-          <div class="split-2">
-            <div>
-              <h3>Existencias</h3>
-              <div class="toolbar">
-                <input id="insumo-name" maxlength="80" placeholder="Insumo" aria-label="Nombre del insumo">
-                <select id="insumo-unit" aria-label="Unidad"><option>kg</option><option>g</option><option>pza</option><option>litro</option><option>ml</option><option>caja</option></select>
-                <input id="insumo-min" type="number" min="0" step="0.001" placeholder="Mínimo" aria-label="Mínimo">
-                <input id="insumo-cost" type="number" min="0" step="0.01" placeholder="Costo" aria-label="Costo">
-                <input id="insumo-stock" type="number" step="0.001" placeholder="Existencia" aria-label="Existencia inicial">
-                <button type="button" data-save-insumo>Agregar</button>
-              </div>
-              <div id="insumo-list"></div>
-            </div>
-            <div>
-              <h3>Movimiento</h3>
-              <div class="toolbar">
-                <select id="move-insumo" aria-label="Insumo"></select>
-                <select id="move-type" aria-label="Tipo"><option value="compra">Compra</option><option value="merma">Merma</option><option value="salida">Salida</option><option value="ajuste">Ajuste</option></select>
-                <input id="move-qty" type="number" step="0.001" placeholder="Cantidad" aria-label="Cantidad">
-                <input id="move-cost" type="number" min="0" step="0.01" placeholder="Costo" aria-label="Costo de esta compra">
-                <input id="move-reason" maxlength="160" placeholder="Proveedor o motivo" aria-label="Motivo">
-                <button type="button" data-save-move>Registrar</button>
-              </div>
-              <div id="movement-list"></div>
-            </div>
+        <div id="catalog-menu">
+          <div class="catalog-toolbar">
+            <div id="category-chips" class="chip-row"></div>
+            <button id="new-product" class="primary" type="button">+ Nuevo platillo</button>
           </div>
-          <div class="split-2" style="margin-top:1rem">
-            <div>
-              <h3>Recetas</h3>
-              <div class="toolbar">
-                <select id="recipe-product" aria-label="Producto"></select>
-                <select id="recipe-insumo" aria-label="Insumo de la receta"></select>
-                <input id="recipe-qty" type="number" min="0" step="0.001" placeholder="Por pieza" aria-label="Cantidad por pieza">
-                <button type="button" data-save-recipe>Guardar</button>
+          <p id="category-count" class="muted"></p>
+          <div class="menu-layout">
+            <div id="products-list" class="tile-grid"></div>
+            <aside id="product-sheet" class="card sheet-panel" hidden>
+              <form id="product-form" class="management-form">
+                <p class="eyebrow">Ficha</p>
+                <input name="id" type="hidden">
+                <label>Nombre<input name="name" maxlength="100" required></label>
+                <label>Categoría<select name="category" required>
+                  <option>Tacos</option><option>Quesadillas</option><option>Especiales</option>
+                  <option>Papas y Frijoles</option><option>Tortas</option><option>Postres</option><option>Bebidas</option>
+                </select></label>
+                <label>Precio (MXN)<input name="price" type="number" min="0" max="100000" step="0.01" required></label>
+                <label class="check-label"><input name="mix" type="checkbox"> Personalizable</label>
+                <label class="check-label"><input name="active" type="checkbox" checked> Disponible</label>
+                <div class="actions"><button class="primary" type="submit">Guardar ficha</button><button type="button" data-close-sheet>Cerrar</button></div>
+              </form>
+              <form id="promo-form" class="management-form" hidden>
+                <p class="eyebrow">Promoción</p>
+                <input name="id" type="hidden">
+                <label>Nombre<input name="name" maxlength="100" required placeholder="Combo 3 tacos + agua"></label>
+                <label>Precio (MXN)<input name="price" type="number" min="0" max="100000" step="0.01" required></label>
+                <label>Incluye<input name="description" maxlength="300" placeholder="Qué incluye"></label>
+                <label class="check-label"><input name="active" type="checkbox" checked> Vigente</label>
+                <div class="actions"><button class="primary" type="submit">Guardar</button><button type="button" data-close-sheet>Cerrar</button></div>
+              </form>
+              <div id="ficha-recipe">
+                <p class="muted">Receta por pieza. La venta descuenta estos insumos.</p>
+                <div id="recipe-list" class="tile-grid"></div>
+                <div class="toolbar">
+                  <select id="recipe-insumo" aria-label="Insumo de la receta"></select>
+                  <input id="recipe-qty" type="number" min="0" step="0.001" placeholder="Cantidad" aria-label="Cantidad por pieza">
+                  <button type="button" data-save-recipe>Agregar</button>
+                </div>
+                <select id="recipe-product" hidden aria-label="Producto de la receta"></select>
               </div>
-              <div id="recipe-list" class="tile-grid"></div>
-            </div>
-            <div>
-              <h3>Por pieza</h3>
-              <div id="inventory-list" class="tile-grid"></div>
-            </div>
+            </aside>
           </div>
-        </section>
+        </div>
+        <div id="catalog-stock" hidden>
+          <p class="muted">Lo que está bajo el mínimo queda arriba. Elige un insumo para comprar, registrar merma o ajustar.</p>
+          <div class="toolbar">
+            <input id="insumo-name" maxlength="80" placeholder="Nuevo insumo" aria-label="Nombre del insumo">
+            <select id="insumo-unit" aria-label="Unidad"><option>kg</option><option>g</option><option>pza</option><option>litro</option><option>ml</option><option>caja</option></select>
+            <input id="insumo-min" type="number" min="0" step="0.001" placeholder="Mínimo" aria-label="Mínimo">
+            <input id="insumo-cost" type="number" min="0" step="0.01" placeholder="Costo" aria-label="Costo">
+            <input id="insumo-stock" type="number" step="0.001" placeholder="Existencia" aria-label="Existencia inicial">
+            <button type="button" data-save-insumo>Agregar insumo</button>
+          </div>
+          <div class="card"><div id="insumo-list"></div></div>
+          <h3>Por pieza</h3>
+          <p class="muted">Platillos sin receta. En cero, el mesero ya no puede pedirlo.</p>
+          <div id="inventory-list" class="tile-grid"></div>
+          <select id="move-insumo" hidden></select>
+          <select id="move-type" hidden><option value="compra">Compra</option><option value="merma">Merma</option><option value="salida">Salida</option><option value="ajuste">Ajuste</option></select>
+          <input id="move-qty" hidden><input id="move-cost" hidden><input id="move-reason" hidden>
+          <div id="movement-list" hidden></div>
+        </div>
       </section>
 
       <section id="panel-cuentas" role="tabpanel" aria-labelledby="tab-cuentas" hidden>
@@ -448,61 +462,55 @@
       </section>
 
       <section id="panel-accesos" role="tabpanel" aria-labelledby="tab-accesos" hidden>
-        <section class="card section-block">
-          <h3>Ingreso de empleados</h3>
-          <p class="muted">Cierra mesero, cocina y caja. Administración entra a cualquier hora. El horario usa la hora de Monterrey. Si cierran después de medianoche, la hora de cierre puede ser menor que la de apertura, por ejemplo de 10:00 a 02:00.</p>
-          <p id="staff-access-status" class="message" role="status"></p>
-          <div class="actions">
-            <button id="staff-access-toggle" class="primary" type="button">Cerrar ingreso</button>
+        <div id="gate-bar" class="gate-bar">
+          <div>
+            <strong id="staff-access-status">Cargando ingreso…</strong>
+            <div class="toolbar">
+              <label class="check-label"><input id="staff-access-schedule" type="checkbox"> Usar horario</label>
+              <label>Abre<input id="staff-access-open" type="time" value="10:00"></label>
+              <label>Cierra<input id="staff-access-close" type="time" value="23:00"></label>
+              <button id="staff-access-save" type="button">Guardar horario</button>
+            </div>
+            <p class="muted">Si cierran después de medianoche, la hora de cierre puede ser menor. Ejemplo: 10:00 a 02:00. Administración entra siempre.</p>
           </div>
-          <div class="toolbar">
-            <label class="check-label"><input id="staff-access-schedule" type="checkbox"> Usar horario</label>
-            <label>Abre<input id="staff-access-open" type="time" value="10:00"></label>
-            <label>Cierra<input id="staff-access-close" type="time" value="23:00"></label>
-            <button id="staff-access-save" type="button">Guardar horario</button>
-          </div>
-        </section>
-        <div class="actions" style="margin-top:0">
-          <button id="toggle-codes" type="button" aria-expanded="false">Consultar códigos de puesto</button>
+          <button id="staff-access-toggle" type="button">Cerrar ingreso</button>
         </div>
+
+        <div class="section-head"><h3>Personas</h3></div>
+        <form id="employee-form" class="card management-form" hidden>
+          <input name="id" type="hidden">
+          <label>Nombre<input name="name" maxlength="80" required></label>
+          <label>Puesto<select name="role" required>
+            <option value="mesero">Mesero</option><option value="caja">Caja</option><option value="cocina">Cocina</option>
+          </select></label>
+          <label>PIN (4–8 dígitos)<input name="pin" type="text" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" autocomplete="off" required></label>
+          <label class="check-label"><input name="active" type="checkbox" checked> Activo</label>
+          <div class="actions"><button class="primary" type="submit">Guardar persona</button><button type="button" data-close-employee>Cerrar</button></div>
+        </form>
+        <div id="employees-list"></div>
+
+        <section class="card section-block">
+          <div class="section-head"><h3>Asistencia de hoy</h3><label>Fecha<input id="attendance-date" type="date"></label></div>
+          <div id="attendance-list" class="tile-grid"></div>
+        </section>
+
+        <div class="section-head">
+          <h3>Aparatos</h3>
+          <div class="actions">
+            <button id="toggle-codes" type="button" aria-expanded="false">Códigos de puesto</button>
+            <button id="cleanup-devices" type="button">Limpiar huérfanos</button>
+          </div>
+        </div>
+        <p id="dashboard-message" class="message" role="status"></p>
         <section id="codes-panel" class="codes-panel" hidden>
           <article>
             <h3>Códigos de puesto</h3>
-            <p class="muted">Compártelos directamente con el equipo de cada área. La autorización del dispositivo sigue siendo obligatoria.</p>
+            <p class="muted">Compártelos con el equipo. Autorizar el teléfono no crea a la persona.</p>
             <p id="codes-message" class="message" role="status"></p>
             <div id="codes-list" class="codes-grid"></div>
           </article>
         </section>
-
-        <section class="section-block">
-          <div class="section-head"><h3>Solicitudes de acceso</h3></div>
-          <p id="dashboard-message" class="message" role="status">Autorizar un aparato no crea un empleado. El empleado se da de alta abajo, con su PIN.</p>
-          <div class="actions" style="margin-top:0">
-            <button id="cleanup-devices" type="button">Limpiar aparatos huérfanos</button>
-          </div>
-          <div id="requests" class="requests"></div>
-        </section>
-
-        <section class="card section-block">
-          <h3>Empleados y PIN</h3>
-          <p class="muted">Los empleados se crean aquí, no al aprobar un aparato. Asigna nombre, puesto y PIN. El PIN abre turno en cualquier aparato ya autorizado de esa misma área. El PIN es único dentro de cada área.</p>
-          <form id="employee-form" class="management-form">
-            <input name="id" type="hidden">
-            <label>Nombre<input name="name" maxlength="80" required></label>
-            <label>Puesto<select name="role" required>
-              <option value="mesero">Mesero</option><option value="caja">Caja</option><option value="cocina">Cocina</option>
-            </select></label>
-            <label>PIN (4–8 dígitos)<input name="pin" type="text" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" autocomplete="off" required></label>
-            <label class="check-label"><input name="active" type="checkbox" checked> Activo</label>
-            <div class="actions"><button class="primary" type="submit">Guardar empleado</button><button type="button" data-clear-form>Limpiar</button></div>
-          </form>
-          <div id="employees-list" class="management-list"></div>
-        </section>
-
-        <section class="card section-block">
-          <div class="section-head"><h3>Asistencia</h3><label>Fecha<input id="attendance-date" type="date"></label></div>
-          <div id="attendance-list" class="management-list"></div>
-        </section>
+        <div id="requests" class="requests"></div>
       </section>
 
       <section id="panel-bitacora" role="tabpanel" aria-labelledby="tab-bitacora" hidden>
@@ -569,8 +577,8 @@
     const titles = {
       operacion: "Operación en vivo",
       cuentas: "Cuentas abiertas",
-      catalogo: "Productos, precios y mesas",
-      accesos: "Accesos del equipo",
+      catalogo: "Menú y almacén",
+      accesos: "Personas y aparatos",
       bitacora: "Bitácora de acciones"
     };
     let currentUser = null;
@@ -594,6 +602,13 @@
     let latestAttendance = [];
     let latestSales = [];
     let testMode = false;
+    let catalogView = "menu";
+    let menuCategory = "Tacos";
+    let selectedProductId = null;
+    let selectedStockId = null;
+    let sheetOpen = false;
+    let latestBundle = null;
+    const MENU_CATEGORIES = ["Tacos", "Quesadillas", "Especiales", "Tortas", "Papas y Frijoles", "Postres", "Bebidas", "Promociones"];
 
     function escapeHtml(value) {
       return String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -653,11 +668,13 @@
       }).format(new Date(value));
     }
     function formatDay(value) {
+      const date = typeof value === "string" && value.length === 10
+        ? new Date(`${value}T12:00:00`)
+        : new Date(value);
+      if (Number.isNaN(date.getTime())) return "la fecha elegida";
       return new Intl.DateTimeFormat("es-MX", {
         dateStyle: "medium", timeZone: "America/Monterrey"
-      }).format(typeof value === "string" && value.length === 10
-        ? new Date(`${value}T12:00:00`)
-        : new Date(value));
+      }).format(date);
     }
     function todayMtyInput() {
       const parts = new Intl.DateTimeFormat("en-CA", {
@@ -847,6 +864,7 @@
     }
 
     function renderManagement(data) {
+      latestBundle = data;
       latestProducts = data.products || [];
       latestTables = data.tables || [];
       latestEmployees = data.employees || [];
@@ -854,47 +872,54 @@
       latestAttendance = data.attendance || [];
       latestSales = data.sales || [];
       const menuProducts = latestProducts.filter((product) => product.categoria !== "Promociones" && !/barra|barista/i.test(`${product.categoria} ${product.nombre}`));
-      const categoryOrder = ["Tacos", "Quesadillas", "Especiales", "Tortas", "Papas y Frijoles", "Postres", "Bebidas"];
-      const categories = [...new Set(menuProducts.map((product) => product.categoria))]
-        .sort((a, b) => (categoryOrder.indexOf(a) + 1 || 99) - (categoryOrder.indexOf(b) + 1 || 99));
-      document.getElementById("products-list").innerHTML = categories.map((category) =>
-        `<section class="menu-group"><h4>${escapeHtml(category)}</h4><div class="tile-grid">${
-          menuProducts.filter((product) => product.categoria === category).map((product) =>
-            `<article class="tile"><strong>${escapeHtml(product.nombre)}</strong>
-              <span class="muted">${escapeHtml(money(product.precio))} · ${product.activo ? "Disponible" : "Pausado"}${product.permite_mezcla ? " · Personalizable" : ""}</span>
-              <div class="tile-actions"><button type="button" data-product-edit="${escapeHtml(product.id)}">Editar</button>
-                <button class="danger" type="button" data-product-delete="${escapeHtml(product.id)}">Eliminar</button></div></article>`
-          ).join("")
-        }</div></section>`
-      ).join("") || `<p class="muted">No hay productos.</p>`;
+      const categoryOrder = MENU_CATEGORIES;
+      if (!categoryOrder.includes(menuCategory)) menuCategory = "Tacos";
+      const isPromo = menuCategory === "Promociones";
+      document.getElementById("category-chips").innerHTML = categoryOrder.map((category) =>
+        `<button type="button" class="chip" data-menu-category="${escapeHtml(category)}" aria-pressed="${category === menuCategory}">${escapeHtml(category)}</button>`
+      ).join("");
+      const visible = isPromo
+        ? latestProducts.filter((product) => product.categoria === "Promociones")
+        : menuProducts.filter((product) => product.categoria === menuCategory);
+      document.getElementById("category-count").textContent = `${visible.length} ${isPromo ? "promociones" : "platillos"}`;
+      document.getElementById("new-product").textContent = isPromo ? "+ Nueva promoción" : "+ Nuevo platillo";
+      document.getElementById("products-list").innerHTML = visible.map((product) =>
+        `<article class="tile ${product.id === selectedProductId ? "selected" : ""}">
+          <button type="button" class="text-button" data-product-edit="${escapeHtml(product.id)}"><strong>${escapeHtml(product.nombre)}</strong></button>
+          <span class="muted">${escapeHtml(money(product.precio))} · ${product.activo ? (isPromo ? "Vigente" : "Disponible") : "Pausado"}${product.permite_mezcla ? " · Personalizable" : ""}</span>
+          ${product.descripcion ? `<span class="muted">${escapeHtml(product.descripcion)}</span>` : ""}
+          <div class="tile-actions"><button type="button" data-product-edit="${escapeHtml(product.id)}">Ficha</button>
+            ${isPromo ? "" : `<button class="danger" type="button" data-product-delete="${escapeHtml(product.id)}">Eliminar</button>`}</div></article>`
+      ).join("") || `<p class="muted">Nada en ${escapeHtml(menuCategory)}.</p>`;
+      document.getElementById("product-sheet").hidden = !sheetOpen;
+      document.getElementById("product-form").hidden = isPromo;
+      document.getElementById("promo-form").hidden = !isPromo;
+      document.getElementById("ficha-recipe").hidden = isPromo || !selectedProductId;
+      document.getElementById("catalog-menu").hidden = catalogView !== "menu";
+      document.getElementById("catalog-stock").hidden = catalogView !== "almacen";
+      document.querySelectorAll("[data-catalog-view]").forEach((button) => {
+        button.setAttribute("aria-pressed", String(button.dataset.catalogView === catalogView));
+      });
 
-      document.getElementById("promos-list").innerHTML = latestProducts.filter((product) => product.categoria === "Promociones").map((promo) =>
-        `<article class="tile"><strong>${escapeHtml(promo.nombre)}</strong>
-          <span class="muted">${escapeHtml(money(promo.precio))} · ${promo.activo ? "Vigente" : "Pausada"}</span>
-          ${promo.descripcion ? `<span class="muted">${escapeHtml(promo.descripcion)}</span>` : ""}
-          <div class="tile-actions"><button type="button" data-promo-edit="${escapeHtml(promo.id)}">Editar</button></div></article>`
-      ).join("") || `<p class="muted">Aún no hay promociones.</p>`;
-
-      document.getElementById("tables-list").innerHTML = latestTables.filter((table) => table.activa !== false).map((table) =>
+      document.getElementById("tables-list").innerHTML = latestTables.map((table) =>
         `<article class="tile"><strong>${escapeHtml(table.nombre)}</strong>
-          <span class="muted">${escapeHtml(mesaEstadoLabel(table.estado))}${table.es_prueba ? " · Prueba" : ""}</span>
+          <span class="muted">${table.activa === false ? "Inactiva" : escapeHtml(mesaEstadoLabel(table.estado))}${table.es_prueba ? " · Prueba" : ""}</span>
           <div class="tile-actions"><button type="button" data-table-edit="${escapeHtml(table.id)}">Editar</button>
             <button class="danger" type="button" data-table-delete="${escapeHtml(table.id)}">Eliminar</button></div></article>`
       ).join("") || `<p class="muted">No hay mesas en este modo.</p>`;
 
       const roleOrder = ["mesero", "cocina", "caja"];
       const extraPeople = latestEmployees.filter((employee) => !roleOrder.includes(employee.puesto));
-      const grouped = roleOrder.map((role) => {
+      const grouped = `<div class="person-columns">${roleOrder.map((role) => {
         const people = latestEmployees.filter((employee) => employee.puesto === role);
-        if (!people.length) return "";
-        return `<section class="menu-group"><h4>${escapeHtml(roleLabel(role))}</h4><div class="tile-grid">${people.map((employee) => {
-          return `<article class="tile"><strong>${escapeHtml(employee.nombre)}</strong>
+        return `<section><div class="section-head"><h4>${escapeHtml(roleLabel(role))}</h4><button type="button" data-new-employee="${role}">+ Nueva</button></div><div class="tile-grid">${people.map((employee) =>
+          `<article class="tile"><strong>${escapeHtml(employee.nombre)}</strong>
             <span class="muted">${employee.entrada_at ? "En turno" : employee.activo ? "Fuera de turno" : "Inactivo"}${employee.aparato ? ` · ${escapeHtml(employee.aparato)}` : ""}</span>
-            ${employee.pin ? `<details class="pin-chip"><summary>Ver PIN</summary><strong>${escapeHtml(employee.pin)}</strong></details>` : `<span class="muted">Sin PIN</span>`}
+            ${employee.pin ? `<details class="pin-chip"><summary>PIN</summary><strong>${escapeHtml(employee.pin)}</strong></details>` : `<span class="muted">Sin PIN</span>`}
             <div class="tile-actions"><button type="button" data-employee-edit="${escapeHtml(employee.id)}">Editar</button>
-              ${employee.activo ? `<button class="danger" type="button" data-employee-offboard="${escapeHtml(employee.id)}">Baja</button>` : ""}</div></article>`;
-        }).join("")}</div></section>`;
-      }).join("");
+              ${employee.activo ? `<button class="danger" type="button" data-employee-offboard="${escapeHtml(employee.id)}">Baja</button>` : ""}</div></article>`
+        ).join("") || `<p class="muted">Nadie en esta área.</p>`}</div></section>`;
+      }).join("")}</div>`;
       const extras = extraPeople.length ? `<section class="menu-group"><h4>Otros</h4><div class="tile-grid">${extraPeople.map((employee) =>
         `<article class="tile"><strong>${escapeHtml(employee.nombre)}</strong><span class="muted">${escapeHtml(roleLabel(employee.puesto))}</span></article>`
       ).join("")}</div></section>` : "";
@@ -978,10 +1003,9 @@
       }
       const insumoRoot = document.getElementById("insumo-list");
       if (insumoRoot) {
-        insumoRoot.innerHTML = (data.insumos || []).length ? `<table class="sheet"><thead><tr><th>Insumo</th><th>Hay</th><th>Mínimo</th><th>Costo</th><th></th></tr></thead><tbody>${
-          (data.insumos || []).map((item) =>
-            `<tr class="${item.bajo ? "low" : ""}"><td>${escapeHtml(item.nombre)}</td><td>${Number(item.existencia)} ${escapeHtml(item.unidad)}</td><td>${Number(item.minimo)}</td><td>${escapeHtml(money(item.costo))}</td><td>${item.bajo ? "Bajo" : ""}</td></tr>`
-          ).join("")
+        const sortedStock = [...(data.insumos || [])].sort((a, b) => Number(Boolean(b.bajo)) - Number(Boolean(a.bajo)) || a.nombre.localeCompare(b.nombre, "es"));
+        insumoRoot.innerHTML = sortedStock.length ? `<table class="sheet"><thead><tr><th>Insumo</th><th>Hay</th><th>Mínimo</th><th>Costo</th><th></th></tr></thead><tbody>${
+          sortedStock.map((item) => `<tr class="${item.bajo ? "low" : ""} ${item.id === selectedStockId ? "picked" : ""}"><td><button type="button" class="text-button" data-stock-pick="${escapeHtml(item.id)}">${escapeHtml(item.nombre)}</button>${item.bajo ? ` <span class="status rejected">Bajo</span>` : ""}</td><td>${Number(item.existencia)} ${escapeHtml(item.unidad)}</td><td>${Number(item.minimo)}</td><td>${escapeHtml(money(item.costo))}</td><td>${item.id === selectedStockId ? `<div class="stock-actions"><input data-row-qty type="number" min="0" step="0.001" placeholder="Cantidad" aria-label="Cantidad"><input data-row-cost type="number" min="0" step="0.01" placeholder="Costo" aria-label="Costo"><input data-row-reason maxlength="160" placeholder="Motivo" aria-label="Motivo"><button class="primary" type="button" data-row-move="compra" data-row-id="${escapeHtml(item.id)}">Compra</button><button type="button" data-row-move="merma" data-row-id="${escapeHtml(item.id)}">Merma</button><button type="button" data-row-move="ajuste" data-row-id="${escapeHtml(item.id)}">Ajuste</button></div>` : ""}</td></tr>`).join("")
         }</tbody></table>` : `<p class="muted">Todavía no hay insumos. Pega la migración 0032.</p>`;
         const options = (data.insumos || []).map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.nombre)} · ${escapeHtml(item.unidad)}</option>`).join("");
         const moveSelect = document.getElementById("move-insumo");
@@ -991,8 +1015,10 @@
       }
       const recipeProduct = document.getElementById("recipe-product");
       if (recipeProduct) {
-        recipeProduct.innerHTML = (data.products || []).filter((product) => product.activo !== false).map((product) =>
+        const recipeChoices = (data.products || []).filter((product) => product.activo !== false || product.id === selectedProductId);
+        recipeProduct.innerHTML = recipeChoices.map((product) =>
           `<option value="${escapeHtml(product.id)}">${escapeHtml(product.nombre)}</option>`).join("");
+        if (selectedProductId) recipeProduct.value = selectedProductId;
       }
       const movementRoot = document.getElementById("movement-list");
       if (movementRoot) {
@@ -1003,11 +1029,17 @@
         }</tbody></table>` : `<p class="muted">Sin movimientos.</p>`;
       }
       const recipeRoot = document.getElementById("recipe-list");
+      const recipeCaption = document.querySelector("#ficha-recipe .muted");
       if (recipeRoot) {
-        recipeRoot.innerHTML = (data.recipes || []).map((item) =>
-          `<article class="tile"><strong>${escapeHtml(item.producto)}</strong><span class="muted">${Number(item.cantidad)} ${escapeHtml(item.unidad)} de ${escapeHtml(item.insumo)}</span>
+        const recipeProductId = selectedProductId || recipeProduct?.value || "";
+        const recipeName = latestProducts.find((product) => product.id === recipeProductId)?.nombre;
+        if (recipeCaption) recipeCaption.textContent = recipeName
+          ? `Receta de ${recipeName}. Cada venta descuenta estos insumos.`
+          : "Receta por pieza. La venta descuenta estos insumos.";
+        recipeRoot.innerHTML = (data.recipes || []).filter((item) => !recipeProductId || item.producto_id === recipeProductId).map((item) =>
+          `<article class="tile"><strong>${escapeHtml(item.insumo)}</strong><span class="muted">${Number(item.cantidad)} ${escapeHtml(item.unidad)}</span>
             <div class="tile-actions"><button type="button" data-clear-recipe="${escapeHtml(item.producto_id)}" data-recipe-insumo="${escapeHtml(item.insumo_id)}">Quitar</button></div></article>`
-        ).join("") || `<p class="muted">Sin recetas.</p>`;
+        ).join("") || `<p class="muted">Este platillo todavía no tiene receta.</p>`;
       }
       document.querySelectorAll("[data-add-product]").forEach(syncAddOptions);
     }
@@ -1191,36 +1223,28 @@
         dashboardMessage.textContent = "No se pudieron consultar las solicitudes. Inténtalo de nuevo.";
         return;
       }
-      requestsRoot.innerHTML = data.length ? data.map((request) => {
-        const statusLabel = {
-          pending: "Pendiente", approved: "Aprobado", rejected: "Rechazado", revoked: "Revocado"
-        }[request.status] ?? request.status;
+      const card = (request) => {
+        const pending = request.status === "pending";
+        const statusLabel = { pending: "Pendiente", approved: "Aprobado", rejected: "Rechazado", revoked: "Revocado" }[request.status] ?? request.status;
         let controls = "";
-        if (request.status === "pending") {
-          controls = `<div class="actions">
-            <button class="primary" type="button" data-approve="${escapeHtml(request.user_id)}">Autorizar dispositivo</button>
-            <button class="danger" type="button" data-reject="${escapeHtml(request.user_id)}">Rechazar solicitud</button>
-          </div>`;
+        if (pending) {
+          controls = `<div class="actions"><button class="primary" type="button" data-approve="${escapeHtml(request.user_id)}">Aprobar</button><button type="button" data-reject="${escapeHtml(request.user_id)}">Rechazar</button><button class="danger" type="button" data-delete="${escapeHtml(request.user_id)}">Eliminar</button></div>`;
         } else if (request.status === "approved") {
-          controls = `<div class="actions"><button class="danger" type="button" data-revoke="${escapeHtml(request.user_id)}">Retirar acceso</button></div>`;
+          controls = `<div class="tile-actions"><button class="danger" type="button" data-revoke="${escapeHtml(request.user_id)}">Retirar</button><button class="danger" type="button" data-delete="${escapeHtml(request.user_id)}">Eliminar</button></div>`;
         } else {
-          controls = `<div class="actions"><button class="primary" type="button" data-reactivate="${escapeHtml(request.user_id)}">Autorizar nuevamente</button></div>`;
+          controls = `<div class="tile-actions"><button class="primary" type="button" data-reactivate="${escapeHtml(request.user_id)}">Autorizar</button><button class="danger" type="button" data-delete="${escapeHtml(request.user_id)}">Eliminar</button></div>`;
         }
-        controls = controls.replace(/<\/div>$/, `<button class="danger" type="button" data-delete="${escapeHtml(request.user_id)}">Eliminar dispositivo</button></div>`);
-        return `<article>
-          <div class="request-head">
-            <h3>${escapeHtml(request.device_label)}</h3>
-            <span class="status ${escapeHtml(request.status)}">${escapeHtml(statusLabel)}</span>
-          </div>
-          <p><strong>Área solicitada:</strong> ${escapeHtml(roleLabel(request.requested_role))}</p>
-          <p class="muted">Aparato. La persona entra con su PIN después de que lo autorices.</p>
-          
-          ${request.status === "approved" && request.empleado_id ? `<p class="muted">${request.en_turno ? `En turno desde ${escapeHtml(formatDate(request.entrada_at))}` : "Fuera de turno"}</p>` : ""}
-          <p><strong>Fecha de solicitud:</strong> ${escapeHtml(formatDate(request.requested_at))}</p>
-          <details class="pin-chip"><summary>Detalles técnicos</summary><span class="muted">ID: ${escapeHtml(request.user_id)}</span></details>
-          ${controls}
-        </article>`;
-      }).join("") : `<article class="muted">Aún no hay solicitudes de acceso.</article>`;
+        if (pending) {
+          return `<article class="request-pending"><div class="request-head"><h3>${escapeHtml(request.device_label)}</h3><span class="status pending">${escapeHtml(statusLabel)}</span></div><p class="muted">Solicitud pendiente · ${escapeHtml(roleLabel(request.requested_role))}</p>${controls}</article>`;
+        }
+        return `<article class="tile"><strong>${escapeHtml(request.device_label)}</strong><span class="muted">${escapeHtml(statusLabel)} · ${escapeHtml(roleLabel(request.requested_role))}</span>${controls}</article>`;
+      };
+      const pending = data.filter((request) => request.status === "pending");
+      const approved = data.filter((request) => request.status === "approved");
+      const others = data.filter((request) => !["pending", "approved"].includes(request.status));
+      requestsRoot.innerHTML = data.length
+        ? `${pending.map(card).join("")}<div class="tile-grid">${approved.map(card).join("")}${others.map(card).join("")}</div>`
+        : `<article class="muted">Aún no hay aparatos.</article>`;
       dashboardMessage.textContent = `Solicitudes actualizadas ${formatDate(new Date().toISOString())}. Verifica el nombre y el área antes de autorizar cada dispositivo.`;
     }
 
@@ -1391,7 +1415,11 @@
       const toggle = document.getElementById("staff-access-toggle");
       toggle.textContent = data.interruptor ? "Cerrar ingreso" : "Abrir ingreso";
       toggle.classList.toggle("danger", Boolean(data.interruptor));
-      if (status) status.textContent = data.abierto ? "Los empleados pueden entrar." : data.motivo;
+      toggle.classList.toggle("primary", data.abierto === false);
+      document.getElementById("gate-bar")?.classList.toggle("closed", data.abierto === false);
+      if (status) status.textContent = data.abierto
+        ? `Ingreso abierto${data.usa_horario ? ` · ${data.abre} a ${data.cierra}` : ""}`
+        : data.motivo;
       return data;
     }
     async function saveStaffGate(forceOpen) {
@@ -1524,9 +1552,11 @@
         clearManagementForm(form);
         document.getElementById("management-message").textContent = successMessage;
         await loadManagement();
+        return true;
       } catch (error) {
         console.error(`No se pudo guardar mediante ${rpc}.`, error);
         document.getElementById("management-message").textContent = error.message || "No se pudieron guardar los cambios.";
+        return false;
       } finally {
         button.disabled = false;
       }
@@ -1548,20 +1578,33 @@
       }
       const category = form.elements.category.value;
       const mix = Boolean(form.elements.mix?.checked) && !["Postres", "Bebidas"].includes(category);
-      await saveManagementForm(form, "admin_guardar_producto", {
+      const ok = await saveManagementForm(form, "admin_guardar_producto", {
         p_id: id, p_nombre: name, p_categoria: category,
         p_precio: Number(form.elements.price.value), p_activo: form.elements.active.checked,
         p_permite_mezcla: mix, p_permite_queso: false
       }, "Producto guardado.");
+      const saved = ok ? latestProducts.find((item) => item.id === id) : null;
+      if (saved) {
+        openProductSheet(saved);
+        document.getElementById("management-message").textContent = "Producto guardado. La receta se arma en esta ficha.";
+      }
     });
     document.getElementById("promo-form").addEventListener("submit", async (event) => {
       event.preventDefault();
       const form = event.currentTarget;
-      await saveManagementForm(form, "admin_guardar_promocion", {
-        p_id: form.elements.id.value || null, p_nombre: form.elements.name.value.trim(),
+      const promoName = form.elements.name.value.trim();
+      const promoId = form.elements.id.value;
+      const ok = await saveManagementForm(form, "admin_guardar_promocion", {
+        p_id: promoId || null, p_nombre: promoName,
         p_precio: Number(form.elements.price.value), p_descripcion: form.elements.description.value.trim(),
         p_activo: form.elements.active.checked
       }, "Promoción guardada.");
+      const saved = ok ? latestProducts.find((item) => item.id === promoId)
+        || latestProducts.find((item) => item.categoria === "Promociones" && item.nombre === promoName) : null;
+      if (saved) {
+        openProductSheet(saved);
+        document.getElementById("management-message").textContent = "Promoción guardada.";
+      }
     });
     document.getElementById("table-form").addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -1577,16 +1620,108 @@
     document.getElementById("employee-form").addEventListener("submit", async (event) => {
       event.preventDefault();
       const form = event.currentTarget;
-      await saveManagementForm(form, "admin_guardar_empleado", {
+      const ok = await saveManagementForm(form, "admin_guardar_empleado", {
         p_id: form.elements.id.value || null, p_nombre: form.elements.name.value.trim(),
         p_puesto: form.elements.role.value, p_pin: form.elements.pin.value,
         p_activo: form.elements.active.checked
       }, "Empleado guardado.");
+      if (ok) form.hidden = true;
     });
+
+    function openProductSheet(product) {
+      selectedProductId = product.id;
+      sheetOpen = true;
+      menuCategory = MENU_CATEGORIES.includes(product.categoria) ? product.categoria : "Tacos";
+      if (product.categoria === "Promociones") {
+        const form = document.getElementById("promo-form");
+        form.elements.id.value = product.id;
+        form.elements.name.value = product.nombre;
+        form.elements.price.value = product.precio;
+        form.elements.description.value = product.descripcion ?? "";
+        form.elements.active.checked = product.activo;
+      } else {
+        const form = document.getElementById("product-form");
+        form.elements.id.value = product.id;
+        form.elements.name.value = product.nombre;
+        if ([...form.elements.category.options].some((option) => option.value === product.categoria)) {
+          form.elements.category.value = product.categoria;
+        }
+        form.elements.price.value = product.precio;
+        form.elements.active.checked = product.activo;
+        if (form.elements.mix) form.elements.mix.checked = Boolean(product.permite_mezcla);
+      }
+      if (latestBundle) renderManagement(latestBundle);
+      document.getElementById("product-sheet")?.scrollIntoView({ block: "nearest" });
+    }
 
     document.getElementById("dashboard").addEventListener("click", async (event) => {
       const button = event.target.closest("button");
       if (!button) return;
+      if (button.dataset.catalogView && latestBundle) {
+        catalogView = button.dataset.catalogView;
+        renderManagement(latestBundle);
+        return;
+      }
+      if (button.dataset.menuCategory && latestBundle) {
+        menuCategory = button.dataset.menuCategory;
+        selectedProductId = null;
+        sheetOpen = false;
+        renderManagement(latestBundle);
+        return;
+      }
+      if (button.id === "new-product") {
+        sheetOpen = true;
+        selectedProductId = null;
+        const form = document.getElementById(menuCategory === "Promociones" ? "promo-form" : "product-form");
+        clearManagementForm(form);
+        if (form.elements.category) form.elements.category.value = menuCategory;
+        if (latestBundle) renderManagement(latestBundle);
+        document.getElementById("product-sheet")?.scrollIntoView({ block: "nearest" });
+        form.elements.name?.focus();
+        return;
+      }
+      if (button.dataset.closeSheet !== undefined && latestBundle) {
+        sheetOpen = false;
+        selectedProductId = null;
+        renderManagement(latestBundle);
+        return;
+      }
+      if (button.dataset.newEmployee) {
+        const form = document.getElementById("employee-form");
+        clearManagementForm(form);
+        form.hidden = false;
+        form.elements.role.value = button.dataset.newEmployee;
+        form.scrollIntoView({ block: "nearest" });
+        return;
+      }
+      if (button.dataset.closeEmployee !== undefined) {
+        document.getElementById("employee-form").hidden = true;
+        return;
+      }
+      if (button.dataset.stockPick && latestBundle) {
+        selectedStockId = button.dataset.stockPick;
+        renderManagement(latestBundle);
+        return;
+      }
+      if (button.dataset.rowMove) {
+        const row = button.closest("tr");
+        const rawQty = row?.querySelector("[data-row-qty]")?.value ?? "";
+        const qty = Number(rawQty);
+        if (rawQty.trim() === "" || Number.isNaN(qty) || qty < 0 || (button.dataset.rowMove !== "ajuste" && qty === 0)) {
+          document.getElementById("management-message").textContent = "Escribe la cantidad.";
+          return;
+        }
+        const { error } = await supabaseClient.rpc("admin_movimiento_inventario", {
+          p_insumo: button.dataset.rowId,
+          p_tipo: button.dataset.rowMove,
+          p_cantidad: qty,
+          p_motivo: row?.querySelector("[data-row-reason]")?.value.trim() || null,
+          p_costo: row?.querySelector("[data-row-cost]")?.value === "" ? null : Number(row?.querySelector("[data-row-cost]")?.value)
+        });
+        document.getElementById("management-message").textContent = error ? error.message : "Movimiento registrado.";
+        if (!error) await loadManagement();
+        return;
+      }
       if (button.dataset.releaseMesa) {
         const nombre = button.dataset.releaseName || "esta mesa";
         if (!window.confirm(`Quitar ${nombre} del piso. Solo se suelta si nadie mandó un pedido.`)) return;
@@ -1616,20 +1751,14 @@
       if (button.dataset.accountToggle) {
         const id = button.dataset.accountToggle;
         if (openAccounts.has(id)) openAccounts.delete(id); else openAccounts.add(id);
-        renderManagement({ products: latestProducts, tables: latestTables, employees: latestEmployees,
+        renderManagement(latestBundle || { products: latestProducts, tables: latestTables, employees: latestEmployees,
           attendance: latestAttendance, sales: latestSales, accounts: latestAccounts });
       } else if (button.dataset.clearForm !== undefined) {
         clearManagementForm(button.form);
       } else if (button.dataset.productEdit) {
         const product = latestProducts.find((item) => item.id === button.dataset.productEdit);
         if (!product) return;
-        const form = document.getElementById("product-form");
-        form.elements.id.value = product.id;
-        form.elements.name.value = product.nombre;
-        form.elements.category.value = product.categoria;
-        form.elements.price.value = product.precio;
-        form.elements.active.checked = product.activo;
-        if (form.elements.mix) form.elements.mix.checked = Boolean(product.permite_mezcla);
+        openProductSheet(product);
       } else if (button.dataset.tableEdit) {
         const table = latestTables.find((item) => item.id === button.dataset.tableEdit);
         if (!table) return;
@@ -1663,10 +1792,18 @@
         if (!window.confirm(`Eliminar «${product.nombre}» del menú. Si ya se vendió, solo se oculta. Si nunca se usó, se borra.`)) return;
         const { error } = await supabaseClient.rpc("admin_eliminar_producto", { p_id: product.id });
         if (error) { document.getElementById("management-message").textContent = error.message; return; }
+        if (selectedProductId === product.id) {
+          selectedProductId = null;
+          sheetOpen = false;
+        }
         document.getElementById("management-message").textContent = "Producto eliminado del menú.";
         await loadManagement();
       } else if (button.dataset.saveInsumo !== undefined) {
         const nombre = document.getElementById("insumo-name")?.value.trim();
+        if (!nombre) {
+          document.getElementById("management-message").textContent = "Escribe el nombre del insumo.";
+          return;
+        }
         const { error } = await supabaseClient.rpc("admin_guardar_insumo", {
           p_nombre: nombre,
           p_unidad: document.getElementById("insumo-unit")?.value,
@@ -1675,7 +1812,10 @@
           p_existencia: document.getElementById("insumo-stock")?.value === "" ? null : Number(document.getElementById("insumo-stock")?.value)
         });
         document.getElementById("management-message").textContent = error ? error.message : `${nombre} guardado.`;
-        if (!error) await loadManagement();
+        if (!error) {
+          document.getElementById("insumo-name").value = "";
+          await loadManagement();
+        }
       } else if (button.dataset.saveMove !== undefined) {
         const { error } = await supabaseClient.rpc("admin_movimiento_inventario", {
           p_insumo: document.getElementById("move-insumo")?.value,
@@ -1690,6 +1830,10 @@
         const producto = button.dataset.clearRecipe || document.getElementById("recipe-product")?.value;
         const insumo = button.dataset.recipeInsumo || document.getElementById("recipe-insumo")?.value;
         const cantidad = button.dataset.clearRecipe ? 0 : Number(document.getElementById("recipe-qty")?.value);
+        if (!producto || !insumo || (!button.dataset.clearRecipe && !(cantidad > 0))) {
+          document.getElementById("management-message").textContent = "Elige el insumo y cuánto lleva cada pieza.";
+          return;
+        }
         const { error } = await supabaseClient.rpc("admin_guardar_receta", {
           p_producto: producto, p_insumo: insumo, p_cantidad: cantidad
         });
@@ -1753,6 +1897,8 @@
         form.elements.pin.value = employee.pin ?? "";
         form.elements.pin.required = !employee.pin;
         form.elements.active.checked = employee.activo;
+        form.hidden = false;
+        form.scrollIntoView({ block: "nearest" });
       } else if (button.dataset.itemAdjust || button.dataset.itemDelete) {
         const accountId = button.dataset.itemAdjust || button.dataset.itemDelete;
         const itemId = button.dataset.itemId;
