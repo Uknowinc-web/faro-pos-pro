@@ -184,10 +184,18 @@
       .name-card { width: min(420px, 100%); max-height: 90dvh; overflow: auto; }
       .audit-filters { display: grid; grid-template-columns: 1fr 1fr; }
     }
-    @media (min-width: 768px) and (max-width: 1023px) {
-      main { width: min(100%, 100%); padding: 1rem 1.25rem; }
-      .management-grid { grid-template-columns: 1fr 1fr; }
-      .floor-grid { grid-template-columns: 1fr 1fr; }
+    @media (max-width: 700px) {
+      .tabs {
+        display: flex; width: 100%; max-width: 100%;
+        overflow-x: auto; flex-wrap: nowrap; justify-content: flex-start;
+        scroll-snap-type: x mandatory; scrollbar-width: none;
+      }
+      .tabs .tab {
+        flex: 0 0 auto; scroll-snap-align: start; white-space: nowrap;
+        padding: .45rem .7rem;
+      }
+      .dashboard-heading .actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }
+      .dashboard-heading .actions button { white-space: nowrap; padding: .5rem .35rem; }
     }
   </style>
 </head>
@@ -227,9 +235,9 @@
           <p id="admin-label" class="muted"></p>
         </div>
         <div class="actions">
-          <button id="rename-admin" type="button">Mi nombre</button>
+          <button id="rename-admin" type="button">Nombre</button>
           <button id="refresh" type="button">Actualizar</button>
-          <button id="sign-out" type="button">Cerrar sesión</button>
+          <button id="sign-out" type="button">Salir</button>
         </div>
       </div>
 
@@ -590,6 +598,7 @@
       document.getElementById("panel-bitacora").hidden = tab !== "bitacora";
       document.getElementById("management-bar").hidden = !managementTabs.includes(tab);
       document.getElementById("management-mode").hidden = tab === "accesos";
+      document.getElementById(`tab-${tab}`)?.scrollIntoView({ inline: "nearest", block: "nearest" });
     }
 
     async function loadStationCodes() {
@@ -839,7 +848,7 @@
           <div class="account-editor" ${isOpen ? "" : "hidden"}>${lines || `<p class="muted">Sin artículos.</p>`}
             <div class="toolbar" style="margin-top:.65rem">
               <select aria-label="Producto para agregar" data-add-product="${escapeHtml(account.id)}">${productOptions}</select>
-              <input aria-label="Cantidad" type="number" min="1" max="99" value="1" data-add-quantity="${escapeHtml(account.id)}" style="width:90px">
+              <input aria-label="Cantidad" name="cantidad" autocomplete="off" type="number" min="1" max="99" value="1" data-add-quantity="${escapeHtml(account.id)}" style="width:90px">
               <select aria-label="Carne principal" data-add-main-meat="${escapeHtml(account.id)}"><option>Asada</option><option>Pastor</option><option>Tripa</option></select>
               <select aria-label="Carne extra" data-add-extra-meat="${escapeHtml(account.id)}"><option value="">Sin extra</option><option>+ Asada</option><option>+ Pastor</option><option>+ Tripa</option></select>
               <label class="check-label"><input type="checkbox" data-add-cheese="${escapeHtml(account.id)}"> Queso</label>
@@ -850,8 +859,8 @@
             <div class="toolbar" style="margin-top:.65rem">
               <select aria-label="Aplicar descuento a" data-disc-scope="${escapeHtml(account.id)}">${discountScopes}</select>
               <select aria-label="Tipo de descuento" data-disc-type="${escapeHtml(account.id)}"><option value="porcentaje">%</option><option value="monto">$ MXN</option></select>
-              <input aria-label="Valor del descuento" type="number" min="0" step="0.01" placeholder="Descuento" data-disc-value="${escapeHtml(account.id)}" style="width:110px">
-              <input aria-label="Motivo" maxlength="200" placeholder="Motivo (opcional)" data-disc-reason="${escapeHtml(account.id)}">
+              <input aria-label="Valor del descuento" name="descuento" autocomplete="off" type="number" min="0" step="0.01" placeholder="Descuento" data-disc-value="${escapeHtml(account.id)}" style="width:110px">
+              <input aria-label="Motivo" name="motivo" autocomplete="off" maxlength="200" placeholder="Motivo (opcional)" data-disc-reason="${escapeHtml(account.id)}">
               <button class="primary" type="button" data-discount-apply="${escapeHtml(account.id)}">Aplicar descuento</button>
               <button type="button" data-discount-clear="${escapeHtml(account.id)}">Quitar descuento</button>
             </div>
@@ -1424,7 +1433,12 @@
         if (!table) return;
         if (!window.confirm(`Eliminar «${table.nombre}» y todas sus cuentas. No se puede deshacer.`)) return;
         const { error } = await supabaseClient.rpc("admin_eliminar_mesa", { p_id: table.id });
-        document.getElementById("management-message").textContent = error ? error.message : `${table.nombre} eliminada.`;
+        if (error) {
+          document.getElementById("management-message").textContent = error.message;
+          window.alert(error.message);
+          return;
+        }
+        document.getElementById("management-message").textContent = `${table.nombre} eliminada.`;
         if (!error) {
           await loadManagement();
           await loadOperacion();
