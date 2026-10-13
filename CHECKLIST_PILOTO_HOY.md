@@ -1,9 +1,12 @@
 # Checklist del piloto funcional
 
+Liga viva: https://tacos-el-faro.vercel.app/
+Panel: https://tacos-el-faro.vercel.app/admin-accesos.html
+
 ## Antes de invitar al personal
 
 - [x] Desplegar el HTML del POS y `admin-accesos.html` por HTTPS en
-  `https://faro-pos-pro.vercel.app/`.
+  `https://tacos-el-faro.vercel.app/`.
 - [x] Aplicar en Supabase las migraciones 0009 y 0010 en orden; validar tablas,
   RLS, RPC, permisos y suscripciones Realtime.
 - [x] Desplegar la versión actualizada del HTML después de las migraciones.
@@ -17,13 +20,15 @@
   registros por correo; dichos usuarios no tienen acceso al POS sin autorización.
 - [x] Crear/verificar la cuenta Auth administradora y asignarle `admin` en
   `staff_roles`.
-- [ ] Entrar en `https://faro-pos-pro.vercel.app/admin-accesos.html` y confirmar que
+- [ ] Entrar en `https://tacos-el-faro.vercel.app/admin-accesos.html` y confirmar que
   la lista de solicitudes se carga sin errores.
 - [ ] Acordar quién aprueba los equipos y cómo reconocer su nombre físico.
 - [ ] Administración consulta en su panel el código del puesto y lo comparte
   directamente con cada integrante del equipo.
 - [ ] En cada dispositivo, confirmar fecha/hora correctas, Wi-Fi estable y que
   el navegador no está en modo incógnito.
+- [ ] Confirmar que las migraciones 0012–0021 están aplicadas en Supabase
+  antes de probar el panel y el menú actual (ver [SUPABASE_ACCESO.md](./SUPABASE_ACCESO.md)).
 
 No probar con cobros reales ni elegir **Modo operación** para generar pedidos
 durante este recorrido. La banda amarilla de **Modo de prueba** debe verse
