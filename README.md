@@ -17,7 +17,7 @@ Una sola aplicación:
 | `faro-pos-pro.html` | App de mesero, cocina y caja. Habla con Supabase. |
 | `admin-accesos.html` | Panel: aprobar aparatos, catálogo, mesas, empleados, PIN, bitácora. |
 | `index.html` | Redirige a `faro-pos-pro.html`. |
-| `drizzle/migrations/` | Esquema de la base (0000 a 0021). Aplicar en orden. |
+| `drizzle/migrations/` | Esquema de la base (0000 a 0022). Aplicar en orden. |
 | `QR_PUESTOS.html` + `QR_*.svg` | Accesos imprimibles. Los tres QR abren la misma liga viva. |
 
 La fuente de verdad de precios y reglas es la tabla `catalogo_productos` en Supabase, validada por las migraciones (sobre todo 0004, 0014 y 0021). El HTML no calcula precios de forma definitiva: el servidor los verifica.
@@ -46,6 +46,7 @@ La fuente de verdad de precios y reglas es la tabla `catalogo_productos` en Supa
 - `0019` descuentos, promociones y productos más vendidos.
 - `0020` eliminar dispositivo desde Accesos.
 - `0021` torta y hamburguesa en Especiales; papa especial sin mezcla; costra de queso (+15) solo en Gaonera.
+- `0022` el aparato y el empleado son cosas distintas. Aprobar un aparato no crea empleado. El PIN abre turno en cualquier aparato del mismo puesto.
 
 Detalle de cómo aplicarlas: [SUPABASE_ACCESO.md](./SUPABASE_ACCESO.md).
 
