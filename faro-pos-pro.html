@@ -1839,7 +1839,9 @@
             .toLowerCase().includes(state.cashierSearch.trim().toLowerCase());
           const matchesFilter = state.cashierFilter === "todas" ||
             (state.cashierFilter === "con_cuenta" && Boolean(check)) ||
-            (state.cashierFilter === "por_cobrar" && check?.status === "por_cobrar");
+            (state.cashierFilter === "abiertas" && check?.status === "abierta") ||
+            (state.cashierFilter === "por_cobrar" && check?.status === "por_cobrar") ||
+            (state.cashierFilter === "disponibles" && !check);
           return matchesSearch && matchesFilter;
         });
       const selected = active.find(({ table }) => table.id === state.cashierTable);
@@ -1848,18 +1850,24 @@
       const drawer = drawerParts(cut);
       const { paid, voided, sales, cash, clip, top } = cut;
       const openCount = state.data.tables.filter((table) => activeCheck(table.id)?.status === "abierta").length;
+      const dueCount = state.data.tables.filter((table) => activeCheck(table.id)?.status === "por_cobrar").length;
+      const availableCount = state.data.tables.filter((table) => !activeCheck(table.id)).length;
       return `      <header class="page-heading"><div><p class="eyebrow">${escapeHtml(stationHeading("caja"))}</p><h2>Caja</h2>
         <p>${state.testMode ? "Modo de prueba · los cobros no afectan las ventas reales." : "Revisa la cuenta antes de registrar el pago."}</p></div></header>
         <div class="summary-strip cashier-summary" aria-label="Resumen de caja">
           <div class="summary-item"><span>Cuentas abiertas</span><strong>${openCount}</strong></div>
-          <div class="summary-item"><span>Por cobrar</span><strong>${money(dueMoney())}</strong></div>
+          <div class="summary-item emphasis"><span>Mesas por cobrar</span><strong>${dueCount}</strong></div>
+          <div class="summary-item"><span>Saldo por cobrar</span><strong>${money(dueMoney())}</strong></div>
+          <div class="summary-item"><span>Mesas disponibles</span><strong>${availableCount}</strong></div>
         </div>
         <div class="section-heading"><div><h3>Mesas y cuentas</h3><p class="section-description">${active.filter((entry) => entry.check).length} cuentas activas</p></div></div>
         <div class="toolbar no-print">
           <input type="search" id="cashier-search" placeholder="Buscar mesa o comanda" aria-label="Buscar mesa o número de comanda" value="${escapeHtml(state.cashierSearch)}">
           <button class="button ${state.cashierFilter === "todas" ? "primary" : ""}" aria-pressed="${state.cashierFilter === "todas"}" data-cashier-filter="todas">Todas</button>
           <button class="button ${state.cashierFilter === "con_cuenta" ? "primary" : ""}" aria-pressed="${state.cashierFilter === "con_cuenta"}" data-cashier-filter="con_cuenta">Con cuenta</button>
+          <button class="button ${state.cashierFilter === "abiertas" ? "primary" : ""}" aria-pressed="${state.cashierFilter === "abiertas"}" data-cashier-filter="abiertas">Abiertas</button>
           <button class="button ${state.cashierFilter === "por_cobrar" ? "primary" : ""}" aria-pressed="${state.cashierFilter === "por_cobrar"}" data-cashier-filter="por_cobrar">Por cobrar</button>
+          <button class="button ${state.cashierFilter === "disponibles" ? "primary" : ""}" aria-pressed="${state.cashierFilter === "disponibles"}" data-cashier-filter="disponibles">Disponibles</button>
           <button class="button ${state.showPaid ? "primary" : ""}" aria-pressed="${state.showPaid}" data-toggle-paid>Cobradas hoy</button>
         </div>
         <div class="layout cashier-layout"><div><div class="table-grid">${active.map(({ table, check }) => {
