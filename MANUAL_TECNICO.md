@@ -15,7 +15,7 @@ archivo de TypeScript.
 ## 2. Esquema y seguridad
 
 Las migraciones vigentes están en `drizzle/migrations`. En una base nueva,
-ejecutar **0000 a 0021 en orden**. En una base ya migrada, ejecutar solo las
+ejecutar **0000 a 0022 en orden**. En una base ya migrada, ejecutar solo las
 pendientes, en orden.
 
 Resumen:
@@ -37,6 +37,9 @@ Resumen:
 - **0020** eliminar dispositivo.
 - **0021** torta y hamburguesa en Especiales; papa especial sin mezcla; costra
   de queso (+$15) solo en Gaonera.
+- **0022** separa aparato y empleado. Aprobar un aparato no crea persona.
+  El PIN abre turno en cualquier aparato del mismo puesto. Rechazar o limpiar
+  borra usuarios anónimos huérfanos.
 
 **No uses fragmentos SQL sueltos para desplegar.** La fuente es cada archivo de
 migración. Pasos detallados en [SUPABASE_ACCESO.md](./SUPABASE_ACCESO.md).
@@ -44,10 +47,10 @@ migración. Pasos detallados en [SUPABASE_ACCESO.md](./SUPABASE_ACCESO.md).
 ## 3. Flujo de un aparato
 
 1. Abre https://tacos-el-faro.vercel.app/.
-2. Indica nombre y código de puesto.
+2. Indica el nombre del aparato (no de la persona) y el código de puesto.
 3. Supabase crea una identidad anónima sin permisos.
-4. Admin aprueba en el panel; se asigna el rol al UID.
-5. El empleado inicia turno con su PIN.
+4. Admin aprueba el aparato en el panel. Eso no crea un empleado.
+5. El empleado, dado de alta en el panel con PIN, inicia turno en cualquier aparato de su área.
 
 Los QR de [`QR_PUESTOS.html`](./QR_PUESTOS.html) solo abren la liga. No contienen
 códigos ni roles.
