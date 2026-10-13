@@ -20,7 +20,7 @@ select f.schema_name,
        f.owner_name,
        coalesce((select string_agg(c, ', ' order by c)
                  from unnest(f.proconfig) c where c like 'search_path=%'), '(search_path no fijado)') as search_path,
-       coalesce((select string_agg(distinct r.rolname || ':' || x.privilege_type, ', ' order by r.rolname || ':' || x.privilege_type)
+       coalesce((select string_agg(distinct coalesce(r.rolname, 'PUBLIC') || ':' || x.privilege_type, ', ' order by r.rolname || ':' || x.privilege_type)
                  from unnest(f.acl) a
                  cross join lateral aclexplode(array[a]) x
                  left join pg_roles r on r.oid = x.grantee
