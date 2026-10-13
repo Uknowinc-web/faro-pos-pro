@@ -10,6 +10,7 @@ alter table public.audit_acciones add constraint audit_acciones_accion_check
     'cobrar_cuenta', 'anular_cuenta',
     'entrada_empleado', 'salida_empleado',
     'editar_producto', 'editar_mesa', 'editar_comanda', 'editar_empleado',
+    'aplicar_descuento', 'quitar_descuento',
     'cambio_nombre_admin', 'baja_empleado', 'eliminar_producto'
   ));
 
