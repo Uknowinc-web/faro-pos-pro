@@ -269,7 +269,7 @@
       <form id="admin-name-form" class="name-card">
         <p class="eyebrow">Administración</p>
         <h2>¿Cómo te identificamos?</h2>
-        <p class="muted">Este nombre aparecerá en la bitácora junto a tus acciones, en lugar de tu correo. Debe ser distinto al de otros administradores.</p>
+        <p id="admin-name-quota" class="muted">Este nombre aparecerá en la bitácora. El primer nombre no gasta cambios. Después podrás cambiarlo 2 veces.</p>
         <label>Nombre<input name="nombre" maxlength="60" autocomplete="off" required></label>
         <p id="admin-name-status" class="message" role="status"></p>
         <button class="primary full" type="submit">Guardar nombre</button>
@@ -590,6 +590,7 @@
     let latestAudit = [];
     let stuckMesas = [];
     let adminName = "";
+    let adminNameChangesLeft = null;
     let latestProducts = [];
     const OPCIONES_PRODUCTO = {
       "agua-sabor": [["Sabor", ["Jamaica", "Limón", "Pepino limón", "Tamarindo", "Piña", "Mango", "Sandía"]]],
@@ -1175,12 +1176,36 @@
       document.getElementById("audit-year-field").hidden = mode !== "anio";
     }
 
+    function nameQuotaMessage(left, hasName) {
+      if (left == null) return "";
+      if (!hasName) return "El primer nombre no gasta cambios. Después podrás cambiarlo 2 veces.";
+      if (left <= 0) return "Ya usaste los 2 cambios. Este nombre queda fijo.";
+      if (left === 1) return "Te queda 1 cambio de nombre.";
+      return `Te quedan ${left} cambios de nombre.`;
+    }
+    function paintAdminName() {
+      const quota = nameQuotaMessage(adminNameChangesLeft, Boolean(adminName));
+      document.getElementById("admin-label").textContent = adminName
+        ? `Identificado en bitácora como ${adminName}${quota ? ` · ${quota}` : ""}`
+        : "Sin nombre de bitácora";
+      const note = document.getElementById("admin-name-quota");
+      if (note) {
+        note.textContent = quota || "Este nombre aparecerá en la bitácora. El primer nombre no gasta cambios. Después podrás cambiarlo 2 veces.";
+      }
+      const locked = Boolean(adminName) && adminNameChangesLeft === 0;
+      const input = document.querySelector("#admin-name-form input");
+      const submit = document.querySelector("#admin-name-form button[type=submit]");
+      if (input) input.disabled = locked;
+      if (submit) submit.disabled = locked;
+    }
+
     async function loadAdminProfile() {
       const { data, error } = await supabaseClient.rpc("perfil_admin");
       if (error) throw error;
       adminName = data || "";
-      document.getElementById("admin-label").textContent = adminName
-        ? `Identificado en bitácora como ${adminName}` : "Sin nombre de bitácora";
+      const quota = await supabaseClient.rpc("cupo_nombre_admin");
+      adminNameChangesLeft = quota.error ? null : Number(quota.data);
+      paintAdminName();
       document.getElementById("admin-name-dialog").hidden = !!adminName;
       if (!adminName) document.querySelector("#admin-name-form input").focus();
     }
@@ -1380,9 +1405,19 @@
       const status = document.getElementById("admin-name-status");
       status.textContent = "Guardando…";
       const nextName = input.value.trim();
-      if (adminName && nextName !== adminName && !window.confirm(`Cambiar tu nombre de «${adminName}» a «${nextName}». El cambio queda en la bitácora con el nombre anterior y el nuevo.`)) {
-        status.textContent = "";
+      if (adminName && adminNameChangesLeft === 0 && nextName !== adminName) {
+        status.textContent = "Ya usaste los 2 cambios. Este nombre queda fijo.";
         return;
+      }
+      if (adminName && nextName !== adminName) {
+        const after = adminNameChangesLeft == null ? null : adminNameChangesLeft - 1;
+        const leftNote = after == null ? ""
+          : after <= 0 ? " Este es tu último cambio."
+          : ` Después te quedará ${after} ${after === 1 ? "cambio" : "cambios"}.`;
+        if (!window.confirm(`Cambiar tu nombre de «${adminName}» a «${nextName}».${leftNote} El cambio queda en la bitácora con el nombre anterior y el nuevo.`)) {
+          status.textContent = "";
+          return;
+        }
       }
       const { error } = await supabaseClient.rpc("guardar_perfil_admin", { p_nombre: nextName });
       if (error) { status.textContent = error.message; return; }
@@ -1391,6 +1426,7 @@
     });
     document.getElementById("rename-admin").addEventListener("click", () => {
       document.querySelector("#admin-name-form input").value = adminName;
+      paintAdminName();
       document.getElementById("admin-name-dialog").hidden = false;
     });
     document.getElementById("audit-period").addEventListener("change", () => { syncAuditPeriod(); void loadAudit(); });
