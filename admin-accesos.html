@@ -152,8 +152,26 @@
     .chip { min-height: 34px; padding: .25rem .75rem; border-radius: 999px; background: #fff; }
     .chip[aria-pressed="true"], .chip[aria-pressed="true"]:hover { background: var(--green); color: white; border-color: var(--green); }
     .subnav button:hover { background: transparent; }
-    .person-columns h4 { margin: 0; font-size: .95rem; }
-    .person-columns section { min-width: 0; }
+    .person-columns .section-head { justify-content: flex-start; align-items: center; flex-wrap: nowrap; gap: .6rem; margin-bottom: .55rem; }
+    .person-columns .section-head h4 { margin: 0; }
+    .person-columns .section-head button { flex: 0 0 auto; min-height: 34px; padding: .25rem .7rem; }
+    #table-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: .75rem 1rem; margin-bottom: .9rem; }
+    #table-form > label { margin: 0; flex: 1 1 200px; max-width: 280px; }
+    #table-form .check-label { flex: 0 0 auto; max-width: none; min-height: 40px; margin: 0 0 .15rem; }
+    #table-form .actions, #employee-form .actions, .sheet-panel .management-form .actions { grid-column: auto; justify-content: flex-start; margin: 0; }
+    #employee-form.management-form { grid-template-columns: repeat(2, minmax(0, 260px)); justify-content: start; margin-bottom: 1rem; }
+    #employee-form .check-label, #employee-form .quiet-danger { grid-column: 1 / -1; }
+    #table-form > .danger { flex: 1 0 100%; width: auto; max-width: 220px; }
+    .quiet-danger { display: flex; justify-content: flex-start; margin: .85rem 0 0; padding-top: .75rem; border-top: 1px solid var(--line); }
+    .quiet-danger:has(button[hidden]) { display: none; }
+    .quiet-danger button { min-width: 0; }
+    .name-card .actions { display: flex; gap: .5rem; margin-top: .35rem; }
+    .name-card .actions button { flex: 1; }
+    .gate-summary { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+    .gate-details { display: flex; flex-wrap: wrap; align-items: flex-end; gap: .75rem 1rem; margin-top: .9rem; }
+    .gate-details label { margin: 0; min-width: 8.5rem; }
+    .date-field { margin: 0; display: flex; align-items: center; gap: .5rem; }
+    .date-field input { width: auto; min-height: 40px; }
     #insumo-list { overflow-x: auto; }
     .sheet tr.picked td { box-shadow: inset 3px 0 0 var(--green); }
     .sheet-panel .management-form { grid-template-columns: 1fr; }
@@ -272,7 +290,10 @@
         <p id="admin-name-quota" class="muted">Este nombre aparecerá en la bitácora. El primer nombre no gasta cambios. Después podrás cambiarlo 2 veces.</p>
         <label>Nombre<input name="nombre" maxlength="60" autocomplete="off" required></label>
         <p id="admin-name-status" class="message" role="status"></p>
-        <button class="primary full" type="submit">Guardar nombre</button>
+        <div class="actions">
+          <button id="admin-name-cancel" type="button">Cancelar</button>
+          <button class="primary" type="submit">Guardar nombre</button>
+        </div>
       </form>
     </div>
     <section id="dashboard" hidden>
@@ -336,12 +357,13 @@
 
         <section class="card section-block">
           <h3>Mesas</h3>
-          <p class="muted">Las mesas nuevas quedan al final. Eliminar borra también su historial.</p>
+          <p class="muted">Las mesas nuevas quedan al final.</p>
           <form id="table-form" class="management-form">
             <input name="id" type="hidden">
             <label>Nombre<input name="name" maxlength="80" required></label>
             <label class="check-label"><input name="active" type="checkbox" checked> Activa</label>
             <div class="actions"><button class="primary" type="submit">Guardar mesa</button><button type="button" data-clear-form>Limpiar</button></div>
+            <button class="danger" type="button" id="delete-current-table" hidden>Eliminar esta mesa</button>
           </form>
           <div id="tables-list" class="tile-grid"></div>
         </section>
@@ -403,6 +425,7 @@
                 <label class="check-label"><input name="mix" type="checkbox"> Personalizable</label>
                 <label class="check-label"><input name="active" type="checkbox" checked> Disponible</label>
                 <div class="actions"><button class="primary" type="submit">Guardar ficha</button><button type="button" data-close-sheet>Cerrar</button></div>
+                <div class="quiet-danger"><button class="danger" type="button" id="delete-current-product" hidden>Eliminar del menú</button></div>
               </form>
               <form id="promo-form" class="management-form" hidden>
                 <p class="eyebrow">Promoción</p>
@@ -463,17 +486,19 @@
 
       <section id="panel-accesos" role="tabpanel" aria-labelledby="tab-accesos" hidden>
         <div id="gate-bar" class="gate-bar">
-          <div>
+          <div class="gate-summary">
             <strong id="staff-access-status">Cargando ingreso…</strong>
-            <div class="toolbar">
-              <label class="check-label"><input id="staff-access-schedule" type="checkbox"> Usar horario</label>
-              <label>Abre<input id="staff-access-open" type="time" value="10:00"></label>
-              <label>Cierra<input id="staff-access-close" type="time" value="23:00"></label>
-              <button id="staff-access-save" type="button">Guardar horario</button>
-            </div>
-            <p class="muted">Si cierran después de medianoche, la hora de cierre puede ser menor. Ejemplo: 10:00 a 02:00. Administración entra siempre.</p>
+            <button id="staff-access-adjust" type="button" aria-expanded="false" aria-controls="staff-access-panel">Ajustar</button>
           </div>
-          <button id="staff-access-toggle" type="button">Cerrar ingreso</button>
+          <div id="staff-access-panel" hidden>
+            <div class="gate-details">
+              <label class="check-label"><input id="staff-access-schedule" type="checkbox"> Usar horario</label>
+              <label>Abre<input id="staff-access-open" type="time" value="17:00"></label>
+              <label>Cierra<input id="staff-access-close" type="time" value="00:00"></label>
+              <button id="staff-access-save" type="button">Guardar horario</button>
+              <button id="staff-access-toggle" type="button">Cerrar ingreso</button>
+            </div>
+          </div>
         </div>
 
         <div class="section-head"><h3>Personas</h3></div>
@@ -486,11 +511,12 @@
           <label>PIN (4–8 dígitos)<input name="pin" type="text" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" autocomplete="off" required></label>
           <label class="check-label"><input name="active" type="checkbox" checked> Activo</label>
           <div class="actions"><button class="primary" type="submit">Guardar persona</button><button type="button" data-close-employee>Cerrar</button></div>
+          <div class="quiet-danger"><button class="danger" type="button" id="offboard-current-employee" hidden>Dar de baja</button></div>
         </form>
         <div id="employees-list"></div>
 
         <section class="card section-block">
-          <div class="section-head"><h3>Asistencia de hoy</h3><label>Fecha<input id="attendance-date" type="date"></label></div>
+          <div class="section-head"><h3>Asistencia de hoy</h3><label class="date-field">Fecha<input id="attendance-date" type="date"></label></div>
           <div id="attendance-list" class="tile-grid"></div>
         </section>
 
@@ -889,8 +915,7 @@
           <button type="button" class="text-button" data-product-edit="${escapeHtml(product.id)}"><strong>${escapeHtml(product.nombre)}</strong></button>
           <span class="muted">${escapeHtml(money(product.precio))} · ${product.activo ? (isPromo ? "Vigente" : "Disponible") : "Pausado"}${product.permite_mezcla ? " · Personalizable" : ""}</span>
           ${product.descripcion ? `<span class="muted">${escapeHtml(product.descripcion)}</span>` : ""}
-          <div class="tile-actions"><button type="button" data-product-edit="${escapeHtml(product.id)}">Ficha</button>
-            ${isPromo ? "" : `<button class="danger" type="button" data-product-delete="${escapeHtml(product.id)}">Eliminar</button>`}</div></article>`
+          <div class="tile-actions"><button type="button" data-product-edit="${escapeHtml(product.id)}">Ficha</button></div></article>`
       ).join("") || `<p class="muted">Nada en ${escapeHtml(menuCategory)}.</p>`;
       document.getElementById("product-sheet").hidden = !sheetOpen;
       document.getElementById("product-form").hidden = isPromo;
@@ -905,8 +930,7 @@
       document.getElementById("tables-list").innerHTML = latestTables.map((table) =>
         `<article class="tile"><strong>${escapeHtml(table.nombre)}</strong>
           <span class="muted">${table.activa === false ? "Inactiva" : escapeHtml(mesaEstadoLabel(table.estado))}${table.es_prueba ? " · Prueba" : ""}</span>
-          <div class="tile-actions"><button type="button" data-table-edit="${escapeHtml(table.id)}">Editar</button>
-            <button class="danger" type="button" data-table-delete="${escapeHtml(table.id)}">Eliminar</button></div></article>`
+          <div class="tile-actions"><button type="button" data-table-edit="${escapeHtml(table.id)}">Editar</button></div></article>`
       ).join("") || `<p class="muted">No hay mesas en este modo.</p>`;
 
       const roleOrder = ["mesero", "cocina", "caja"];
@@ -916,9 +940,7 @@
         return `<section><div class="section-head"><h4>${escapeHtml(roleLabel(role))}</h4><button type="button" data-new-employee="${role}">+ Nueva</button></div><div class="tile-grid">${people.map((employee) =>
           `<article class="tile"><strong>${escapeHtml(employee.nombre)}</strong>
             <span class="muted">${employee.entrada_at ? "En turno" : employee.activo ? "Fuera de turno" : "Inactivo"}${employee.aparato ? ` · ${escapeHtml(employee.aparato)}` : ""}</span>
-            ${employee.pin ? `<details class="pin-chip"><summary>PIN</summary><strong>${escapeHtml(employee.pin)}</strong></details>` : `<span class="muted">Sin PIN</span>`}
-            <div class="tile-actions"><button type="button" data-employee-edit="${escapeHtml(employee.id)}">Editar</button>
-              ${employee.activo ? `<button class="danger" type="button" data-employee-offboard="${escapeHtml(employee.id)}">Baja</button>` : ""}</div></article>`
+            <div class="tile-actions"><button type="button" data-employee-edit="${escapeHtml(employee.id)}">Editar</button></div></article>`
         ).join("") || `<p class="muted">Nadie en esta área.</p>`}</div></section>`;
       }).join("")}</div>`;
       const extras = extraPeople.length ? `<section class="menu-group"><h4>Otros</h4><div class="tile-grid">${extraPeople.map((employee) =>
@@ -1195,8 +1217,10 @@
       const locked = Boolean(adminName) && adminNameChangesLeft === 0;
       const input = document.querySelector("#admin-name-form input");
       const submit = document.querySelector("#admin-name-form button[type=submit]");
+      const cancel = document.getElementById("admin-name-cancel");
       if (input) input.disabled = locked;
-      if (submit) submit.disabled = locked;
+      if (submit) submit.hidden = locked;
+      if (cancel) cancel.textContent = locked ? "Cerrar" : "Cancelar";
     }
 
     async function loadAdminProfile() {
@@ -1424,6 +1448,14 @@
       status.textContent = "";
       await loadAdminProfile();
     });
+    function closeAdminNameDialog() {
+      document.getElementById("admin-name-status").textContent = "";
+      document.getElementById("admin-name-dialog").hidden = true;
+    }
+    document.getElementById("admin-name-cancel").addEventListener("click", closeAdminNameDialog);
+    document.getElementById("admin-name-dialog").addEventListener("click", (event) => {
+      if (event.target.id === "admin-name-dialog") closeAdminNameDialog();
+    });
     document.getElementById("rename-admin").addEventListener("click", () => {
       document.querySelector("#admin-name-form input").value = adminName;
       paintAdminName();
@@ -1438,6 +1470,14 @@
       renderAudit(latestAudit);
     });
 
+    function formatClock(value) {
+      const [hourText, minuteText] = String(value || "").split(":");
+      const hour = Number(hourText);
+      const minute = Number(minuteText);
+      if (Number.isNaN(hour)) return value || "";
+      const suffix = hour >= 12 ? "p. m." : "a. m.";
+      return `${hour % 12 || 12}:${String(Number.isNaN(minute) ? 0 : minute).padStart(2, "0")} ${suffix}`;
+    }
     async function loadStaffGate() {
       const status = document.getElementById("staff-access-status");
       const { data, error } = await supabaseClient.rpc("ingreso_empleados_estado");
@@ -1454,7 +1494,7 @@
       toggle.classList.toggle("primary", data.abierto === false);
       document.getElementById("gate-bar")?.classList.toggle("closed", data.abierto === false);
       if (status) status.textContent = data.abierto
-        ? `Ingreso abierto${data.usa_horario ? ` · ${data.abre} a ${data.cierra}` : ""}`
+        ? `Ingreso abierto${data.usa_horario ? ` · ${formatClock(data.abre)} a ${formatClock(data.cierra)}` : ""}`
         : data.motivo;
       return data;
     }
@@ -1475,6 +1515,11 @@
       }
       await loadStaffGate();
     }
+    document.getElementById("staff-access-adjust").addEventListener("click", (event) => {
+      const panel = document.getElementById("staff-access-panel");
+      panel.hidden = !panel.hidden;
+      event.currentTarget.setAttribute("aria-expanded", String(!panel.hidden));
+    });
     document.getElementById("staff-access-toggle").addEventListener("click", () => {
       const closing = document.getElementById("staff-access-toggle").textContent.startsWith("Cerrar");
       void saveStaffGate(!closing);
@@ -1568,11 +1613,25 @@
       }
     });
 
+    function hidePunctualActions(form) {
+      if (form?.id === "table-form") {
+        const button = document.getElementById("delete-current-table");
+        button.hidden = true;
+        delete button.dataset.tableDelete;
+      }
+      if (form?.id === "product-form") document.getElementById("delete-current-product").hidden = true;
+      if (form?.id === "employee-form") {
+        const button = document.getElementById("offboard-current-employee");
+        button.hidden = true;
+        delete button.dataset.employeeOffboard;
+      }
+    }
     function clearManagementForm(form) {
       form.reset();
       form.elements.id.value = "";
       if (form.elements.active) form.elements.active.checked = true;
       if (form.id === "employee-form") form.elements.pin.required = true;
+      hidePunctualActions(form);
     }
     function slugify(value) {
       return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
@@ -1685,6 +1744,9 @@
         form.elements.price.value = product.precio;
         form.elements.active.checked = product.activo;
         if (form.elements.mix) form.elements.mix.checked = Boolean(product.permite_mezcla);
+        const remove = document.getElementById("delete-current-product");
+        remove.hidden = false;
+        remove.dataset.productDelete = product.id;
       }
       if (latestBundle) renderManagement(latestBundle);
       document.getElementById("product-sheet")?.scrollIntoView({ block: "nearest" });
@@ -1802,6 +1864,10 @@
         form.elements.id.value = table.id;
         form.elements.name.value = table.nombre;
         form.elements.active.checked = table.activa;
+        const remove = document.getElementById("delete-current-table");
+        remove.hidden = false;
+        remove.dataset.tableDelete = table.id;
+        form.scrollIntoView({ block: "nearest" });
       } else if (button.dataset.tableDelete) {
         const table = latestTables.find((item) => item.id === button.dataset.tableDelete);
         if (!table) return;
@@ -1933,6 +1999,10 @@
         form.elements.pin.value = employee.pin ?? "";
         form.elements.pin.required = !employee.pin;
         form.elements.active.checked = employee.activo;
+        const remove = document.getElementById("offboard-current-employee");
+        remove.hidden = !employee.activo;
+        if (employee.activo) remove.dataset.employeeOffboard = employee.id;
+        else delete remove.dataset.employeeOffboard;
         form.hidden = false;
         form.scrollIntoView({ block: "nearest" });
       } else if (button.dataset.itemAdjust || button.dataset.itemDelete) {
