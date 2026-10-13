@@ -104,8 +104,8 @@
       min-height: 44px; padding: .65rem .9rem; border: 1px solid var(--line); border-radius: 10px;
       background: #fff; color: #2d3931; font-weight: 650;
     }
-    .category-button { white-space: nowrap; }
-    .category-button.active { border-color: var(--green); background: var(--green-light); color: var(--green); }
+    .category-button { white-space: nowrap; border-radius: 999px; min-height: 38px; }
+    .category-button.active { border-color: var(--green); background: var(--green); color: #fff; }
     .button.primary { border-color: var(--green); background: var(--green); color: #fff; }
     .button.warning { border-color: #e5c273; background: var(--yellow); color: #594516; }
     .button.danger { border-color: #e3b3ad; background: #fff0ed; color: var(--red); }
@@ -177,11 +177,17 @@
     .station-code { min-height: 58px !important; text-align: center; font-size: 1.2rem !important; letter-spacing: .2em; }
     .field textarea { min-height: 75px; resize: vertical; }
     fieldset.field { padding: .7rem; border: 1px solid var(--line); border-radius: 11px; }
-    .choice-grid { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .5rem; }
+    .choice-grid { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .5rem; align-items: center; }
     .choice {
-      display: inline-flex; align-items: center; gap: .35rem; padding: .5rem .65rem;
-      border: 1px solid var(--line); border-radius: 9px; background: #fff;
+      position: relative; display: inline-flex; align-items: center; justify-content: center;
+      min-height: 40px; padding: .4rem .95rem; border: 1px solid #c5cdc8;
+      border-radius: 999px; background: #fff; font-weight: 650; cursor: pointer; user-select: none;
     }
+    .choice input { position: absolute; opacity: 0; pointer-events: none; }
+    .choice:has(input:checked) { background: var(--green); color: #fff; border-color: var(--green); }
+    .choice.gone { display: none; }
+    .live-price { margin: .2rem 0 0; font-size: 1.7rem; font-weight: 800; letter-spacing: -.02em; }
+    .modal-footer .button.primary { min-width: 180px; }
     .modal-footer { display: flex; justify-content: end; gap: .5rem; margin-top: 1rem; }
     .toast {
       position: fixed; z-index: 8; right: 1rem; bottom: 1rem; max-width: min(440px, calc(100vw - 2rem));
@@ -1497,7 +1503,8 @@
       document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop" data-dismiss-modal>
         <section class="modal" role="dialog" aria-modal="true" aria-labelledby="product-title">
           <div class="modal-header"><div><h2 id="product-title">${escapeHtml(product.nombre)}</h2>
-            <p class="muted">${money(product.precio)} precio base</p></div>
+            <p class="muted">${money(product.precio)} precio base</p>
+            <p class="live-price" data-live-price>${money(product.precio)}</p></div>
             <button class="small-button" type="button" data-close-modal aria-label="Cerrar">✕</button></div>
           ${hasMix ? `<fieldset class="field"><legend>Elige la carne principal</legend><div class="choice-grid">${meatOptions}</div>
             <small class="muted">Cada carne adicional suma $10. La tripa solo lleva recargo especial como carne principal.</small>
@@ -1522,6 +1529,7 @@
           const same = input.value === principal;
           if (same) input.checked = false;
           input.disabled = same;
+          input.closest(".choice")?.classList.toggle("gone", same);
         });
         const notes = [...modal.querySelectorAll("[name='quick-note']")];
         const checked = (value) => notes.some((input) => input.value === value && input.checked);
@@ -1530,7 +1538,21 @@
           if (allDone && input.value !== "Con todo" && input.value !== "Bien cocida") input.checked = false;
           input.disabled = (allDone && input.value !== "Con todo" && input.value !== "Bien cocida")
             || (input.value === "Con todo" && checked("Sin lechuga"));
+          input.closest(".choice")?.classList.toggle("gone", input.disabled);
         });
+        const price = modal.querySelector("[data-live-price]");
+        if (price) {
+          const qty = Math.max(1, Number(modal.querySelector("[name='quantity']")?.value) || 1);
+          let unit = product.precio;
+          if (product.mezcla && principal) {
+            const extras = [...modal.querySelectorAll("[name='extra-meat']:checked")].map((input) => input.value);
+            const cheese = Boolean(modal.querySelector("[name='with-cheese']:checked"));
+            unit += mixModifiers(product, principal, extras, cheese).reduce((sum, item) => sum + item.extra, 0);
+          }
+          const half = modal.querySelector("[name='option-0']:checked")?.value === "1/2 L";
+          if (half) unit = product.precio / 2;
+          price.textContent = money(unit * qty);
+        }
       };
       document.querySelector(".modal").addEventListener("change", syncChoices);
       syncChoices();
