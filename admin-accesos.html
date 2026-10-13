@@ -310,7 +310,7 @@
               <label class="check-label"><input name="mix" type="checkbox"> Personalizable (elige carne)</label>
               <label class="check-label"><input name="active" type="checkbox" checked> Disponible</label>
               <p class="muted">Bebidas y postres no aceptan personalización. Si lo marcas, el mesero elige carne como en un taco.</p>
-              <div class="actions"><button class="primary" type="submit">Guardar producto</button><button type="button" data-clear-form>Limpiar</button></div>
+              <div class="actions"><button class="primary" type="submit">Guardar producto</button><button type="button" data-clear-form>Nueva ficha</button><button class="danger" type="button" id="product-delete" hidden>Eliminar del menú</button></div>
             </form>
             <div id="products-list" class="management-list"></div>
           </section>
@@ -324,7 +324,7 @@
               <label>Precio (MXN)<input name="price" type="number" min="0" max="100000" step="0.01" required></label>
               <label>Descripción<input name="description" maxlength="300" placeholder="Qué incluye"></label>
               <label class="check-label"><input name="active" type="checkbox" checked> Vigente</label>
-              <div class="actions"><button class="primary" type="submit">Guardar promoción</button><button type="button" data-clear-form>Limpiar</button></div>
+              <div class="actions"><button class="primary" type="submit">Guardar promoción</button><button type="button" data-clear-form>Nueva ficha</button><button class="danger" type="button" id="promo-delete" hidden>Eliminar promoción</button></div>
             </form>
             <div id="promos-list" class="management-list"></div>
           </section>
@@ -1252,6 +1252,7 @@
       form.elements.id.value = "";
       if (form.elements.active) form.elements.active.checked = true;
       if (form.id === "employee-form") form.elements.pin.required = true;
+      form.querySelectorAll("button.danger").forEach((del) => { del.hidden = true; });
     }
     function slugify(value) {
       return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
@@ -1347,6 +1348,8 @@
         form.elements.price.value = product.precio;
         form.elements.active.checked = product.activo;
         if (form.elements.mix) form.elements.mix.checked = Boolean(product.permite_mezcla);
+        const del = document.getElementById("product-delete");
+        if (del) { del.hidden = false; del.dataset.id = product.id; del.dataset.name = product.nombre; }
       } else if (button.dataset.tableEdit) {
         const table = latestTables.find((item) => item.id === button.dataset.tableEdit);
         if (!table) return;
@@ -1354,6 +1357,17 @@
         form.elements.id.value = table.id;
         form.elements.name.value = table.nombre;
         form.elements.active.checked = table.activa;
+      } else if (button.id === "product-delete") {
+        const id = button.dataset.id;
+        const product = latestProducts.find((item) => item.id === id);
+        if (!product) return;
+        if (!window.confirm(`Eliminar «${product.nombre}» del menú. Si ya se vendió, solo se oculta. Si nunca se usó, se borra.`)) return;
+        const { error } = await supabaseClient.rpc("admin_eliminar_producto", { p_id: product.id });
+        if (error) { document.getElementById("management-message").textContent = error.message; return; }
+        document.getElementById("management-message").textContent = "Producto eliminado del menú.";
+        document.getElementById("product-form").reset();
+        button.hidden = true;
+        await loadManagement();
       } else if (button.dataset.productDelete) {
         const product = latestProducts.find((item) => item.id === button.dataset.productDelete);
         if (!product) return;
