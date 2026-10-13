@@ -624,6 +624,7 @@
             ticket.mesero ? ` · ${escapeHtml(ticket.mesero)}` : ""
           }</p>
           <ul>${items || "<li class='muted'>Sin artículos</li>"}</ul>
+          <div class="actions"><button class="danger" type="button" data-dismiss-ticket="${escapeHtml(ticket.comanda_id)}">Quitar de cocina</button></div>
         </article>`;
       }).join("");
     }
@@ -762,10 +763,11 @@
         </article>`
       ).join("") || `<p class="muted">Aún no hay promociones.</p>`;
 
-      document.getElementById("tables-list").innerHTML = latestTables.map((table) =>
+      document.getElementById("tables-list").innerHTML = latestTables.filter((table) => table.activa !== false).map((table) =>
         `<article class="management-row">
           <div><strong>${escapeHtml(table.nombre)}</strong><p class="muted">${escapeHtml(mesaEstadoLabel(table.estado))} · ${table.activa ? "Activa" : "Inactiva"}${table.es_prueba ? " · Prueba" : ""}</p></div>
-          <button type="button" data-table-edit="${escapeHtml(table.id)}">Editar</button>
+          <div class="row-actions"><button type="button" data-table-edit="${escapeHtml(table.id)}">Editar</button>
+            <button class="danger" type="button" data-table-delete="${escapeHtml(table.id)}">Eliminar</button></div>
         </article>`
       ).join("") || `<p class="muted">No hay mesas en este modo.</p>`;
 
@@ -1403,6 +1405,21 @@
         form.elements.id.value = table.id;
         form.elements.name.value = table.nombre;
         form.elements.active.checked = table.activa;
+      } else if (button.dataset.tableDelete) {
+        const table = latestTables.find((item) => item.id === button.dataset.tableDelete);
+        if (!table) return;
+        if (!window.confirm(`Eliminar «${table.nombre}». Si nunca se usó, se borra. Si ya tuvo cuentas, solo se oculta.`)) return;
+        const { error } = await supabaseClient.rpc("admin_eliminar_mesa", { p_id: table.id });
+        document.getElementById("management-message").textContent = error ? error.message : `${table.nombre} eliminada.`;
+        if (!error) {
+          await loadManagement();
+          await loadOperacion();
+        }
+      } else if (button.dataset.dismissTicket) {
+        if (!window.confirm("Quitar esta comanda de cocina. Si no tiene artículos, la mesa queda libre.")) return;
+        const { error } = await supabaseClient.rpc("admin_quitar_comanda", { p_comanda: button.dataset.dismissTicket });
+        opsMessage.textContent = error ? error.message : "Comanda quitada de cocina.";
+        if (!error) await loadOperacion();
       } else if (button.dataset.productDelete) {
         const product = latestProducts.find((item) => item.id === button.dataset.productDelete);
         if (!product) return;
