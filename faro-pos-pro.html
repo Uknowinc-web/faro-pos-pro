@@ -1845,7 +1845,7 @@
       const selected = active.find(({ table }) => table.id === state.cashierTable);
       const date = state.closeDate;
       const cut = cutData(date);
-      const drawer = drawerParts(cut);
+      const drawer = drawerParts(cut, date);
       const { paid, voided, sales, cash, clip, top } = cut;
       const openCount = state.data.tables.filter((table) => activeCheck(table.id)?.status === "abierta").length;
       return `      <header class="page-heading"><div><p class="eyebrow">${escapeHtml(stationHeading("caja"))}</p><h2>Caja</h2>
@@ -1942,12 +1942,13 @@
         top: [...ranking.entries()].sort((a, b) => b[1].quantity - a[1].quantity).slice(0, 10)
       };
     }
-    function drawerParts(cut) {
+    function drawerParts(cut, date = state.closeDate) {
       const book = state.cashbook || { loans: [], expenses: [] };
-      const expenses = (book.expenses || []).reduce((sum, item) => sum + Number(item.monto || 0), 0);
-      const lent = (book.loans || []).filter((item) => item.fecha === state.closeDate)
+      const expenses = (book.expenses || []).filter((item) => item.fecha === date)
         .reduce((sum, item) => sum + Number(item.monto || 0), 0);
-      const repaid = (book.loans || []).filter((item) => item.liquidado_fecha === state.closeDate)
+      const lent = (book.loans || []).filter((item) => item.fecha === date)
+        .reduce((sum, item) => sum + Number(item.monto || 0), 0);
+      const repaid = (book.loans || []).filter((item) => item.liquidado_fecha === date)
         .reduce((sum, item) => sum + Number(item.monto || 0), 0);
       const floatValue = state.cutFloat ?? 2000;
       return {
@@ -1981,24 +1982,41 @@
           <label>Fecha<input id="expense-date" type="date" value="${escapeHtml(date)}"></label>
           <button class="button primary" type="button" data-save-expense>Registrar gasto</button>
         </div>
-        ${(book.expenses || []).length ? book.expenses.map((item) => `<div class="receipt-row"><span>${escapeHtml(item.concepto)} · ${escapeHtml(item.categoria)}</span><strong>${money(item.monto)}</strong></div>`).join("") : `<p class="muted">Sin gastos en esta fecha.</p>`}
+        ${(book.expenses || []).filter((item) => item.fecha === date).length ? book.expenses.filter((item) => item.fecha === date).map((item) => `<div class="receipt-row"><span>${escapeHtml(item.concepto)} · ${escapeHtml(item.categoria)}</span><strong>${money(item.monto)}</strong></div>`).join("") : `<p class="muted">Sin gastos en esta fecha.</p>`}
       </section>`;
     }
     async function saveCutToDevice() {
-      const floatValue = Number(document.getElementById("cut-float")?.value || 0);
-      const countedRaw = document.getElementById("cut-counted")?.value;
+      const date = state.closeDate;
+      const floatRaw = document.getElementById("cut-float")?.value ?? "";
+      const countedRaw = document.getElementById("cut-counted")?.value ?? "";
+      const floatValue = Number(floatRaw);
+      const countedValue = countedRaw === "" ? null : Number(countedRaw);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date || "")) {
+        toast("Selecciona una fecha válida para el corte.", true);
+        return;
+      }
+      if (floatRaw.trim() === "" || !Number.isFinite(floatValue) || floatValue < 0) {
+        toast("El fondo inicial debe ser un monto válido igual o mayor a cero.", true);
+        return;
+      }
+      if (countedValue !== null && (!Number.isFinite(countedValue) || countedValue < 0)) {
+        toast("El efectivo contado debe ser un monto válido igual o mayor a cero.", true);
+        return;
+      }
       state.cutFloat = floatValue;
-      state.cutCounted = countedRaw === "" ? "" : Number(countedRaw);
-      if (navigator.onLine && countedRaw !== "" && countedRaw != null) {
+      state.cutCounted = countedValue === null ? "" : countedValue;
+      let serverSaved = false;
+      let serverError = "";
+      if (navigator.onLine && countedValue !== null) {
         const { error } = await supabaseClient.rpc("registrar_corte", {
-          p_fecha: state.closeDate, p_fondo: floatValue, p_contado: Number(countedRaw),
+          p_fecha: date, p_fondo: floatValue, p_contado: countedValue,
           p_notas: null, p_es_prueba: state.testMode
         });
-        if (error) toast(error.message || "No se pudo guardar el corte en el servidor.", true);
-        else toast("Corte registrado.");
+        serverSaved = !error;
+        serverError = error?.message || "";
       }
       const cut = cutData(date);
-      const drawer = drawerParts(cut);
+      const drawer = drawerParts(cut, date);
       const lines = [
         `Tacos El Faro · Corte de caja ${date}${state.testMode ? " (PRUEBA)" : ""}`,
         `Generado: ${new Date().toLocaleString("es-MX", { timeZone: "America/Monterrey" })}`,
@@ -2028,10 +2046,10 @@
         ...cut.paid.map((check) => `${check.tableName} — ${check.paymentMethod} — ${money(check.total)}${check.discountTotal ? ` (desc. ${money(check.discountTotal)})` : ""}`),
         "",
         "Préstamos",
-        ...(state.cashbook.loans || []).map((loan) => `${loan.fecha} · ${loan.empleado} · ${money(loan.monto)}${loan.liquidado_fecha ? ` · cobrado ${loan.liquidado_fecha}` : " · pendiente"}`),
+        ...(state.cashbook.loans || []).filter((loan) => loan.fecha === date || loan.liquidado_fecha === date).map((loan) => `${loan.fecha} · ${loan.empleado} · ${money(loan.monto)}${loan.liquidado_fecha ? ` · cobrado ${loan.liquidado_fecha}` : " · pendiente"}`),
         "",
         "Gastos",
-        ...(state.cashbook.expenses || []).map((item) => `${item.categoria} · ${item.concepto} · ${money(item.monto)}`)
+        ...(state.cashbook.expenses || []).filter((item) => item.fecha === date).map((item) => `${item.categoria} · ${item.concepto} · ${money(item.monto)}`)
       ].filter((line, index, all) => line !== "" || all[index - 1] !== "");
       const url = URL.createObjectURL(new Blob([lines.join("\r\n")], { type: "text/plain;charset=utf-8" }));
       const link = document.createElement("a");
@@ -2041,7 +2059,10 @@
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
-      toast("Corte guardado en el dispositivo.");
+      if (serverSaved) toast("Corte registrado en el servidor y reporte descargado.");
+      else if (countedValue === null) toast("Reporte descargado; falta el efectivo contado para registrar el corte en el servidor.", true);
+      else if (!navigator.onLine) toast("Reporte descargado en el dispositivo; sin conexión, el corte no se registró en el servidor.", true);
+      else toast(`Reporte descargado en el dispositivo; el servidor no confirmó el corte${serverError ? `: ${serverError}` : "."}`, true);
     }
     function renderReceipt(table, check, siblings = []) {
       const items = check.tickets.flatMap((ticket) => ticket.items);
