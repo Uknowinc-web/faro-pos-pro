@@ -2618,14 +2618,24 @@
       const args = {
         p_cuenta: checkId, p_metodo: method, p_monto: amount, p_propina: tip, p_es_prueba: state.testMode
       };
-      let { error } = method === "clip"
-        ? await supabaseClient.rpc("pago_cuenta", { ...args, p_referencia: fields.reference })
-        : await supabaseClient.rpc("pago_cuenta", args);
-      if (error && method === "clip" && /referencia|schema cache|function/i.test(error.message || "")) {
-        ({ error } = await supabaseClient.rpc("pago_cuenta", args));
+      let paymentResult;
+      try {
+        paymentResult = method === "clip"
+          ? await supabaseClient.rpc("pago_cuenta", { ...args, p_referencia: fields.reference })
+          : await supabaseClient.rpc("pago_cuenta", args);
+      } catch (err) {
+        // Un fallo de red puede ocurrir después de que el servidor registre el pago.
+        // Refrescar el estado y no reintentar automáticamente para evitar cobros duplicados.
+        try { await refreshRemoteData(); } catch (_) {}
+        toast("No se pudo confirmar el resultado del cobro. Revisa si el pago quedó registrado antes de volver a intentarlo.", true);
+        return;
       }
+      const { error } = paymentResult || {};
       if (error) {
-        toast(error.message || "No se pudo registrar el pago.", true);
+        // Nunca repetir un pago Clip sin su referencia: podría perderse la trazabilidad.
+        toast(method === "clip"
+          ? `No se pudo registrar el pago Clip con referencia. Verifica la configuración del servidor; no se hizo un segundo intento sin referencia. ${error.message || ""}`.trim()
+          : (error.message || "No se pudo registrar el pago."), true);
         return;
       }
       state.lastPayments[checkId] = {
